@@ -65,16 +65,31 @@ public class MetalCameraRenderer: MTKView, MTKViewDelegate {
 
         try setupRenderPipeline()
     }
-
+    
+    private struct MetalLibFunctionName {
+        static let vertexShader = "vertexShader"
+        static let fragmentShader = "fragmentShader"
+    }
+    
     /// Configures the Metal render pipeline
     private func setupRenderPipeline() throws {
-        guard let device = device, let library = device.makeDefaultLibrary() else {
-            DualCameraLogger.errors.error("❌ Failed to load Metal library")
+        guard let device = device else {
+            DualCameraLogger.errors.error("❌ No metal device found")
             throw MetalRendererError.metalLibraryLoadFailed
         }
-
-        guard let vertexFunction = library.makeFunction(name: "vertexShader"),
-              let fragmentFunction = library.makeFunction(name: "fragmentShader") else {
+        
+        let frameworkBundle = Bundle(for: MetalCameraRenderer.self)
+        
+        let library: MTLLibrary
+        do {
+            library = try device.makeDefaultLibrary(bundle: frameworkBundle)
+        } catch {
+            DualCameraLogger.errors.error("❌ Failed to load Metal library: \(error.localizedDescription)")
+            throw MetalRendererError.metalLibraryLoadFailed
+        }
+        
+        guard let vertexFunction = library.makeFunction(name: MetalLibFunctionName.vertexShader),
+              let fragmentFunction = library.makeFunction(name: MetalLibFunctionName.fragmentShader) else {
             DualCameraLogger.errors.error("❌ Metal functions not found in library")
             throw MetalRendererError.metalFunctionNotFound
         }

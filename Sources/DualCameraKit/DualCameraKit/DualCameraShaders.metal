@@ -1,11 +1,6 @@
 #include <metal_stdlib>
 using namespace metal;
 
-
-
-#include <metal_stdlib>
-using namespace metal;
-
 struct MixerParameters
 {
     float2 pipPosition;
