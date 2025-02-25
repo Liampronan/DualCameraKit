@@ -10,8 +10,8 @@ struct ContentView: View {
                 dualCameraManager: dualCameraManager,
                 initialLayout: .fullScreenWithMini(miniCamera: .front, miniCameraPosition: .bottomTrailing)
             )
+            
         }
-        .padding()
     }
 }
 

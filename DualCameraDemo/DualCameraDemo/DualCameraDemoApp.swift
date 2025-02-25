@@ -1,9 +1,3 @@
-//
-//  DualCameraDemoApp.swift
-//  DualCameraDemo
-//
-//  Created by Liam Ronan on 2/19/25.
-//
 
 import SwiftUI
 
