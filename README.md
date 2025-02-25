@@ -1,4 +1,7 @@
 # DualCameraKit
+Current Status: Alpha release working towards 1.0 
+Working: rendering dual cameras in SwiftUI with various layout options. 
+In-progress: user can record & export dual cameras feed - currently we can only view the dual camera steams. 
 
 ## Table of Contents
 - [What It Does](#what-it-does)
