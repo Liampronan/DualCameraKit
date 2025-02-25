@@ -7,7 +7,6 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		4F49077F2D6D5DE200B20B18 /* Base.xcconfig in Resources */ = {isa = PBXBuildFile; fileRef = 4F49077E2D6D5DE200B20B18 /* Base.xcconfig */; };
 		4F7E4C7F2D6D2B0A006F5609 /* DualCameraKit in Frameworks */ = {isa = PBXBuildFile; productRef = 4F7E4C7E2D6D2B0A006F5609 /* DualCameraKit */; };
 /* End PBXBuildFile section */
 
@@ -42,7 +41,6 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		4F49077E2D6D5DE200B20B18 /* Base.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Base.xcconfig; sourceTree = "<group>"; };
 		4F4D659B2D66D02C00F40490 /* DualCameraDemo.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = DualCameraDemo.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		4F4D65AB2D66D02F00F40490 /* DualCameraDemoTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = DualCameraDemoTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		4F4D65B52D66D02F00F40490 /* DualCameraDemoUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = DualCameraDemoUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -99,7 +97,6 @@
 				4F4D65AE2D66D02F00F40490 /* DualCameraDemoTests */,
 				4F4D65B82D66D02F00F40490 /* DualCameraDemoUITests */,
 				4F4D659C2D66D02C00F40490 /* Products */,
-				4F49077E2D6D5DE200B20B18 /* Base.xcconfig */,
 			);
 			sourceTree = "<group>";
 		};
@@ -238,7 +235,6 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				4F49077F2D6D5DE200B20B18 /* Base.xcconfig in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -298,7 +294,6 @@
 /* Begin XCBuildConfiguration section */
 		4F4D65BD2D66D02F00F40490 /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 4F49077E2D6D5DE200B20B18 /* Base.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
@@ -362,7 +357,6 @@
 		};
 		4F4D65BE2D66D02F00F40490 /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 4F49077E2D6D5DE200B20B18 /* Base.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;

@@ -10,15 +10,8 @@ For deeper customizability, you can access raw front/back streams via the `DualC
 
 ### Running the DemoApp - Local Code Signing Setup
 
-You can either manually set the development team in Xcode OR follow the below steps to allow for an automated workflow, which is helpful for more frequent testing, CI config, etc.  
-
-1. **Create a `LocalOverrides.xcconfig`** in the `DualCameraDemo` folder (alongside the `Base.xcconfig`).
-2. Add your personal code signing details, e.g.:
-   ```plaintext
-   DEVELOPMENT_TEAM = ABC123XYZ
-   CODE_SIGN_STYLE = Automatic
-   CODE_SIGN_IDENTITY = Apple Development
-   ```
+To get the demo app running, you'll need to set code signing to automatic and allow that to configure things.
+Since this library requires a real device, you cannot run it on a simulator. 
 
 # Basic Usage
 
