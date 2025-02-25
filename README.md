@@ -35,7 +35,7 @@ Since `DualCameraKit` is published using Swift Package Manager, you can install 
 ## In Xcode:
 
 1. Go to **File > Add Packages...**
-2. In the search bar, paste the repository URL where the DualCameraKit package is hosted
+2. In the search bar, paste this repository URL (https://github.com/Liampronan/DualCameraKit). 
 3. Select the version rule (e.g., "Up to Next Major" is recommended for most cases)
 4. Click **Add Package**
 5. Select the `DualCameraKit` library product
@@ -57,10 +57,12 @@ targets: [
 ]
 ```
 
-## Requirements:
+## OS/Requirements:
 
-- iOS 18 or later (as specified in the package file with `.iOS(.v18)`)
-- Xcode version that supports iOS 18 development
+- Add camera permissions to your app's `Info.plist` - `Privacy - Privacy - Camera Usage Description` 
+<img src="https://github.com/user-attachments/assets/1ef0ae3e-683c-444c-9276-4684efb08e5c" width=550 />
+
+- Live, nonsimulator device, iOS 18. 
 
 After installation, you can import the library in your Swift files:
 
