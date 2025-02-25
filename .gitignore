@@ -40,9 +40,10 @@ Carthage/Checkouts/
 # Ignore playground data
 playground.xcworkspace
 
-# Ignore any secret files (if needed)
+# Ignore any secret files 
 .env
 secrets.json
+LocalOverrides.xcconfig
 
 # Ignore generated documentation artifacts
 Documentation.doccarchive

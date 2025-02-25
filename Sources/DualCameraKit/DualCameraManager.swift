@@ -36,7 +36,6 @@ public class DualCameraManager: NSObject {
     /// instances at a time.
     @MainActor private static var activeInstance: DualCameraManager?
 
-
     override public init() {
         super.init()
         
