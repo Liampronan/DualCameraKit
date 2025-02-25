@@ -6,12 +6,59 @@ For simple, drop-in functionality, you can use `DualCameraScreen`, a SwiftUI Vie
 
 For deeper customizability, you can access raw front/back streams via the `DualCameraManager`,
 
-# Installation
+# Installing DualCameraKit
 
-### Running the DemoApp - Local Code Signing Setup
+Since `DualCameraKit` is published using Swift Package Manager, you can install it by following these steps:
 
-To get the demo app running, you'll need to set code signing to automatic and allow that to configure things.
-Since this library requires a real device, you cannot run it on a simulator. 
+## In Xcode:
+
+1. Go to **File > Add Packages...**
+2. In the search bar, paste the repository URL where the DualCameraKit package is hosted
+3. Select the version rule (e.g., "Up to Next Major" is recommended for most cases)
+4. Click **Add Package**
+5. Select the `DualCameraKit` library product
+6. Click **Add Package** to complete the installation
+
+## In Package.swift:
+
+If you're developing a Swift package that depends on `DualCameraKit`, add it to your package dependencies:
+
+```swift
+dependencies: [
+    .package(url: "https://url-to-dualcamerakit-repo.git", from: $VERSION_STRING_HERE$)
+],
+targets: [
+    .target(
+        name: "YourTarget",
+        dependencies: ["DualCameraKit"]
+    )
+]
+```
+
+## Requirements:
+
+- iOS 18 or later (as specified in the package file with `.iOS(.v18)`)
+- Xcode version that supports iOS 18 development
+
+After installation, you can import the library in your Swift files:
+
+```swift
+import DualCameraKit
+```
+
+Now you can use `DualCameraScreen` for quick implementation or `DualCameraManager` for more customized camera control as mentioned in the README.
+
+# Running the DemoApp - Local Code Signing Setup
+To get the demo app running, you'll need to: 
+1. set code signing to automatic,
+2. select your development team - this dropdown appears after setting code signing to automatic 
+
+Since this library currently requires a real device, you cannot run it on a simulator. 
+<img src="https://github.com/user-attachments/assets/501070af-1466-4149-b1f1-5976fb84f37d" width="70%" /> 
+
+
+
+
 
 # Basic Usage
 
@@ -32,4 +79,12 @@ Since this library requires a real device, you cannot run it on a simulator.
 - This library works on-device only! Simulator (including previews) doesn't have access to camera.
   - There's a TODO for simulator support via mocking
 
+# References
+
+This project was adapted from Apple's code in [`AVMultiCamPiP: Capturing from Multiple Cameras`](https://developer.apple.com/documentation/avfoundation/avmulticampip-capturing-from-multiple-cameras). Some significant updates here: this library ported the functionality to SwiftUI, including using a dual-stream approach vs. Apple's approach of mixing together both streams into a single CVPixelBuffer containing both camera sources.  
+
 # License
+This project is available under the [MIT License](LICENSE.md).
+
+
+
