@@ -1,3 +1,20 @@
+# DualCameraKit
+
+## Table of Contents
+- [What It Does](#what-it-does)
+- [Installing DualCameraKit](#installing-dualcamerakit)
+  - [In Xcode](#in-xcode)
+  - [In Package.swift](#in-packageswift)
+  - [Requirements](#requirements)
+- [Running the DemoApp - Local Code Signing Setup](#running-the-demoapp---local-code-signing-setup)
+- [Basic Usage](#basic-usage)
+- [Customization (Raw Streams, DI, usage with UIKit, etc.)](#customization-raw-streams-di-usage-with-uikit-etc)
+- [Troubleshooting](#troubleshooting)
+- [Deep Dives](#deep-dives)
+- [Limitations](#limitations)
+- [References](#references)
+- [License](#license)
+
 # What It Does
 
 `DualCameraKit` is an iOS library that makes simultaneous front & back camera capture simple and allows for deeper customization if you're looking beyond simplicity.
