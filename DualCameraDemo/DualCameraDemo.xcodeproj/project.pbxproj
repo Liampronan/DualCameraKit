@@ -7,8 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		4F4D65E72D66D0A900F40490 /* DualCameraKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4F4D65E62D66D0A900F40490 /* DualCameraKit.framework */; };
-		4F4D65E82D66D0A900F40490 /* DualCameraKit.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 4F4D65E62D66D0A900F40490 /* DualCameraKit.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		4F7E4C7F2D6D2B0A006F5609 /* DualCameraKit in Frameworks */ = {isa = PBXBuildFile; productRef = 4F7E4C7E2D6D2B0A006F5609 /* DualCameraKit */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -35,7 +34,6 @@
 			dstPath = "";
 			dstSubfolderSpec = 10;
 			files = (
-				4F4D65E82D66D0A900F40490 /* DualCameraKit.framework in Embed Frameworks */,
 			);
 			name = "Embed Frameworks";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -46,7 +44,6 @@
 		4F4D659B2D66D02C00F40490 /* DualCameraDemo.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = DualCameraDemo.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		4F4D65AB2D66D02F00F40490 /* DualCameraDemoTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = DualCameraDemoTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		4F4D65B52D66D02F00F40490 /* DualCameraDemoUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = DualCameraDemoUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		4F4D65E62D66D0A900F40490 /* DualCameraKit.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; path = DualCameraKit.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -72,7 +69,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				4F4D65E72D66D0A900F40490 /* DualCameraKit.framework in Frameworks */,
+				4F7E4C7F2D6D2B0A006F5609 /* DualCameraKit in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -99,7 +96,6 @@
 				4F4D659D2D66D02C00F40490 /* DualCameraDemo */,
 				4F4D65AE2D66D02F00F40490 /* DualCameraDemoTests */,
 				4F4D65B82D66D02F00F40490 /* DualCameraDemoUITests */,
-				4F4D65E52D66D0A900F40490 /* Frameworks */,
 				4F4D659C2D66D02C00F40490 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -112,14 +108,6 @@
 				4F4D65B52D66D02F00F40490 /* DualCameraDemoUITests.xctest */,
 			);
 			name = Products;
-			sourceTree = "<group>";
-		};
-		4F4D65E52D66D0A900F40490 /* Frameworks */ = {
-			isa = PBXGroup;
-			children = (
-				4F4D65E62D66D0A900F40490 /* DualCameraKit.framework */,
-			);
-			name = Frameworks;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -143,6 +131,7 @@
 			);
 			name = DualCameraDemo;
 			packageProductDependencies = (
+				4F7E4C7E2D6D2B0A006F5609 /* DualCameraKit */,
 			);
 			productName = DualCameraDemo;
 			productReference = 4F4D659B2D66D02C00F40490 /* DualCameraDemo.app */;
@@ -226,6 +215,9 @@
 			);
 			mainGroup = 4F4D65922D66D02C00F40490;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				4F7E4C7D2D6D2B0A006F5609 /* XCLocalSwiftPackageReference "../../DualCameraKit" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 4F4D659C2D66D02C00F40490 /* Products */;
 			projectDirPath = "";
@@ -599,6 +591,20 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		4F7E4C7D2D6D2B0A006F5609 /* XCLocalSwiftPackageReference "../../DualCameraKit" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = ../../DualCameraKit;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		4F7E4C7E2D6D2B0A006F5609 /* DualCameraKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = DualCameraKit;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 4F4D65932D66D02C00F40490 /* Project object */;
 }

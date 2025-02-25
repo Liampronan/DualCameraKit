@@ -11,14 +11,14 @@ public enum DualCameraRenderingMode {
 /// A SwiftUI-compatible view that renders output from a single pixel buffer (in this case camera).
 /// Supports Metal & UIImageView rendering modes.
 public struct SingleCameraStreamView {
-    public let pixelBufferStream: AsyncStream<CVPixelBuffer>
+    public let pixelBufferWrapperStream: AsyncStream<PixelBufferWrapper>
     public let renderingMode: DualCameraRenderingMode
     
     public init(
-        pixelBufferStream: AsyncStream<CVPixelBuffer>,
+        pixelBufferWrapperStream: AsyncStream<PixelBufferWrapper>,
         renderingMode: DualCameraRenderingMode = .metal
     ) {
-        self.pixelBufferStream = pixelBufferStream
+        self.pixelBufferWrapperStream = pixelBufferWrapperStream
         self.renderingMode = renderingMode
     }
 }
@@ -38,17 +38,17 @@ extension SingleCameraStreamView: UIViewRepresentable {
         case .metal:
             if let metalView = uiView as? MetalCameraRenderer {
                 Task {
-                    for await buffer in pixelBufferStream {
-                        metalView.update(with: buffer)
+                    for await wrapper in pixelBufferWrapperStream {
+                        metalView.update(with: wrapper.buffer)
                     }
                 }
             }
         case .uiImageView:
             if let imageView = uiView as? UIImageView {
                 Task {
-                    for await buffer in pixelBufferStream {
+                    for await wrapper in pixelBufferWrapperStream {
                         DispatchQueue.main.async {
-                            imageView.image = UIImage(ciImage: CIImage(cvPixelBuffer: buffer))
+                            imageView.image = UIImage(ciImage: CIImage(cvPixelBuffer: wrapper.buffer))
                         }
                     }
                 }

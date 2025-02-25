@@ -7,8 +7,6 @@ struct MixerParameters
     float2 pipSize;
 };
 
-constant sampler kBilinearSampler(filter::linear,  coord::pixel, address::clamp_to_edge);
-
 struct VertexOut {
     float4 position [[position]];
     float2 texCoord;

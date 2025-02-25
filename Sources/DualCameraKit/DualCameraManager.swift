@@ -17,8 +17,10 @@ struct DualCameraConstants {
 /// video streams from the front and back cameras simultaneously.
 /// It ensures only one active session is running at a time.
 public class DualCameraManager: NSObject {
-    public var frontCameraStream: AsyncStream<CVPixelBuffer>!
-    public var backCameraStream: AsyncStream<CVPixelBuffer>!
+    public var frontCameraStream: AsyncStream<PixelBufferWrapper>!
+    public var backCameraStream: AsyncStream<PixelBufferWrapper>!
+    private var frontCameraContinuation: AsyncStream<PixelBufferWrapper>.Continuation?
+    private var backCameraContinuation: AsyncStream<PixelBufferWrapper>.Continuation?
     
     private let session = AVCaptureMultiCamSession()
     private let sessionQueue = DualCameraConstants.sessionQueue
@@ -29,11 +31,10 @@ public class DualCameraManager: NSObject {
     private var frontCameraOutput: AVCaptureVideoDataOutput?
     private var backCameraOutput: AVCaptureVideoDataOutput?
 
-    private var frontCameraContinuation: AsyncStream<CVPixelBuffer>.Continuation?
-    private var backCameraContinuation: AsyncStream<CVPixelBuffer>.Continuation?
+    
     /// Because we are interating with the camera, we only can manage one of these
     /// instances at a time.
-    private static var activeInstance: DualCameraManager?
+    @MainActor private static var activeInstance: DualCameraManager?
 
 
     override public init() {
@@ -48,8 +49,9 @@ public class DualCameraManager: NSObject {
         }
     }
     
+    @MainActor
     public func startSession() async throws {
-        // prevent multiple active instances
+        // Check if another instance is active (on the main actor)
         if let activeInstance = Self.activeInstance, activeInstance !== self {
             throw DualCameraError.multipleInstancesNotSupported
         }
@@ -62,19 +64,17 @@ public class DualCameraManager: NSObject {
             throw DualCameraError.permissionDenied
         }
         
-        await MainActor.run {
-            if self.session.isRunning { return }
-            
-            self.session.beginConfiguration()
-            do {
-                try self.configureCameras()
-            } catch {
-                self.session.commitConfiguration()
-                return
-            }
+        if self.session.isRunning { return }
+        
+        self.session.beginConfiguration()
+        do {
+            try self.configureCameras()
+        } catch {
             self.session.commitConfiguration()
-            self.session.startRunning()
+            return
         }
+        self.session.commitConfiguration()
+        self.session.startRunning()
         
         // Mark this instance as active
         Self.activeInstance = self
@@ -85,14 +85,17 @@ public class DualCameraManager: NSObject {
             if self.session.isRunning {
                 self.session.stopRunning()
                 
-                // Clear active instance if it's the same as this one
-                if Self.activeInstance === self {
-                    Self.activeInstance = nil
+                // Switch to main actor to modify static property
+                Task { @MainActor in
+                    if Self.activeInstance === self {
+                        Self.activeInstance = nil
+                    }
                 }
             }
         }
     }
-  
+    
+    @MainActor
     public func requestCameraPermission() async -> Bool {
         let status = AVCaptureDevice.authorizationStatus(for: .video)
         if status == .authorized {
@@ -143,19 +146,19 @@ extension DualCameraManager: AVCaptureVideoDataOutputSampleBufferDelegate {
         guard let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else {
             return
         }
+        
+        pixelBuffer
 
         let isFrontCamera = connection.inputPorts.contains { $0.sourceDevicePosition == .front }
 
         if connection.isVideoOrientationSupported {
             connection.videoOrientation = .portrait
         }
-
-        Task { @MainActor in
-            if isFrontCamera {
-                self.frontCameraContinuation?.yield(pixelBuffer)
-            } else {
-                self.backCameraContinuation?.yield(pixelBuffer)
-            }
+        let wrappedPixelBuffer = PixelBufferWrapper(buffer: pixelBuffer)
+        if isFrontCamera {
+            self.frontCameraContinuation?.yield(wrappedPixelBuffer)
+        } else {
+            self.backCameraContinuation?.yield(wrappedPixelBuffer)
         }
     }
     

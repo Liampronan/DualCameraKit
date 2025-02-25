@@ -78,11 +78,11 @@ public class MetalCameraRenderer: MTKView, MTKViewDelegate {
             throw MetalRendererError.metalLibraryLoadFailed
         }
         
-        let frameworkBundle = Bundle(for: MetalCameraRenderer.self)
+        let spmBundle = Bundle.module
         
         let library: MTLLibrary
         do {
-            library = try device.makeDefaultLibrary(bundle: frameworkBundle)
+            library = try device.makeDefaultLibrary(bundle: spmBundle)
         } catch {
             DualCameraLogger.errors.error("❌ Failed to load Metal library: \(error.localizedDescription)")
             throw MetalRendererError.metalLibraryLoadFailed

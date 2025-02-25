@@ -40,28 +40,28 @@ public struct DualCameraScreen: View {
         switch layout {
         case .sideBySide:
             HStack {
-                SingleCameraStreamView(pixelBufferStream: dualCameraManager.backCameraStream)
+                SingleCameraStreamView(pixelBufferWrapperStream: dualCameraManager.backCameraStream)
                     .aspectRatio(contentMode: .fit)
-                SingleCameraStreamView(pixelBufferStream: dualCameraManager.frontCameraStream)
+                SingleCameraStreamView(pixelBufferWrapperStream: dualCameraManager.backCameraStream)
                     .aspectRatio(contentMode: .fit)
             }
             .edgesIgnoringSafeArea(.all)
 
         case .stackedVertical:
             VStack {
-                SingleCameraStreamView(pixelBufferStream: dualCameraManager.backCameraStream)
+                SingleCameraStreamView(pixelBufferWrapperStream: dualCameraManager.backCameraStream)
                     .aspectRatio(contentMode: .fit)
-                SingleCameraStreamView(pixelBufferStream: dualCameraManager.frontCameraStream)
+                SingleCameraStreamView(pixelBufferWrapperStream: dualCameraManager.frontCameraStream)
                     .aspectRatio(contentMode: .fit)
             }
             .edgesIgnoringSafeArea(.all)
 
         case .fullScreenWithMini(let miniCamera, let miniCameraPosition):
             ZStack {
-                SingleCameraStreamView(pixelBufferStream: miniCamera == .front ? dualCameraManager.backCameraStream : dualCameraManager.frontCameraStream)
+                SingleCameraStreamView(pixelBufferWrapperStream: miniCamera == .front ? dualCameraManager.backCameraStream : dualCameraManager.frontCameraStream)
                     .edgesIgnoringSafeArea(.all)
 
-                SingleCameraStreamView(pixelBufferStream: miniCamera == .front ? dualCameraManager.frontCameraStream : dualCameraManager.backCameraStream)
+                SingleCameraStreamView(pixelBufferWrapperStream: miniCamera == .front ? dualCameraManager.frontCameraStream : dualCameraManager.backCameraStream)
                     .frame(width: frontCameraSize.width, height: frontCameraSize.height)
                     .cornerRadius(cornerRadius)
                     .positioned(in: miniCameraPosition, size: frontCameraSize, padding: padding)
