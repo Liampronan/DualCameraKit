@@ -1,5 +1,5 @@
 # DualCameraKit
-Current Status: Alpha release working towards 1.0.
+Current Status: Alpha release working towards 1.0. Pre-release available: [v0.1.0-alpha](https://github.com/Liampronan/DualCameraKit/releases/tag/v0.1.0-alpha).
 
 Working: rendering dual cameras in SwiftUI with various layout options. 
 
