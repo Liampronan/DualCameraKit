@@ -1,6 +1,20 @@
 import AVFoundation
 
 public enum DualCameraError: Error {
+    public enum captureFailureError: Error {
+        case noTextureAvailable
+        case imageCreationFailed
+        case noPrimaryRenderer
+        
+        public var localizedDescription: String {
+            return switch self {
+            case .noTextureAvailable: "No Metal texture available."
+            case .imageCreationFailed: "Image creation failed."
+            case .noPrimaryRenderer: "No primary renderer set."
+            }
+        }
+    }
+    case captureFailure(captureFailureError)
     case multiCamNotSupported
     case multipleInstancesNotSupported
     case cameraUnavailable(position: AVCaptureDevice.Position)
@@ -12,6 +26,8 @@ public enum DualCameraError: Error {
     /// Provides human-readable descriptions for debugging
     public var localizedDescription: String {
         switch self {
+        case .captureFailure(let captureFailureError):
+            return captureFailureError.localizedDescription
         case .multiCamNotSupported:
             return "Multi-camera capture is not supported on this device."
         case .multipleInstancesNotSupported:

@@ -5,6 +5,7 @@ import SwiftUI
 /// Prefer `metal` unless you have a good reason for CPU rendering – metal is more performant.
 public enum DualCameraRenderingMode {
     case metal
+    // TODO: consider removing uiImageView for now - cuts down on complexity
     case uiImageView
 }
 
@@ -32,7 +33,7 @@ extension SingleCameraStreamView: UIViewRepresentable {
             return UIImageView()
         }
     }
-
+    
     public func updateUIView(_ uiView: UIView, context: Context) {
         switch renderingMode {
         case .metal:
@@ -56,3 +57,4 @@ extension SingleCameraStreamView: UIViewRepresentable {
         }
     }
 }
+

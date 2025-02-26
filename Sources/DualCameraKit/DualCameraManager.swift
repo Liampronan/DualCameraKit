@@ -1,10 +1,12 @@
 import AVFoundation
+import UIKit
 
 public protocol DualCameraManagerProtocol {
     var frontCameraStream: AsyncStream<CVPixelBuffer> { get }
     var backCameraStream: AsyncStream<CVPixelBuffer> { get }
     func startSession() async throws
     func stopSession()
+    func capturePhoto() async throws -> UIImage
 }
 
 struct DualCameraConstants {
@@ -13,8 +15,8 @@ struct DualCameraConstants {
     static let sessionQueue = DispatchQueue(label: "DualCameraKit.session.queue")
 }
 
-/// `DualCameraManager` provides a unified interface for capturing
-/// video streams from the front and back cameras simultaneously.
+/// `DualCameraManager` manages the simultaneous capture of front and back camera
+/// video streams .
 /// It ensures only one active session is running at a time.
 public class DualCameraManager: NSObject {
     public var frontCameraStream: AsyncStream<PixelBufferWrapper>!
@@ -30,7 +32,6 @@ public class DualCameraManager: NSObject {
     
     private var frontCameraOutput: AVCaptureVideoDataOutput?
     private var backCameraOutput: AVCaptureVideoDataOutput?
-
     
     /// Because we are interating with the camera, we only can manage one of these
     /// instances at a time.
@@ -94,6 +95,10 @@ public class DualCameraManager: NSObject {
         }
     }
     
+    public func capturePhoto() async throws -> UIImage {
+        return UIImage()
+    }
+    
     @MainActor
     public func requestCameraPermission() async -> Bool {
         let status = AVCaptureDevice.authorizationStatus(for: .video)
@@ -145,8 +150,6 @@ extension DualCameraManager: AVCaptureVideoDataOutputSampleBufferDelegate {
         guard let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else {
             return
         }
-        
-        pixelBuffer
 
         let isFrontCamera = connection.inputPorts.contains { $0.sourceDevicePosition == .front }
 
