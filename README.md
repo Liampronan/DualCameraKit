@@ -22,7 +22,7 @@ In-progress: user can record & export dual cameras feed - currently we can only 
 
 # What It Does
 
-`DualCameraKit` is an iOS library that makes simultaneous front & back camera capture simple – as seen in apps like FaceTime, Snapchat, and BeReal.
+`DualCameraKit` is an iOS library that makes simultaneous front & back camera capture simple – as seen in apps like Snapchat and BeReal.
 
 For simple, drop-in functionality, you can use `DualCameraScreen`, a SwiftUI View that's setup with some options for different dual-camera layouts.
 
