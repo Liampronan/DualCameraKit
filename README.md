@@ -1,5 +1,5 @@
 # DualCameraKit
-Current Status: Alpha release working towards 1.0 
+Current Status: Alpha release working towards 1.0.
 
 Working: rendering dual cameras in SwiftUI with various layout options. 
 
@@ -10,7 +10,7 @@ In-progress: user can record & export dual cameras feed - currently we can only 
 - [Installing DualCameraKit](#installing-dualcamerakit)
   - [In Xcode](#in-xcode)
   - [In Package.swift](#in-packageswift)
-  - [Requirements](#requirements)
+  - [Requirements](#osrequirements)
 - [Running the DemoApp - Local Code Signing Setup](#running-the-demoapp---local-code-signing-setup)
 - [Basic Usage](#basic-usage)
 - [Customization (Raw Streams, DI, usage with UIKit, etc.)](#customization-raw-streams-di-usage-with-uikit-etc)
@@ -22,11 +22,32 @@ In-progress: user can record & export dual cameras feed - currently we can only 
 
 # What It Does
 
-`DualCameraKit` is an iOS library that makes simultaneous front & back camera capture simple and allows for deeper customization if you're looking beyond simplicity.
+`DualCameraKit` is an iOS library that makes simultaneous front & back camera capture simple – as seen in apps like FaceTime, Snapchat, and BeReal.
 
 For simple, drop-in functionality, you can use `DualCameraScreen`, a SwiftUI View that's setup with some options for different dual-camera layouts.
 
 For deeper customizability, you can access raw front/back streams via the `DualCameraManager`,
+
+# Example Screenshot
+
+<img src="https://github.com/user-attachments/assets/af7af703-8033-4c07-b00c-261336ca8648" width=300 />
+
+The above screenshot is rendered from the code below. It's the simple, drop-in style and is using one of the pre-configured layouts, `.fullScreenWithMini`. 
+
+```swift
+struct ContentView: View {
+    private let dualCameraManager = DualCameraManager()
+    
+    var body: some View {
+        DualCameraScreen(
+            dualCameraManager: dualCameraManager,
+            initialLayout: .fullScreenWithMini(miniCamera: .front, miniCameraPosition: .bottomTrailing)
+        )
+    }
+}
+```
+
+
 
 # Installing DualCameraKit
 
@@ -35,7 +56,7 @@ Since `DualCameraKit` is published using Swift Package Manager, you can install 
 ## In Xcode:
 
 1. Go to **File > Add Packages...**
-2. In the search bar, paste this repository URL (https://github.com/Liampronan/DualCameraKit). 
+2. In the search bar, paste this [repository URL](https://github.com/Liampronan/DualCameraKit). 
 3. Select the version rule (e.g., "Up to Next Major" is recommended for most cases)
 4. Click **Add Package**
 5. Select the `DualCameraKit` library product
@@ -79,9 +100,6 @@ To get the demo app running, you'll need to:
 
 Since this library currently requires a real device, you cannot run it on a simulator. 
 <img src="https://github.com/user-attachments/assets/501070af-1466-4149-b1f1-5976fb84f37d" width="70%" /> 
-
-
-
 
 
 # Basic Usage
