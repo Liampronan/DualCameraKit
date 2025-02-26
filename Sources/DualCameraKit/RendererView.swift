@@ -1,11 +1,9 @@
-import UIKit
-
+import SwiftUI
 
 public struct RendererView: UIViewRepresentable {
     private let renderer: CameraRenderer
     
     /// Create renderer view
-    /// - Parameter renderer: Camera renderer to use
     public init(renderer: CameraRenderer) {
         self.renderer = renderer
     }

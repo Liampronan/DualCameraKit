@@ -11,6 +11,27 @@ public protocol CameraRenderer: AnyObject {
     func captureFrame() async throws -> UIImage
 }
 
+private class FrameStore {
+    nonisolated(unsafe) static let shared = FrameStore()
+    private let queue = DispatchQueue(label: "com.app.framestore")
+    private var buffers: [Int: CVPixelBuffer] = [:]
+    
+    func store(_ buffer: CVPixelBuffer) -> Int {
+        let ptr = unsafeBitCast(buffer, to: Int.self)
+        queue.sync { buffers[ptr] = buffer }
+        return ptr
+    }
+    
+    func retrieve(_ ptr: Int) -> CVPixelBuffer? {
+        queue.sync { buffers[ptr] }
+    }
+    
+    func release(_ ptr: Int) {
+        queue.sync { buffers.removeValue(forKey: ptr) }
+    }
+}
+
+
 /// Metal-accelerated camera renderer
 public final class MetalCameraRenderer: MTKView, MTKViewDelegate, CameraRenderer {
     // Metal state
@@ -19,6 +40,7 @@ public final class MetalCameraRenderer: MTKView, MTKViewDelegate, CameraRenderer
     private var renderPipelineState: MTLRenderPipelineState?
     private var currentTexture: MTLTexture?
     private let renderActor = RenderActor()
+
     
     public required init(coder: NSCoder) {
         super.init(coder: coder)
@@ -33,17 +55,91 @@ public final class MetalCameraRenderer: MTKView, MTKViewDelegate, CameraRenderer
     }
     
     /// Update with new camera frame
+    // PATTERN: Direct-to-Main with atomic state transfer
+    // Remove all protocol complexity - simplify to basics
     public nonisolated func update(with buffer: CVPixelBuffer) {
-        // Wrap non-sendable buffer
-        let wrapper = PixelBufferWrapper(buffer: buffer)
-        Task {
-            // Extract texture info on background actor
-            if let textureInfo = await renderActor.extractTextureInfo(wrapper) {
-                await MainActor.run { [weak self] in
-                    self?.recreateTexture(from: textureInfo)
-                }
-            }
+        let ptr = FrameStore.shared.store(buffer)
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self,
+                  let buffer = FrameStore.shared.retrieve(ptr) else { return }
+            
+            // Create texture on main thread using retrieved buffer
+            self.createAndUpdateTexture(from: buffer)
+            FrameStore.shared.release(ptr)
         }
+    }
+    
+    @MainActor
+    private func createAndUpdateTexture(from buffer: CVPixelBuffer) {
+        guard let textureCache = self.textureCache else {
+            print("⚠️ No texture cache available")
+            return
+        }
+        
+        let width = CVPixelBufferGetWidth(buffer)
+        let height = CVPixelBufferGetHeight(buffer)
+        
+        // Create CVMetalTexture
+        var textureRef: CVMetalTexture?
+        let status = CVMetalTextureCacheCreateTextureFromImage(
+            kCFAllocatorDefault,
+            textureCache,
+            buffer,
+            nil,
+            .bgra8Unorm,
+            width,
+            height,
+            0,
+            &textureRef
+        )
+        
+        // Extract MTLTexture
+        guard status == kCVReturnSuccess,
+              let textureRef = textureRef,
+              let metalTexture = CVMetalTextureGetTexture(textureRef) else {
+            print("❌ Failed to create texture: \(status)")
+            return
+        }
+        
+        // Update renderer state
+        self.currentTexture = metalTexture
+        self.setNeedsDisplay()
+    }
+
+    // Keep all texture work on main thread
+    @MainActor private func processFrameOnMainThread(
+        _ buffer: CVPixelBuffer,
+        width: Int,
+        height: Int,
+        time: CFAbsoluteTime
+    ) {
+        // Create texture directly on MT - solves ALL data race issues
+        guard let textureCache = self.textureCache else { return }
+        
+        var textureRef: CVMetalTexture?
+        CVMetalTextureCacheCreateTextureFromImage(
+            kCFAllocatorDefault, textureCache, buffer, nil, .bgra8Unorm,
+            width, height, 0, &textureRef
+        )
+        
+        if let texture = textureRef.flatMap(CVMetalTextureGetTexture) {
+            self.currentTexture = texture
+            self.setNeedsDisplay()
+        }
+    }
+
+    // Helper stays on main thread - no isolation issues
+    private func createTextureFromBuffer(_ buffer: CVPixelBuffer) -> MTLTexture? {
+        guard let cache = textureCache else { return nil }
+        
+        var textureRef: CVMetalTexture?
+        let status = CVMetalTextureCacheCreateTextureFromImage(
+            kCFAllocatorDefault, cache, buffer, nil, .bgra8Unorm,
+            CVPixelBufferGetWidth(buffer), CVPixelBufferGetHeight(buffer),
+            0, &textureRef
+        )
+        
+        return status == kCVReturnSuccess ? CVMetalTextureGetTexture(textureRef!) : nil
     }
         
         // Recreates texture from raw data
@@ -73,48 +169,41 @@ public final class MetalCameraRenderer: MTKView, MTKViewDelegate, CameraRenderer
         }
     
     /// Capture current frame
+    @MainActor
     public func captureFrame() async throws -> UIImage {
-        return try await withCheckedThrowingContinuation { continuation in
-            DispatchQueue.main.async { [weak self] in
-                guard let self = self,
-                      let drawable = self.currentDrawable else {
-                    continuation.resume(throwing: DualCameraError.captureFailure(.noTextureAvailable))
-                    return
-                }
-                let texture = drawable.texture
-                // Create texture capture
-                let width = texture.width
-                let height = texture.height
-                let bytesPerRow = width * 4
-                let bytesPerImage = bytesPerRow * height
-                let buffer = UnsafeMutableRawPointer.allocate(byteCount: bytesPerImage, alignment: 8)
-                defer { buffer.deallocate() }
-                
-                // Copy texture data
-                texture.getBytes(buffer,
-                               bytesPerRow: bytesPerRow,
-                               from: MTLRegionMake2D(0, 0, width, height),
-                               mipmapLevel: 0)
-                
-                // Create CGImage
-                let context = CGContext(
-                    data: buffer,
-                    width: width,
-                    height: height,
-                    bitsPerComponent: 8,
-                    bytesPerRow: bytesPerRow,
-                    space: CGColorSpaceCreateDeviceRGB(),
-                    bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
-                )
-                
-                if let cgImage = context?.makeImage() {
-                    let image = UIImage(cgImage: cgImage)
-                    continuation.resume(returning: image)
-                } else {
-                    continuation.resume(throwing: DualCameraError.captureFailure(.imageCreationFailed))
-                }
-            }
+        // Can be implemented directly without continuation
+        guard let drawable = currentDrawable else {
+            throw DualCameraError.captureFailure(.noTextureAvailable)
         }
+        
+        let texture = drawable.texture
+        let width = texture.width
+        let height = texture.height
+        let bytesPerRow = width * 4
+        let bytesPerImage = bytesPerRow * height
+        
+        let buffer = UnsafeMutableRawPointer.allocate(byteCount: bytesPerImage, alignment: 8)
+        defer { buffer.deallocate() }
+        
+        // Copy texture data
+        texture.getBytes(buffer,
+                       bytesPerRow: bytesPerRow,
+                       from: MTLRegionMake2D(0, 0, width, height),
+                       mipmapLevel: 0)
+        
+        guard let context = CGContext(
+            data: buffer,
+            width: width,
+            height: height,
+            bitsPerComponent: 8,
+            bytesPerRow: bytesPerRow,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ), let cgImage = context.makeImage() else {
+            throw DualCameraError.captureFailure(.imageCreationFailed)
+        }
+        
+        return UIImage(cgImage: cgImage)
     }
     
     /// Required MTKViewDelegate implementation
@@ -124,7 +213,40 @@ public final class MetalCameraRenderer: MTKView, MTKViewDelegate, CameraRenderer
     
     /// Render frame to Metal view
     public func draw(in view: MTKView) {
-        // Existing Metal drawing implementation
+        guard let drawable = currentDrawable,
+              let commandBuffer = commandQueue?.makeCommandBuffer(),
+              let renderPassDescriptor = currentRenderPassDescriptor,
+              let pipelineState = renderPipelineState,
+              let commandEncoder = commandBuffer.makeRenderCommandEncoder(descriptor: renderPassDescriptor) else {
+            return
+        }
+
+        commandEncoder.setRenderPipelineState(pipelineState)
+
+        if let texture = currentTexture {
+            let scale = calculateAspectFitScale(for: texture, in: view.drawableSize)
+            var uniforms = Uniforms(scale: scale)
+
+            commandEncoder.setVertexBytes(&uniforms,
+                                          length: MemoryLayout<Uniforms>.size,
+                                          index: 0)
+            commandEncoder.setFragmentTexture(texture, index: 0)
+            commandEncoder.drawPrimitives(type: .triangleStrip,
+                                          vertexStart: 0,
+                                          vertexCount: 4)
+        }
+
+        commandEncoder.endEncoding()
+        commandBuffer.present(drawable)
+        commandBuffer.commit()
+    }
+    
+    private func calculateAspectFitScale(for texture: MTLTexture, in drawableSize: CGSize) -> SIMD2<Float> {
+        let textureAspect = Float(texture.width) / Float(texture.height)
+        let viewAspect = Float(drawableSize.width) / Float(drawableSize.height)
+        return textureAspect > viewAspect
+            ? SIMD2<Float>(textureAspect / viewAspect, 1)
+            : SIMD2<Float>(1, viewAspect / textureAspect)
     }
     
     /// Initialize Metal rendering pipeline
@@ -147,7 +269,7 @@ public final class MetalCameraRenderer: MTKView, MTKViewDelegate, CameraRenderer
         isPaused = false
         enableSetNeedsDisplay = true
         self.colorPixelFormat = .bgra8Unorm
-
+        
         try setupRenderPipeline()
     }
     

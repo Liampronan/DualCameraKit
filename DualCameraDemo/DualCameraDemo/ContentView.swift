@@ -2,15 +2,26 @@ import DualCameraKit
 import SwiftUI
 
 struct ContentView: View {
-    private let dualCameraManager = DualCameraManager()
+    private let dualCameraController = DualCameraController()
     
     var body: some View {
         VStack {
             DualCameraScreen(
-                dualCameraManager: dualCameraManager,
-                initialLayout: .fullScreenWithMini(miniCamera: .front, miniCameraPosition: .bottomTrailing)
+                controller: dualCameraController,
+                layout: .fullScreenWithMini(miniCamera: .front, miniCameraPosition: .bottomTrailing)
             )
-            
+//            .toolbar {
+//                ToolbarItem(placement: .bottomBar) {
+//                    Button("Capture") {
+//                        Task {
+//                            if let image = try? await dualCameraController.capturePhoto() {
+//                                // Handle captured image
+//                                print(image)
+//                            }
+//                        }
+//                    }
+//                }
+//            }
         }
     }
 }

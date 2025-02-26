@@ -2,13 +2,12 @@ import UIKit
 
 /// Central camera controller
 public final class DualCameraController {
-    // Camera hardware
+    
     private let streamSource = CameraStreamSource()
     
     // Main renderer reference for capture
     private(set) weak var primaryRenderer: CameraRenderer?
     
-    /// Initialize controller
     public init() {}
     
     public var frontCameraStream: AsyncStream<PixelBufferWrapper> {
@@ -31,7 +30,6 @@ public final class DualCameraController {
     }
     
     /// Create renderer for camera display
-    /// - Returns: Metal-based camera renderer
     @MainActor
     public func createRenderer() -> CameraRenderer {
         let renderer = MetalCameraRenderer()
@@ -39,13 +37,12 @@ public final class DualCameraController {
     }
     
     /// Register renderer as primary for capture
-    /// - Parameter renderer: Renderer to use for capture
     public func setPrimaryRenderer(_ renderer: CameraRenderer) {
         primaryRenderer = renderer
     }
     
+//    @MainActor
     /// Capture photo from primary renderer
-    /// - Returns: Photo as UIImage
     public func capturePhoto() async throws -> UIImage {
         guard let renderer = primaryRenderer else {
             throw DualCameraError.captureFailure(.noPrimaryRenderer)

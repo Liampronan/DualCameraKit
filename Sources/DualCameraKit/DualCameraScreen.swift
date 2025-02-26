@@ -1,71 +1,189 @@
 import SwiftUI
 
 public struct DualCameraScreen: View {
-    @State private var errorMessage: String?
-    private let dualCameraManager: DualCameraManager
+    private let controller: DualCameraController
     private let layout: CameraLayout
-    private var frontCameraSize: CGSize = CGSize(width: 150, height: 200)
-    private var cornerRadius: CGFloat = 10
-    private var padding: CGFloat = 16
-
-    public init(
-        dualCameraManager: DualCameraManager,
-        initialLayout: CameraLayout = CameraLayout.fullScreenWithMini(
-            miniCamera: .front, miniCameraPosition: .bottomTrailing
-        )
-    ) {
-        self.layout = initialLayout
-        self.dualCameraManager = dualCameraManager
+    
+    // Map camera source to renderer
+    @State private var renderers: [CameraSource: CameraRenderer] = [:]
+    // Store tasks to prevent cancellation
+    @State private var streamTasks: [CameraSource: Task<Void, Never>] = [:]
+    
+    public init(controller: DualCameraController, layout: CameraLayout = .fullScreenWithMini(miniCamera: .front, miniCameraPosition: .bottomTrailing)) {
+        self.controller = controller
+        self.layout = layout
     }
-
+    
     public var body: some View {
         ZStack {
-            if let errorMessage {
-                Text(errorMessage)
-                    .foregroundColor(.red)
-                    .multilineTextAlignment(.center)
-                    .padding()
-            } else {
-                cameraLayoutView
+            switch layout {
+            case .fullScreenWithMini(let miniCamera, let position):
+                ZStack {
+                    cameraView(for: miniCamera == .front ? .back : .front, isFullscreen: true)
+                    cameraView(for: miniCamera, isFullscreen: false, position: position)
+                }
+            case .sideBySide:
+                HStack(spacing: 0) {
+                    cameraView(for: .back, widthFraction: 0.5)
+                    cameraView(for: .front, widthFraction: 0.5)
+                }
+            case .stackedVertical:
+                VStack(spacing: 0) {
+                    cameraView(for: .back, heightFraction: 0.5)
+                    cameraView(for: .front, heightFraction: 0.5)
+                }
+            }
+            
+            // Controls overlay
+            captureButton()
+        }
+        .edgesIgnoringSafeArea(.all)
+        .task {
+            do {
+                try await controller.startSession()
+                // Rest of code...
+            } catch {
+                print("Camera session error: \(error)")
+                return
+                // Surface error to UI
+            }
+            
+            // Initialize all renderers on first load
+            let backRenderer = controller.createRenderer()
+            let frontRenderer = controller.createRenderer()
+            
+            // Update state on main thread
+            await MainActor.run {
+                renderers[.back] = backRenderer
+                renderers[.front] = frontRenderer
+                
+                // Set primary renderer
+                controller.setPrimaryRenderer(backRenderer)
+                
+                // Start camera streams
+                connectCameraStream(for: .back)
+                connectCameraStream(for: .front)
             }
         }
-        .task {
-            // TODO: better error handling
-            try? await dualCameraManager.startSession()
+        .onDisappear {
+            // Cancel all stream tasks
+            for task in streamTasks.values {
+                task.cancel()
+            }
+            streamTasks = [:]
+            renderers = [:]
+        }
+    }
+    
+    // In DualCameraScreen.swift - connectCameraStream
+    private func connectCameraStream(for source: CameraSource) {
+        // Cancel existing task
+        streamTasks[source]?.cancel()
+        
+        // Create and store new task with debug info
+        let task = Task {
+            guard let renderer = renderers[source] else {
+                print("⚠️ Camera error: No renderer for \(source)")
+                return
+            }
+            
+            let stream = source == .front ? controller.frontCameraStream : controller.backCameraStream
+            var frameCount = 0
+            
+            for await buffer in stream {
+                if Task.isCancelled { break }
+//                frameCount += 1
+//                if frameCount % 30 == 0 {
+//                    print("✅ Camera \(source): received frame #\(frameCount)")
+//                }
+                renderer.update(with: buffer.buffer)
+            }
+        }
+        
+        streamTasks[source] = task
+    }
+    
+    @ViewBuilder
+    private func cameraView(for source: CameraSource,
+                           isFullscreen: Bool = true,
+                           position: CameraLayout.MiniCameraPosition? = nil,
+                           widthFraction: CGFloat? = nil,
+                           heightFraction: CGFloat? = nil) -> some View {
+        // Use ZStack with conditional rendering
+        ZStack {
+            if let renderer = renderers[source] {
+                RendererView(renderer: renderer)
+                    .modifier(CameraViewModifier(
+                        isFullscreen: isFullscreen,
+                        position: position,
+                        widthFraction: widthFraction,
+                        heightFraction: heightFraction
+                    ))
+            } else {
+                Color.black
+                    .modifier(CameraViewModifier(
+                        isFullscreen: isFullscreen,
+                        position: position,
+                        widthFraction: widthFraction,
+                        heightFraction: heightFraction
+                    ))
+            }
         }
     }
 
     @ViewBuilder
-    private var cameraLayoutView: some View {
-        switch layout {
-        case .sideBySide:
+    private func captureButton() -> some View {
+        VStack {
+            Spacer()
             HStack {
-                SingleCameraStreamView(pixelBufferWrapperStream: dualCameraManager.backCameraStream)
-                    .aspectRatio(contentMode: .fit)
-                SingleCameraStreamView(pixelBufferWrapperStream: dualCameraManager.backCameraStream)
-                    .aspectRatio(contentMode: .fit)
+                Spacer()
+                Button(action: takePhoto) {
+                    Image(systemName: "camera.fill")
+                        .font(.largeTitle)
+                        .foregroundColor(.white)
+                        .padding()
+                        .background(Circle().fill(Color.black.opacity(0.5)))
+                }
+                .padding()
+                Spacer()
             }
-            .edgesIgnoringSafeArea(.all)
+        }
+    }
+    
+    private func takePhoto() {
+        // START: fixme - crash
+        // 2. debug slowness (see ChatGPT answer)
+        // Silence compiler warning with @unchecked Sendable conversion
+        let controller = unsafeBitCast(controller, to: (@Sendable () -> DualCameraController).self)()
+        
+        Task { @MainActor in
+            _ = try? await controller.capturePhoto()
+        }
+    }
+}
 
-        case .stackedVertical:
-            VStack {
-                SingleCameraStreamView(pixelBufferWrapperStream: dualCameraManager.backCameraStream)
-                    .aspectRatio(contentMode: .fit)
-                SingleCameraStreamView(pixelBufferWrapperStream: dualCameraManager.frontCameraStream)
-                    .aspectRatio(contentMode: .fit)
-            }
-            .edgesIgnoringSafeArea(.all)
-
-        case .fullScreenWithMini(let miniCamera, let miniCameraPosition):
-            ZStack {
-                SingleCameraStreamView(pixelBufferWrapperStream: miniCamera == .front ? dualCameraManager.backCameraStream : dualCameraManager.frontCameraStream)
-                    .edgesIgnoringSafeArea(.all)
-
-                SingleCameraStreamView(pixelBufferWrapperStream: miniCamera == .front ? dualCameraManager.frontCameraStream : dualCameraManager.backCameraStream)
-                    .frame(width: frontCameraSize.width, height: frontCameraSize.height)
-                    .cornerRadius(cornerRadius)
-                    .positioned(in: miniCameraPosition, size: frontCameraSize, padding: padding)
-            }
+// Helper view modifier to reduce repetition
+struct CameraViewModifier: ViewModifier {
+    let isFullscreen: Bool
+    let position: CameraLayout.MiniCameraPosition?
+    let widthFraction: CGFloat?
+    let heightFraction: CGFloat?
+    
+    func body(content: Content) -> some View {
+        if isFullscreen {
+            return AnyView(content)
+        } else if let position = position {
+            let size = CGSize(width: 150, height: 200)
+            return AnyView(content
+                .frame(width: size.width, height: size.height)
+                .cornerRadius(10)
+                .positioned(in: position, size: size, padding: 16))
+        } else if let widthFraction = widthFraction {
+            return AnyView(content.frame(width: UIScreen.main.bounds.width * widthFraction))
+        } else if let heightFraction = heightFraction {
+            return AnyView(content.frame(height: UIScreen.main.bounds.height * heightFraction))
+        } else {
+            return AnyView(content)
         }
     }
 }
@@ -74,7 +192,7 @@ public struct DualCameraScreen: View {
 public enum CameraLayout: Equatable, Hashable {
     case sideBySide
     case stackedVertical
-    case fullScreenWithMini(miniCamera: MiniCamera, miniCameraPosition: MiniCameraPosition)
+    case fullScreenWithMini(miniCamera: CameraSource, miniCameraPosition: MiniCameraPosition)
 
     public enum MiniCamera: CaseIterable, Equatable, Hashable {
         case front, back
@@ -113,6 +231,24 @@ public enum CameraLayout: Equatable, Hashable {
         }
     }
 }
+
+public enum CameraSource {
+    case front, back
+}
+
+
+///// PiP camera position
+//public enum MiniCameraPosition: CaseIterable {
+//    case topLeading, topTrailing, bottomLeading, bottomTrailing
+//}
+
+/// Camera layout configuration
+//public enum CameraLayout {
+//    case sideBySide
+//    case stackedVertical
+//    case fullScreenWithMini(miniCamera: CameraSource, miniCameraPosition: MiniCameraPosition)
+//}
+
 
 // TODO: figure out preview strategy here - mock streams
 //#Preview {

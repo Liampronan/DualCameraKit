@@ -110,11 +110,49 @@ public final class CameraStreamSource: NSObject {
     }
     
     private func configureCameraInputs() throws {
-        // Implementation from existing code
+        guard let frontCamera = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .front) else {
+            throw DualCameraError.cameraUnavailable(position: .front)
+        }
+        
+        guard let backCamera = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back) else {
+            throw DualCameraError.cameraUnavailable(position: .back)
+        }
+        
+        let frontInput = try AVCaptureDeviceInput(device: frontCamera)
+        let backInput = try AVCaptureDeviceInput(device: backCamera)
+        
+        if session.canAddInput(frontInput) {
+            session.addInput(frontInput)
+            frontCameraInput = frontInput
+        }
+        
+        if session.canAddInput(backInput) {
+            session.addInput(backInput)
+            backCameraInput = backInput
+        }
     }
     
     private func configureVideoOutputs() {
-        // Implementation from existing code
+        let frontOutput = AVCaptureVideoDataOutput()
+        let backOutput = AVCaptureVideoDataOutput()
+
+        // Set pixel format
+        frontOutput.videoSettings = [kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA]
+        backOutput.videoSettings = [kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA]
+
+        // IMPORTANT: Set this class as the sampleBufferDelegate
+        frontOutput.setSampleBufferDelegate(self, queue: DispatchQueue(label: "FrontCameraQueue"))
+        backOutput.setSampleBufferDelegate(self, queue: DispatchQueue(label: "BackCameraQueue"))
+
+        // Add outputs to the session
+        if session.canAddOutput(frontOutput) {
+            session.addOutput(frontOutput)
+            frontCameraOutput = frontOutput
+        }
+        if session.canAddOutput(backOutput) {
+            session.addOutput(backOutput)
+            backCameraOutput = backOutput
+        }
     }
 }
 
