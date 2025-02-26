@@ -8,7 +8,7 @@ public protocol CameraRenderer: AnyObject {
     func update(with buffer: CVPixelBuffer)
     
     /// Capture current frame as UIImage
-    func captureFrame() async throws -> UIImage
+    func captureCurrentFrame() async throws -> UIImage
 }
 
 private class FrameStore {
@@ -168,10 +168,9 @@ public final class MetalCameraRenderer: MTKView, MTKViewDelegate, CameraRenderer
             setNeedsDisplay()
         }
     
-    /// Capture current frame
     @MainActor
-    public func captureFrame() async throws -> UIImage {
-        // Can be implemented directly without continuation
+    public func captureCurrentFrame() async throws -> UIImage {
+        // Ensure we have a current drawable to capture from
         guard let drawable = currentDrawable else {
             throw DualCameraError.captureFailure(.noTextureAvailable)
         }
@@ -181,24 +180,26 @@ public final class MetalCameraRenderer: MTKView, MTKViewDelegate, CameraRenderer
         let height = texture.height
         let bytesPerRow = width * 4
         let bytesPerImage = bytesPerRow * height
-        
+
+        // Allocate buffer for the texture data
         let buffer = UnsafeMutableRawPointer.allocate(byteCount: bytesPerImage, alignment: 8)
         defer { buffer.deallocate() }
         
-        // Copy texture data
+        // Copy texture data into the buffer
         texture.getBytes(buffer,
-                       bytesPerRow: bytesPerRow,
-                       from: MTLRegionMake2D(0, 0, width, height),
-                       mipmapLevel: 0)
+                         bytesPerRow: bytesPerRow,
+                         from: MTLRegionMake2D(0, 0, width, height),
+                         mipmapLevel: 0)
         
+        // Create a CGContext using sRGB color space to prevent color shifts
         guard let context = CGContext(
             data: buffer,
             width: width,
             height: height,
             bitsPerComponent: 8,
             bytesPerRow: bytesPerRow,
-            space: CGColorSpaceCreateDeviceRGB(),
-            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+            space: CGColorSpace(name: CGColorSpace.sRGB)!,
+            bitmapInfo: CGBitmapInfo.byteOrder32Little.rawValue | CGImageAlphaInfo.premultipliedFirst.rawValue
         ), let cgImage = context.makeImage() else {
             throw DualCameraError.captureFailure(.imageCreationFailed)
         }

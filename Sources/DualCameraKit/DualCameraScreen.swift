@@ -4,12 +4,17 @@ public struct DualCameraScreen: View {
     private let controller: DualCameraController
     private let layout: CameraLayout
     
+    @State private var image: UIImage?
+    
     // Map camera source to renderer
     @State private var renderers: [CameraSource: CameraRenderer] = [:]
     // Store tasks to prevent cancellation
     @State private var streamTasks: [CameraSource: Task<Void, Never>] = [:]
     
-    public init(controller: DualCameraController, layout: CameraLayout = .fullScreenWithMini(miniCamera: .front, miniCameraPosition: .bottomTrailing)) {
+    public init(
+        controller: DualCameraController,
+        layout: CameraLayout = .fullScreenWithMini(miniCamera: .front, miniCameraPosition: .bottomTrailing)
+    ) {
         self.controller = controller
         self.layout = layout
     }
@@ -21,6 +26,7 @@ public struct DualCameraScreen: View {
                 ZStack {
                     cameraView(for: miniCamera == .front ? .back : .front, isFullscreen: true)
                     cameraView(for: miniCamera, isFullscreen: false, position: position)
+                    if let image { Image(uiImage: image).resizable().scaledToFit() } 
                 }
             case .sideBySide:
                 HStack(spacing: 0) {
@@ -59,6 +65,7 @@ public struct DualCameraScreen: View {
                 
                 // Set primary renderer
                 controller.setPrimaryRenderer(backRenderer)
+                controller.setRenderers(backRenderer, frontRenderer)
                 
                 // Start camera streams
                 connectCameraStream(for: .back)
@@ -75,7 +82,6 @@ public struct DualCameraScreen: View {
         }
     }
     
-    // In DualCameraScreen.swift - connectCameraStream
     private func connectCameraStream(for source: CameraSource) {
         // Cancel existing task
         streamTasks[source]?.cancel()
@@ -150,19 +156,25 @@ public struct DualCameraScreen: View {
         }
     }
     
+    // START:
+    // √1. fix photo capture
+    // √2. debug slowness
+    // 3. refactor - CameraRenderer excess
+    // 4. refactor - this flow in DualCameraScreen; feels like a setup layer could help; see connectCameraStream
+    // 5. refactor - general
+    // 6. pass layout to camera capture
     private func takePhoto() {
-        // START: fixme - crash
-        // 2. debug slowness (see ChatGPT answer)
-        // Silence compiler warning with @unchecked Sendable conversion
-        let controller = unsafeBitCast(controller, to: (@Sendable () -> DualCameraController).self)()
-        
+        let controllerRef = controller
         Task { @MainActor in
-            _ = try? await controller.capturePhoto()
+            do {
+                image = try await controllerRef.captureCombinedPhoto()
+            } catch {
+                print("Error capturing photo: \(error)")
+            }
         }
     }
 }
 
-// Helper view modifier to reduce repetition
 struct CameraViewModifier: ViewModifier {
     let isFullscreen: Bool
     let position: CameraLayout.MiniCameraPosition?
