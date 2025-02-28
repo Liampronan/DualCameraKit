@@ -4,6 +4,7 @@ public struct DualCameraScreen: View {
     private let controller: DualCameraController
     private let layout: CameraLayout
     @State private var demoImage: UIImage?
+    @State private var containerSize: CGSize = .zero
     
     public init(
         controller: DualCameraController,
@@ -17,51 +18,55 @@ public struct DualCameraScreen: View {
     }
     
     public var body: some View {
-        Group {
-            switch layout {
-            case .fullScreenWithMini(let miniCamera, let position):
-                // A single ZStack with dynamic alignment for PiP
-                ZStack(alignment: position.alignment()) {
-                    // Background camera
-                    RendererView(
-                        renderer: controller.getRenderer(
-                            for: (miniCamera == .front ? .back : .front)
+        GeometryReader { geometry in
+            Group {
+                switch layout {
+                case .fullScreenWithMini(let miniCamera, let position):
+                    // A single ZStack with dynamic alignment for PiP
+                    ZStack(alignment: position.alignment()) {
+                        // Background camera
+                        RendererView(
+                            renderer: controller.getRenderer(
+                                for: (miniCamera == .front ? .back : .front)
+                            )
                         )
-                    )
+                        .edgesIgnoringSafeArea(.all)
+                        
+                        // Mini camera in corner
+                        RendererView(renderer: controller.getRenderer(for: miniCamera))
+                            .frame(width: 150)
+                            .aspectRatio(16/9, contentMode: .fit)
+                            .cornerRadius(10)
+                            .padding(16)
+                    }
+                    .overlay(captureButton(), alignment: .center)
+
+                case .sideBySide:
+                    HStack(spacing: 0) {
+                        cameraView(for: .back, widthFraction: 0.5)
+                        cameraView(for: .front, widthFraction: 0.5)
+                    }
                     .edgesIgnoringSafeArea(.all)
-                    
-                    // Mini camera in corner
-                    RendererView(renderer: controller.getRenderer(for: miniCamera))
-                        .frame(width: 150)
-                        .aspectRatio(16/9, contentMode: .fit)
-                        .cornerRadius(10)
-                        .padding(16)
-                }
-                .overlay(captureButton(), alignment: .center)
+                    .overlay(captureButton(), alignment: .center)
 
-            case .sideBySide:
-                HStack(spacing: 0) {
-                    cameraView(for: .back, widthFraction: 0.5)
-                    cameraView(for: .front, widthFraction: 0.5)
+                case .stackedVertical:
+                    VStack(spacing: 0) {
+                        cameraView(for: .back, heightFraction: 0.5)
+                        cameraView(for: .front, heightFraction: 0.5)
+                    }
+                    .edgesIgnoringSafeArea(.all)
+                    .overlay(captureButton(), alignment: .center)
                 }
-                .edgesIgnoringSafeArea(.all)
-                .overlay(captureButton(), alignment: .center)
-
-            case .stackedVertical:
-                VStack(spacing: 0) {
-                    cameraView(for: .back, heightFraction: 0.5)
-                    cameraView(for: .front, heightFraction: 0.5)
-                }
-                .edgesIgnoringSafeArea(.all)
-                .overlay(captureButton(), alignment: .center)
             }
         }
         // Show the captured image if any
         .overlay {
             if let demoImage {
-                Image(uiImage: demoImage)
-                    .resizable()
-                    .scaledToFit()
+                ZStack {
+                    Image(uiImage: demoImage)
+                }
+                .ignoresSafeArea(.all)
+                    
             }
         }
         .task {
@@ -112,9 +117,10 @@ public struct DualCameraScreen: View {
     
     private func takePhoto() {
         let c = controller
+        let l = layout
         Task { @MainActor in
             do {
-                demoImage = try await c.captureCombinedPhoto()
+                demoImage = try await c.capturePhotoWithLayout(l, containerSize: containerSize)
                 print("Captured image: \(String(describing: demoImage))")
             } catch {
                 print("Error capturing photo: \(error)")

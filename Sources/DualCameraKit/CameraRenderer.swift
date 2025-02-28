@@ -13,6 +13,7 @@ public protocol CameraRenderer: AnyObject {
 
 /// Metal-accelerated camera renderer.
 public final class MetalCameraRenderer: MTKView, CameraRenderer, MTKViewDelegate {
+    
     // MARK: - Metal State
     private var commandQueue: MTLCommandQueue?
     private var textureCache: CVMetalTextureCache?
@@ -145,7 +146,6 @@ public final class MetalCameraRenderer: MTKView, CameraRenderer, MTKViewDelegate
 // MARK: - CameraRenderer Protocol Methods
 extension MetalCameraRenderer {
     
-    /// Updates the renderer with a new frame.
     nonisolated public func update(with buffer: CVPixelBuffer) {
         let bufferWrapper = PixelBufferWrapper(buffer: buffer)
         Task { @MainActor [weak self] in
@@ -154,40 +154,91 @@ extension MetalCameraRenderer {
     }
     
     /// Captures the current frame by reading the drawable’s texture.
-    @MainActor
     public func captureCurrentFrame() async throws -> UIImage {
-        guard let drawable = currentDrawable else {
-            throw DualCameraError.captureFailure(.noTextureAvailable)
+        // Ensure we have a valid texture to capture from
+        guard let currentTexture = self.currentTexture else {
+            throw DualCameraError.captureFailure(.noFrameAvailable)
         }
         
-        let texture = drawable.texture
-        let width = texture.width
-        let height = texture.height
-        let bytesPerRow = width * 4
-        let bytesPerImage = bytesPerRow * height
+        // Create a texture descriptor for the destination texture
+        let textureDescriptor = MTLTextureDescriptor.texture2DDescriptor(
+            pixelFormat: currentTexture.pixelFormat,
+            width: currentTexture.width,
+            height: currentTexture.height,
+            mipmapped: false
+        )
+        textureDescriptor.usage = [.renderTarget, .shaderRead]
         
-        let buffer = UnsafeMutableRawPointer.allocate(byteCount: bytesPerImage, alignment: 8)
-        defer { buffer.deallocate() }
+        guard let device = self.device,
+              let destinationTexture = device.makeTexture(descriptor: textureDescriptor) else {
+            throw DualCameraError.captureFailure(.textureCreationFailed)
+        }
         
-        texture.getBytes(buffer,
-                         bytesPerRow: bytesPerRow,
-                         from: MTLRegionMake2D(0, 0, width, height),
-                         mipmapLevel: 0)
+        // Create a command buffer and encoder to copy the texture
+        guard let commandBuffer = self.commandQueue?.makeCommandBuffer(),
+              let blitEncoder = commandBuffer.makeBlitCommandEncoder() else {
+            throw DualCameraError.captureFailure(.commandBufferCreationFailed)
+        }
         
-        guard let context = CGContext(
-            data: buffer,
-            width: width,
-            height: height,
-            bitsPerComponent: 8,
-            bytesPerRow: bytesPerRow,
-            space: CGColorSpace(name: CGColorSpace.sRGB)!,
-            bitmapInfo: CGBitmapInfo.byteOrder32Little.rawValue | CGImageAlphaInfo.premultipliedFirst.rawValue
-        ), let cgImage = context.makeImage() else {
+        // Copy the texture
+        blitEncoder.copy(from: currentTexture,
+                        sourceSlice: 0,
+                        sourceLevel: 0,
+                        sourceOrigin: MTLOrigin(x: 0, y: 0, z: 0),
+                        sourceSize: MTLSize(width: currentTexture.width,
+                                            height: currentTexture.height,
+                                            depth: 1),
+                        to: destinationTexture,
+                        destinationSlice: 0,
+                        destinationLevel: 0,
+                        destinationOrigin: MTLOrigin(x: 0, y: 0, z: 0))
+        
+        blitEncoder.endEncoding()
+        commandBuffer.commit()
+        commandBuffer.waitUntilCompleted()
+        
+        // Convert the Metal texture to a CGImage
+        let bytesPerRow = 4 * currentTexture.width
+        let totalBytes = bytesPerRow * currentTexture.height
+        
+        let regionSize = MTLSizeMake(currentTexture.width, currentTexture.height, 1)
+        let region = MTLRegionMake2D(0, 0, currentTexture.width, currentTexture.height)
+        
+        // Create a bitmap context
+        guard let rawData = malloc(totalBytes) else {
+            throw DualCameraError.captureFailure(.memoryAllocationFailed)
+        }
+        
+        destinationTexture.getBytes(rawData, bytesPerRow: bytesPerRow, from: region, mipmapLevel: 0)
+        
+        // IMPORTANT: For BGRA texture format, we need to specify the correct bitmap info
+        // Metal uses BGRA format, so we need to tell CGContext that
+        let bitmapInfo = CGBitmapInfo(rawValue: CGBitmapInfo.byteOrder32Little.rawValue | CGImageAlphaInfo.premultipliedFirst.rawValue)
+        
+        guard let context = CGContext(data: rawData,
+                                     width: currentTexture.width,
+                                     height: currentTexture.height,
+                                     bitsPerComponent: 8,
+                                     bytesPerRow: bytesPerRow,
+                                     space: CGColorSpaceCreateDeviceRGB(),
+                                     bitmapInfo: bitmapInfo.rawValue) else {
+            free(rawData)
+            throw DualCameraError.captureFailure(.contextCreationFailed)
+        }
+        
+        // Create the CGImage
+        guard let cgImage = context.makeImage() else {
+            free(rawData)
             throw DualCameraError.captureFailure(.imageCreationFailed)
         }
         
-        return UIImage(cgImage: cgImage)
+        // Clean up
+        free(rawData)
+        
+        // Create and return the UIImage
+        return UIImage(cgImage: cgImage, scale: 1.0, orientation: .up)
     }
+    
     
     // MARK: - Private Helpers
     
@@ -272,3 +323,4 @@ extension MetalCameraRenderer {
             : SIMD2<Float>(1, viewAspect / textureAspect)
     }
 }
+
