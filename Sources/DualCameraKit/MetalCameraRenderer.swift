@@ -1,6 +1,5 @@
 import AVFoundation
 import MetalKit
-import os
 
 /// Possible errors in MetalCameraRenderer
 enum MetalRendererError: Error {
@@ -17,7 +16,7 @@ struct Uniforms {
 
 /// GPU-accelerated MetalKit view for rendering camera frames using Metal shaders.
 /// This view should be used when rendering camera feeds with `DualCameraKit`.
-public class MetalCameraRenderer: MTKView, MTKViewDelegate {
+/*public class MetalCameraRendererOld: MTKView, MTKViewDelegate {
     private var commandQueue: MTLCommandQueue?
     private var textureCache: CVMetalTextureCache?
     private var renderPipelineState: MTLRenderPipelineState?
@@ -178,3 +177,5 @@ public class MetalCameraRenderer: MTKView, MTKViewDelegate {
             : SIMD2<Float>(1, viewAspect / textureAspect)
     }
 }
+
+*/
