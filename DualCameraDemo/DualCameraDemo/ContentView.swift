@@ -10,18 +10,6 @@ struct ContentView: View {
                 controller: dualCameraController,
                 layout: .fullScreenWithMini(miniCamera: .front, miniCameraPosition: .bottomTrailing)
             )
-//            .toolbar {
-//                ToolbarItem(placement: .bottomBar) {
-//                    Button("Capture") {
-//                        Task {
-//                            if let image = try? await dualCameraController.capturePhoto() {
-//                                // Handle captured image
-//                                print(image)
-//                            }
-//                        }
-//                    }
-//                }
-//            }
         }
     }
 }

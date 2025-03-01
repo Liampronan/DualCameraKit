@@ -29,7 +29,8 @@ public final class DualCameraController: DualCameraControllerProtocol {
     @MainActor
     public func startSession() async throws {
         try await streamSource.startSession()
-        // Optionally, auto-initialize renderers for both sources here.
+        
+        // Auto-initialize renderers for both sources here.
         _ = getRenderer(for: .front)
         _ = getRenderer(for: .back)
     }
@@ -262,28 +263,5 @@ public final class DualCameraController: DualCameraControllerProtocol {
         let drawRect = CGRect(x: drawX, y: drawY, width: scaledWidth, height: scaledHeight)
         image.draw(in: drawRect)
     }
-    
-    /// Combines photos from both renderers (for a PiP effect).
-    //    public func captureCombinedPhoto() async throws -> UIImage {
-    //        guard let frontRenderer = renderers[.front],
-    //              let backRenderer = renderers[.back] else {
-    //            throw DualCameraError.captureFailure(.noPrimaryRenderer)
-    //        }
-    //
-    //        let backImage = try await backRenderer.captureCurrentFrame()
-    //        let frontImage = try await frontRenderer.captureCurrentFrame()
-    //        let size = backImage.size
-    //
-    //        let renderer = UIGraphicsImageRenderer(size: size)
-    //        return renderer.image { ctx in
-    //            // Draw full-screen back image.
-    //            backImage.draw(in: CGRect(origin: .zero, size: size))
-    //            // Overlay front image as picture-in-picture.
-    //            let pipWidth = size.width / 3
-    //            let pipHeight = size.height / 3
-    //            let pipRect = CGRect(x: size.width - pipWidth - 10, y: 10, width: pipWidth, height: pipHeight)
-    //            frontImage.draw(in: pipRect)
-    //        }
-    //    }
 }
 

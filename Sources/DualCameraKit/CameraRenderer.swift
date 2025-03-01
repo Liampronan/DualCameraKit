@@ -11,6 +11,18 @@ public protocol CameraRenderer: AnyObject {
     func captureCurrentFrame() async throws -> UIImage
 }
 
+enum MetalRendererError: Error {
+    case metalNotSupported
+    case metalLibraryLoadFailed
+    case metalFunctionNotFound
+    case renderPipelineCreationFailed(Error)
+    case textureCreationFailed
+}
+
+struct Uniforms {
+    let scale: SIMD2<Float>
+}
+
 /// Metal-accelerated camera renderer.
 public final class MetalCameraRenderer: MTKView, CameraRenderer, MTKViewDelegate {
     
@@ -211,7 +223,7 @@ extension MetalCameraRenderer {
         
         destinationTexture.getBytes(rawData, bytesPerRow: bytesPerRow, from: region, mipmapLevel: 0)
         
-        // IMPORTANT: For BGRA texture format, we need to specify the correct bitmap info
+        // For BGRA texture format, we need to specify the correct bitmap info
         // Metal uses BGRA format, so we need to tell CGContext that
         let bitmapInfo = CGBitmapInfo(rawValue: CGBitmapInfo.byteOrder32Little.rawValue | CGImageAlphaInfo.premultipliedFirst.rawValue)
         
