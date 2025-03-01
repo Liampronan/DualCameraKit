@@ -1,21 +1,15 @@
 import UIKit
-//
-//public protocol DualCameraManagerProtocol {
-//    var frontCameraStream: AsyncStream<CVPixelBuffer> { get }
-//    var backCameraStream: AsyncStream<CVPixelBuffer> { get }
-//    func startSession() async throws
-//    func stopSession()
-//    func capturePhoto() async throws -> UIImage
-//}
-//
-//struct DualCameraConstants {
-//    static let processingQueueFront = DispatchQueue(label: "DualCameraKit.processing.front", qos: .userInitiated)
-//    static let processingQueueBack = DispatchQueue(label: "DualCameraKit.processing.back", qos: .userInitiated)
-//    static let sessionQueue = DispatchQueue(label: "DualCameraKit.session.queue")
-//}
+
+public protocol DualCameraControllerProtocol {
+    var frontCameraStream: AsyncStream<PixelBufferWrapper> { get }
+    var backCameraStream: AsyncStream<PixelBufferWrapper> { get }
+    func startSession() async throws
+    func stopSession()
+    func capturePhotoWithLayout(_ layout: CameraLayout, containerSize: CGSize) async throws -> UIImage
+}
 
 /// Central camera controller
-public final class DualCameraController {
+public final class DualCameraController: DualCameraControllerProtocol {
     private let streamSource = CameraStreamSource()
     
     // Internal storage for renderers and their stream tasks.
@@ -85,17 +79,6 @@ public final class DualCameraController {
             task.cancel()
         }
         streamTasks.removeAll()
-    }
-    
-    // Example capture methods:
-    
-    /// Captures a photo using a designated primary renderer.
-    public func capturePhoto() async throws -> UIImage {
-        // Choose one renderer as the primary (here we assume back).
-        guard let primaryRenderer = renderers[.back] else {
-            throw DualCameraError.captureFailure(.noPrimaryRenderer)
-        }
-        return try await primaryRenderer.captureCurrentFrame()
     }
     
     public func capturePhotoWithLayout(_ layout: CameraLayout, containerSize: CGSize) async throws -> UIImage {
