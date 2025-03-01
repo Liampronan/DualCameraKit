@@ -20,7 +20,6 @@ public enum DualCameraError: Error {
         case imageCreationFailed
         case unknownDimensions
     }
-    
 
     /// Provides human-readable descriptions for debugging
     public var localizedDescription: String {

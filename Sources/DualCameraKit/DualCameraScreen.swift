@@ -30,7 +30,7 @@ public struct DualCameraScreen: View {
                                 for: (miniCamera == .front ? .back : .front)
                             )
                         )
-                        .edgesIgnoringSafeArea(.all)
+                        .ignoresSafeArea(.all)
                         
                         // Mini camera in corner
                         RendererView(renderer: controller.getRenderer(for: miniCamera))
@@ -46,7 +46,7 @@ public struct DualCameraScreen: View {
                         cameraView(for: .back, widthFraction: 0.5)
                         cameraView(for: .front, widthFraction: 0.5)
                     }
-                    .edgesIgnoringSafeArea(.all)
+                    .ignoresSafeArea(.all)
                     .overlay(captureButton(), alignment: .center)
 
                 case .stackedVertical:
@@ -54,7 +54,7 @@ public struct DualCameraScreen: View {
                         cameraView(for: .back, heightFraction: 0.5)
                         cameraView(for: .front, heightFraction: 0.5)
                     }
-                    .edgesIgnoringSafeArea(.all)
+                    .ignoresSafeArea(.all)
                     .overlay(captureButton(), alignment: .center)
                 }
             }
@@ -124,31 +124,6 @@ public struct DualCameraScreen: View {
                 print("Captured image: \(String(describing: demoImage))")
             } catch {
                 print("Error capturing photo: \(error)")
-            }
-        }
-    }
-}
-
-/// Defines different layouts for dual-camera display
-public enum CameraLayout: Equatable, Hashable {
-    case sideBySide
-    case stackedVertical
-    case fullScreenWithMini(miniCamera: CameraSource, miniCameraPosition: MiniCameraPosition)
-
-    public enum MiniCamera: CaseIterable, Equatable, Hashable {
-        case front, back
-    }
-    
-    /// Positions for mini camera
-    public enum MiniCameraPosition: CaseIterable {
-        case topLeading, topTrailing, bottomLeading, bottomTrailing
-        
-        func alignment() -> Alignment {
-            switch self {
-            case .topLeading:     return .topLeading
-            case .topTrailing:    return .topTrailing
-            case .bottomLeading:  return .bottomLeading
-            case .bottomTrailing: return .bottomTrailing
             }
         }
     }
