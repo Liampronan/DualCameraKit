@@ -174,10 +174,8 @@ extension CameraStreamSource: AVCaptureVideoDataOutputSampleBufferDelegate {
         
         
         if isFrontCamera {
-//            await self.frontBroadcaster.broadcast(wrappedBuffer)
             Updater.updateBroadcast(wrappedBuffer: wrappedBuffer, broadcaster: frontBroadcaster)
         } else {
-//            await self.backBroadcaster.broadcast(wrappedBuffer)
             Updater.updateBroadcast(wrappedBuffer: wrappedBuffer, broadcaster: backBroadcaster)
         }
     }
