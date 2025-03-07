@@ -20,6 +20,9 @@ let package = Package(
             name: "DualCameraKit",
             dependencies: [
                 .product(name: "AsyncAlgorithms", package: "swift-async-algorithms"),
+            ],
+            swiftSettings: [
+                .unsafeFlags(["-strict-concurrency=complete"])
             ]
         ),
         .testTarget(
