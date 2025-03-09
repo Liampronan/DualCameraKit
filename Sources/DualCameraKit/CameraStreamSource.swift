@@ -2,6 +2,7 @@ import AVFoundation
 
 
 /// Manages low-level camera access and stream production
+@MainActor
 public final class CameraStreamSource: NSObject {
     // Session management
     private let session = AVCaptureMultiCamSession()
@@ -59,30 +60,37 @@ public final class CameraStreamSource: NSObject {
         }
     }
     
-    /// Stop active camera session
-    public func stopSession() {
-        sessionQueue.async { [weak self] in
-            guard let self = self, self.session.isRunning else { return }
+    // Make this method explicitly nonisolated
+    nonisolated public func stopSession() {
+        // Instead of direct access, capture what you need before the async context
+        // or use Task.detached to escape the actor isolation
+        Task { @MainActor in
+            // Now we're in the MainActor context and can access session
+            let localSession = self.session
             
-            self.session.stopRunning()
-            
-            Task { @MainActor in
-                if Self.activeInstance === self {
-                    Self.activeInstance = nil
-                }
+            // Use proper isolation for async work
+            if localSession.isRunning {
+                localSession.stopRunning()
+            }
+        }
+        
+        // Use weak self only for the Task
+        Task { @MainActor [weak self] in
+            guard let self = self else { return }
+            if Self.activeInstance === self {
+                Self.activeInstance = nil
             }
         }
     }
-    
     /// Get front camera stream
     /// - Returns: AsyncStream of front camera frames
-    public var frontCameraStream: AsyncStream<PixelBufferWrapper> {
+    nonisolated public var frontCameraStream: AsyncStream<PixelBufferWrapper> {
         frontBroadcaster.subscribe()
     }
     
     /// Get back camera stream  
     /// - Returns: AsyncStream of back camera frames
-    public var backCameraStream: AsyncStream<PixelBufferWrapper> {
+    nonisolated public var backCameraStream: AsyncStream<PixelBufferWrapper> {
         backBroadcaster.subscribe()
     }
     
@@ -158,7 +166,7 @@ public final class CameraStreamSource: NSObject {
 
 // MARK: - AVCapture Delegate Implementation
 extension CameraStreamSource: AVCaptureVideoDataOutputSampleBufferDelegate {
-    public func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
+    nonisolated public func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
         guard let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else {
             return
         }
