@@ -3,8 +3,10 @@ import SwiftUI
 
 /// Determines where to render with `MetalKit` for GPU rendering or `UIKit` for CPU rendering.
 /// Prefer `metal` unless you have a good reason for CPU rendering – metal is more performant.
+///
 public enum DualCameraRenderingMode {
     case metal
+    /// experimental - we're primarly focused on metal implemnation atm, so not much uiImageView testing yet.
     case uiImageView
 }
 
@@ -32,7 +34,7 @@ extension SingleCameraStreamView: UIViewRepresentable {
             return UIImageView()
         }
     }
-
+    
     public func updateUIView(_ uiView: UIView, context: Context) {
         switch renderingMode {
         case .metal:
@@ -56,3 +58,4 @@ extension SingleCameraStreamView: UIViewRepresentable {
         }
     }
 }
+
