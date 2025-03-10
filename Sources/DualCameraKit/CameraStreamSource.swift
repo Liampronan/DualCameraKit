@@ -60,35 +60,32 @@ public final class CameraStreamSource: NSObject {
         }
     }
     
-    // Make this method explicitly nonisolated
+    /// Stops the camera capture session
+    /// This method can be called from any thread (nonisolated) and will safely dispatch
+    /// session management work to the main thread internally.
     nonisolated public func stopSession() {
-        // Instead of direct access, capture what you need before the async context
-        // or use Task.detached to escape the actor isolation
-        Task { @MainActor in
-            // Now we're in the MainActor context and can access session
-            let localSession = self.session
-            
-            // Use proper isolation for async work
-            if localSession.isRunning {
-                localSession.stopRunning()
-            }
-        }
-        
-        // Use weak self only for the Task
         Task { @MainActor [weak self] in
             guard let self = self else { return }
+            
+            if session.isRunning {
+                session.stopRunning()
+            }
+            
             if Self.activeInstance === self {
                 Self.activeInstance = nil
             }
         }
     }
+    
     /// Get front camera stream
+    /// This property is thread-safe and can be accessed from any context
     /// - Returns: AsyncStream of front camera frames
     nonisolated public var frontCameraStream: AsyncStream<PixelBufferWrapper> {
         frontBroadcaster.subscribe()
     }
-    
-    /// Get back camera stream  
+        
+    /// Get back camera stream
+    /// This property is thread-safe and can be accessed from any context
     /// - Returns: AsyncStream of back camera frames
     nonisolated public var backCameraStream: AsyncStream<PixelBufferWrapper> {
         backBroadcaster.subscribe()
@@ -166,6 +163,8 @@ public final class CameraStreamSource: NSObject {
 
 // MARK: - AVCapture Delegate Implementation
 extension CameraStreamSource: AVCaptureVideoDataOutputSampleBufferDelegate {
+    /// Receives camera frames from AVFoundation on background threads
+    /// This method is called by the system on capture queue threads
     nonisolated public func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
         guard let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else {
             return
@@ -188,6 +187,9 @@ extension CameraStreamSource: AVCaptureVideoDataOutputSampleBufferDelegate {
         }
     }
     
+    /// Helper to safely bridge between capture threads and the async runtime
+    /// Uses @unchecked Sendable because it only contains static methods with
+    /// no mutable state, making it thread-safe
     private struct Updater: @unchecked Sendable {
         static func updateBroadcast(wrappedBuffer: PixelBufferWrapper, broadcaster: PixelBufferBroadcaster) {
             Task {

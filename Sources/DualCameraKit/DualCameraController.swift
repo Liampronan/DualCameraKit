@@ -126,7 +126,7 @@ public final class DualCameraController: DualCameraControllerProtocol {
         return (front: frontImage, back: backImage)
     }
 
-    /// Captures the current screen content/
+    /// Captures the current screen content.
     /// For now, we have an implicit dependency here on UIApplication for getting the keyWindow's windowScene.
     /// In the future that might make sense to extract
     public func captureCurrentScreen(mode: DualCameraCaptureMode = .fullScreen) async throws -> UIImage {

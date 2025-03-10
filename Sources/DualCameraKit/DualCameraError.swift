@@ -22,7 +22,6 @@ public enum DualCameraError: Error {
         case unknownDimensions
     }
 
-    /// Provides human-readable descriptions for debugging
     public var localizedDescription: String {
             switch self {
             case .multiCamNotSupported:

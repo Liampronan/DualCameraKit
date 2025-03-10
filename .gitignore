@@ -25,6 +25,9 @@ Build/
 /.build/
 /Packages/
 /Package.pins
+.swiftpm/
+*/xcshareddata/swiftpm/Package.resolved
+*.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
 
 # CocoaPods (if used)
 Pods/
