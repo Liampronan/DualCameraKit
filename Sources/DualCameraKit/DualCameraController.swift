@@ -1,4 +1,5 @@
 import UIKit
+import SwiftUI
 
 @MainActor
 public protocol DualCameraControllerProtocol {
@@ -6,10 +7,21 @@ public protocol DualCameraControllerProtocol {
     var backCameraStream: AsyncStream<PixelBufferWrapper> { get }
     func startSession() async throws
     func stopSession()
-    func capturePhotoWithLayout(_ layout: CameraLayout, containerSize: CGSize) async throws -> UIImage
+    func captureRawPhotos() async throws -> (front: UIImage, back: UIImage)
+    func captureCurrentScreen(mode: DualCameraCaptureMode) async throws -> UIImage
 }
 
-/// Central camera controller
+public extension DualCameraControllerProtocol {
+    func captureCurrentScreen(mode: DualCameraCaptureMode = .fullScreen) async throws -> UIImage {
+        try await captureCurrentScreen(mode: mode)
+    }
+}
+
+public enum DualCameraCaptureMode {
+    case fullScreen
+    case containerSize(CGSize)
+}
+
 @MainActor
 public final class DualCameraController: DualCameraControllerProtocol {
     private let streamSource = CameraStreamSource()
@@ -28,11 +40,10 @@ public final class DualCameraController: DualCameraControllerProtocol {
         streamSource.backCameraStream
     }
     
-    @MainActor
     public func startSession() async throws {
         try await streamSource.startSession()
         
-        // Auto-initialize renderers for both sources here.
+        // Auto-initialize renderers
         _ = getRenderer(for: .front)
         _ = getRenderer(for: .back)
     }
@@ -43,14 +54,12 @@ public final class DualCameraController: DualCameraControllerProtocol {
     }
     
     /// Creates a renderer (using MetalCameraRenderer by default).
-    @MainActor
     public func createRenderer() -> CameraRenderer {
         return MetalCameraRenderer()
     }
     
     /// Returns a renderer for the specified camera source.
     /// If one does not exist yet, it is created and connected to its stream.
-    @MainActor
     public func getRenderer(for source: CameraSource) -> CameraRenderer {
         if let renderer = renderers[source] {
             return renderer
@@ -63,7 +72,6 @@ public final class DualCameraController: DualCameraControllerProtocol {
     }
     
     /// Connects the appropriate camera stream to the given renderer.
-    @MainActor
     private func connectStream(for source: CameraSource, renderer: CameraRenderer) {
         let stream: AsyncStream<PixelBufferWrapper> = source == .front ? frontCameraStream : backCameraStream
         // Create a task that forwards frames from the stream to the renderer.
@@ -84,28 +92,16 @@ public final class DualCameraController: DualCameraControllerProtocol {
         streamTasks.removeAll()
     }
     
-    @MainActor
-    public func capturePhotoWithLayout(_ layout: CameraLayout, containerSize: CGSize) async throws -> UIImage {
-        guard let screenSize = await UIApplication.shared.windows.first?.bounds.size else {
-            throw DualCameraError.captureFailure(.unknownDimensions)
-        }
-        
+    /// Captures raw photos from both cameras without any compositing
+    public func captureRawPhotos() async throws -> (front: UIImage, back: UIImage) {
         guard let frontRenderer = renderers[.front],
               let backRenderer = renderers[.back] else {
             throw DualCameraError.captureFailure(.noPrimaryRenderer)
         }
-        // SAFETY EXPLANATION:
-        // This continuation-based approach is used to work around Swift's actor isolation warnings.
-        // It's safe because:
-        // 1. We maintain MainActor isolation by explicitly creating @MainActor tasks
-        // 2. We guarantee each continuation is resumed exactly once (either with success or error)
-        // 3. We don't allow renderer references to escape their isolated context
-        // 4. This approach avoids the compiler warnings while maintaining actor isolation guarantees
-        // Without this approach, Swift would warn about potential data races even though
-        // our renderers are already MainActor-bound UI components.
-        // Create a continuation-based approach
+        
+        // Capture front camera image
         let frontImage = try await withUnsafeThrowingContinuation { (continuation: UnsafeContinuation<UIImage, Error>) in
-            Task { @MainActor in
+            Task {
                 do {
                     let image = try await frontRenderer.captureCurrentFrame()
                     continuation.resume(returning: image)
@@ -115,8 +111,9 @@ public final class DualCameraController: DualCameraControllerProtocol {
             }
         }
         
+        // Capture back camera image
         let backImage = try await withUnsafeThrowingContinuation { (continuation: UnsafeContinuation<UIImage, Error>) in
-            Task { @MainActor in
+            Task {
                 do {
                     let image = try await backRenderer.captureCurrentFrame()
                     continuation.resume(returning: image)
@@ -126,171 +123,61 @@ public final class DualCameraController: DualCameraControllerProtocol {
             }
         }
         
-        return renderImagesWithLayout(front: frontImage, back: backImage, layout: layout, screenSize: screenSize)
+        return (front: frontImage, back: backImage)
     }
-    
-    /// Gets the latest pixel buffer from a camera stream
-    private func getLatestPixelBuffer(for source: CameraSource) async throws -> CVPixelBuffer {
-        let stream = source == .front ? frontCameraStream : backCameraStream
+
+    /// Captures the current screen content/
+    /// For now, we have an implicit dependency here on UIApplication for getting the keyWindow's windowScene.
+    /// In the future that might make sense to extract
+    public func captureCurrentScreen(mode: DualCameraCaptureMode = .fullScreen) async throws -> UIImage {
+        // Give SwiftUI a moment to fully render
+        try await Task.sleep(for: .milliseconds(50))
         
-        // Create a async/await wrapper for getting the next buffer
-        return try await withCheckedThrowingContinuation { continuation in
-            Task {
-                var latestBuffer: CVPixelBuffer?
-                
-                // Wait for the next frame (or use a small timeout)
-                for await wrapper in stream {
-                    latestBuffer = wrapper.buffer
-                    break
-                }
-                
-                if let buffer = latestBuffer {
-                    continuation.resume(returning: buffer)
-                } else {
-                    continuation.resume(throwing: DualCameraError.captureFailure(.noFrameAvailable))
-                }
-            }
+        // First try to find the app's key window (works with both UIKit and SwiftUI)
+        guard let keyWindow = await UIApplication.shared.connectedScenes
+            .compactMap({ $0 as? UIWindowScene })
+            .first(where: { $0.activationState == .foregroundActive })?
+            .windows
+            .first(where: { $0.isKeyWindow }),
+                let windowScene = keyWindow.windowScene else {
+            throw DualCameraError.captureFailure(.screenCaptureUnavailable)
         }
-    }
-    
-    /// Converts a CVPixelBuffer to UIImage
-    private func pixelBufferToUIImage(_ pixelBuffer: CVPixelBuffer) -> UIImage {
-        let ciImage = CIImage(cvPixelBuffer: pixelBuffer)
-        let context = CIContext()
-        let cgImage = context.createCGImage(ciImage, from: ciImage.extent)!
-        return UIImage(cgImage: cgImage)
-    }
-    
-    private func renderImagesWithLayout(front: UIImage, back: UIImage, layout: CameraLayout, screenSize: CGSize) -> UIImage {
-        let renderer = UIGraphicsImageRenderer(size: screenSize)
         
-        return renderer.image { ctx in
-            // Background fill
-            UIColor.black.setFill()
-            ctx.fill(CGRect(origin: .zero, size: screenSize))
+        // Get scene size (full screen including safe areas)
+        let fullScreenSize = windowScene.screen.bounds.size
+        
+        switch mode {
+        case .fullScreen:
+            // Use full screen size for rendering
+            let renderer = UIGraphicsImageRenderer(size: fullScreenSize)
+            let capturedImage = renderer.image { _ in
+                keyWindow.drawHierarchy(in: CGRect(origin: .zero, size: fullScreenSize), afterScreenUpdates: true)
+            }
+            return capturedImage
             
-            switch layout {
-            case .fullScreenWithMini(let miniCamera, let position):
-                // Determine which image is main and which is PiP
-                let mainImage = miniCamera == .front ? back : front
-                let miniImage = miniCamera == .front ? front : back
-                
-                // Draw main camera fullscreen with proper aspect ratio
-                drawImageAspectFill(mainImage, in: CGRect(origin: .zero, size: screenSize), context: ctx)
-                
-                // Calculate PiP size
-                // Standard PiP width proportion from DualCameraScreen
-                let pipWidthProportion: CGFloat = 150 / screenSize.width
-                let pipWidth = screenSize.width * pipWidthProportion
-                
-                // Calculate height to maintain the mini image's aspect ratio
-                let miniAspect = miniImage.size.width / miniImage.size.height
-                let pipHeight = pipWidth / miniAspect
-                
-                // Position based on enum with padding matching the UI
-                let padding: CGFloat = 16
-                let pipX: CGFloat, pipY: CGFloat
-                
-                switch position {
-                case .topLeading:
-                    pipX = padding
-                    pipY = padding
-                case .topTrailing:
-                    pipX = screenSize.width - pipWidth - padding
-                    pipY = padding
-                case .bottomLeading:
-                    pipX = padding
-                    pipY = screenSize.height - pipHeight - padding
-                case .bottomTrailing:
-                    pipX = screenSize.width - pipWidth - padding
-                    pipY = screenSize.height - pipHeight - padding
-                    // START: this is (HACKY) close to getting pip layout there.
-                    // *i think* we need to account for safe area
-                    //                    pipY = screenSize.height - pipHeight - 2.0 * padding
-                }
-                
-                let pipRect = CGRect(x: pipX, y: pipY, width: pipWidth, height: pipHeight)
-                
-                // Draw PiP with corner radius
-                let cornerRadius: CGFloat = 10
-                let path = UIBezierPath(roundedRect: pipRect, cornerRadius: cornerRadius)
-                ctx.cgContext.saveGState()
-                ctx.cgContext.addPath(path.cgPath)
-                ctx.cgContext.clip()
-                
-                // Draw mini image maintaining aspect ratio
-                drawImageAspectFit(miniImage, in: pipRect, context: ctx)
-                ctx.cgContext.restoreGState()
-                
-                // Draw border
-                UIColor.white.setStroke()
-                let borderPath = UIBezierPath(roundedRect: pipRect, cornerRadius: cornerRadius)
-                borderPath.lineWidth = 2
-                borderPath.stroke()
-                
-            case .sideBySide:
-                // Draw side by side with equal width but proper aspect ratios
-                let halfWidth = screenSize.width / 2
-                let leftRect = CGRect(x: 0, y: 0, width: halfWidth, height: screenSize.height)
-                let rightRect = CGRect(x: halfWidth, y: 0, width: halfWidth, height: screenSize.height)
-                
-                drawImageAspectFit(back, in: leftRect, context: ctx)
-                drawImageAspectFit(front, in: rightRect, context: ctx)
-                
-            case .stackedVertical:
-                // Draw stacked with equal height but proper aspect ratios
-                let halfHeight = screenSize.height / 2
-                let topRect = CGRect(x: 0, y: 0, width: screenSize.width, height: halfHeight)
-                let bottomRect = CGRect(x: 0, y: halfHeight, width: screenSize.width, height: halfHeight)
-                
-                drawImageAspectFit(back, in: topRect, context: ctx)
-                drawImageAspectFit(front, in: bottomRect, context: ctx)
+        case .containerSize(let size):
+            guard !size.width.isZero && !size.height.isZero else {
+                throw DualCameraError.captureFailure(.unknownDimensions)
             }
+            
+            // Use the container size for rendering
+            let renderer = UIGraphicsImageRenderer(size: size)
+            let capturedImage = renderer.image { context in
+                // Calculate scaling to make the full screen content fit within the container size
+                let scaleX = size.width / fullScreenSize.width
+                let scaleY = size.height / fullScreenSize.height
+                let scale = min(scaleX, scaleY) // Use min to fit the entire screen
+                
+                // Apply scaling
+                context.cgContext.scaleBy(x: scale, y: scale)
+                
+                // Draw the hierarchy scaled to fit
+                keyWindow.drawHierarchy(in: CGRect(origin: .zero, size: CGSize(
+                    width: fullScreenSize.width,
+                    height: fullScreenSize.height
+                )), afterScreenUpdates: true)
+            }
+            return capturedImage
         }
-    }
-    
-    // Helper function to draw an image with aspect fill (covers the entire rect, may crop)
-    private func drawImageAspectFill(_ image: UIImage, in rect: CGRect, context: UIGraphicsImageRendererContext) {
-        let imageSize = image.size
-        let targetSize = rect.size
-        
-        let widthRatio = targetSize.width / imageSize.width
-        let heightRatio = targetSize.height / imageSize.height
-        
-        // Use the larger ratio to ensure the image fills the entire rect
-        let scale = max(widthRatio, heightRatio)
-        
-        let scaledWidth = imageSize.width * scale
-        let scaledHeight = imageSize.height * scale
-        
-        // Center the image
-        let drawX = rect.origin.x + (targetSize.width - scaledWidth) / 2
-        let drawY = rect.origin.y + (targetSize.height - scaledHeight) / 2
-        
-        let drawRect = CGRect(x: drawX, y: drawY, width: scaledWidth, height: scaledHeight)
-        image.draw(in: drawRect)
-    }
-    
-    // Helper function to draw an image with aspect fit (shows the entire image, may have letterboxing)
-    private func drawImageAspectFit(_ image: UIImage, in rect: CGRect, context: UIGraphicsImageRendererContext) {
-        let imageSize = image.size
-        let targetSize = rect.size
-        
-        let widthRatio = targetSize.width / imageSize.width
-        let heightRatio = targetSize.height / imageSize.height
-        
-        // Use the smaller ratio to ensure the entire image fits
-        let scale = min(widthRatio, heightRatio)
-        
-        let scaledWidth = imageSize.width * scale
-        let scaledHeight = imageSize.height * scale
-        
-        // Center the image
-        let drawX = rect.origin.x + (targetSize.width - scaledWidth) / 2
-        let drawY = rect.origin.y + (targetSize.height - scaledHeight) / 2
-        
-        let drawRect = CGRect(x: drawX, y: drawY, width: scaledWidth, height: scaledHeight)
-        image.draw(in: drawRect)
     }
 }
-

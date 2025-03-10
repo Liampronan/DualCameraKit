@@ -18,6 +18,7 @@ public enum DualCameraError: Error {
         case memoryAllocationFailed
         case contextCreationFailed
         case imageCreationFailed
+        case screenCaptureUnavailable
         case unknownDimensions
     }
 
@@ -54,6 +55,8 @@ public enum DualCameraError: Error {
                     return "Failed to create graphics context."
                 case .imageCreationFailed:
                     return "Failed to create image from texture data."
+                case .screenCaptureUnavailable:
+                    return "Screen capture not available."
                 case .unknownDimensions:
                     return "Unknown screen dimensions for capture."
                 }
