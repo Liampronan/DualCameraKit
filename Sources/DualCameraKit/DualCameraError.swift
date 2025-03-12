@@ -8,7 +8,24 @@ public enum DualCameraError: Error {
     case configurationFailed
     case sessionInterrupted(reason: AVCaptureSession.InterruptionReason)
     case unknownError
+    case notImplemented
     case captureFailure(CaptureFailureReason)
+    
+    // Adding proper dedicated error cases for recording
+    case recordingInProgress
+    case noRecordingInProgress
+    case recordingFailed(RecordingFailureReason)
+    
+    // The existing nested enum pattern is good and should be followed
+    public enum RecordingFailureReason: Sendable {
+        case assetWriterCreationFailed
+        case assetWriterConfigurationFailed
+        case pixelBufferPoolCreationFailed
+        case fileOutputCreationFailed
+        case noPermission
+        case diskSpaceLow
+        case unknown
+    }
     
     public enum CaptureFailureReason: Sendable {
         case noPrimaryRenderer
@@ -58,6 +75,29 @@ public enum DualCameraError: Error {
                     return "Screen capture not available."
                 case .unknownDimensions:
                     return "Unknown screen dimensions for capture."
+                }
+            case .recordingInProgress:
+                return "Unable to start recording beecause recording is already in progress."
+            case .noRecordingInProgress:
+                return "Unable to stop recording because no recording is in progress."
+            case .notImplemented:
+                return "This feature is not yet implemented."
+            case .recordingFailed(let reason):
+                switch reason {
+                case .assetWriterCreationFailed:
+                    return "Failed to create video writer. The file may be in use or the destination might be invalid."
+                case .assetWriterConfigurationFailed:
+                    return "Failed to configure video recording settings."
+                case .pixelBufferPoolCreationFailed:
+                    return "Failed to create pixel buffer pool for video recording."
+                case .fileOutputCreationFailed:
+                    return "Failed to create file output for video recording."
+                case .noPermission:
+                    return "Missing required permissions for video recording."
+                case .diskSpaceLow:
+                    return "Insufficient disk space available for video recording."
+                case .unknown:
+                    return "An unknown error occurred during video recording."
                 }
             }
         }
