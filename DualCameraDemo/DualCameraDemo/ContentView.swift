@@ -23,8 +23,8 @@ struct ContentView: View {
                     controller: dualCameraController,
                     layout: .fullScreenWithMini(miniCamera: .front, miniCameraPosition: .bottomTrailing)
                 )
-                .overlay(controlButtons(), alignment: .bottom)
                 .overlay(recordingIndicator(), alignment: .top)
+                .overlay(controlButtons(), alignment: .bottom)
             }
             .onChange(of: geoProxy.size, initial: true) { _, newSize in
                 containerSize = newSize
