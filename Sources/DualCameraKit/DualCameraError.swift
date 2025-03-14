@@ -1,6 +1,6 @@
 import AVFoundation
 
-public enum DualCameraError: Error {
+public enum DualCameraError: Error, Equatable {
     case multiCamNotSupported
     case multipleInstancesNotSupported
     case cameraUnavailable(position: AVCaptureDevice.Position)

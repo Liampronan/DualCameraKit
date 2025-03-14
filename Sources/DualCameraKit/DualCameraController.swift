@@ -1,7 +1,7 @@
 import AVFoundation
-import ReplayKit
 import SwiftUI
 import UIKit
+
 
 @MainActor
 public protocol DualCameraControllerProtocol {
@@ -11,8 +11,20 @@ public protocol DualCameraControllerProtocol {
     func stopSession()
     func captureRawPhotos() async throws -> (front: UIImage, back: UIImage)
     func captureCurrentScreen(mode: DualCameraCaptureMode) async throws -> UIImage
+    
+    var videoRecorder: DualCameraVideoRecorder { get }
     func startVideoRecording(mode: DualCameraVideoRecordingMode, outputURL: URL) async throws
     func stopVideoRecording() async throws -> URL
+}
+
+extension DualCameraControllerProtocol {
+    public func stopVideoRecording() async throws -> URL {
+        try await videoRecorder.stopVideoRecording()
+    }
+    
+    public func startVideoRecording(mode: DualCameraVideoRecordingMode = .screenCapture(), outputURL: URL)  async throws {
+        try await videoRecorder.startVideoRecording(mode: mode, outputURL: outputURL)
+    }
 }
 
 public extension DualCameraControllerProtocol {
@@ -37,6 +49,8 @@ public enum DualCameraVideoRecordingMode {
 
 @MainActor
 public final class DualCameraController: DualCameraControllerProtocol {
+    public var videoRecorder: any DualCameraVideoRecorder
+    
     private let streamSource = CameraStreamSource()
     
     // Internal storage for renderers and their stream tasks.
@@ -49,11 +63,11 @@ public final class DualCameraController: DualCameraControllerProtocol {
     private var assetWriterVideoInput: AVAssetWriterInput?
     private var pixelBufferAdaptor: AVAssetWriterInputPixelBufferAdaptor?
     
-    private var recordingStartTime: CMTime?
-    private var currentRecordingURL: URL?
-    private var recordingMode: DualCameraVideoRecordingMode?
+   
     
-    public init() {}
+    public init(videoRecorder: any DualCameraVideoRecorder) {
+        self.videoRecorder = videoRecorder
+    }
     
     nonisolated public var frontCameraStream: AsyncStream<PixelBufferWrapper> {
         streamSource.frontCameraStream
@@ -203,60 +217,13 @@ public final class DualCameraController: DualCameraControllerProtocol {
     }
 }
 
+
+
 /// Video recording capabilities for DualCameraController
 extension DualCameraController {
     // MARK: - Public Methods
     
-    
-       /// Starts video recording with ReplayKit
-       public func startVideoRecording(mode: DualCameraVideoRecordingMode = .screenCapture(), outputURL: URL) async throws {
-           let recorder = RPScreenRecorder.shared()
-           
-           if recorder.isRecording {
-               throw DualCameraError.recordingInProgress
-           }
-           
-           // Store recording parameters
-           recordingMode = mode
-           currentRecordingURL = outputURL
-           
-           // Start the ReplayKit recording
-           try await recorder.startRecording()
-           
-           // Log the start of recording
-           print("📹 Screen recording started with ReplayKit")
-       }
-       
-    /// Stops an ongoing video recording and returns the URL of the recorded file
-    // iOS 15+ version
-    public func stopVideoRecording() async throws -> URL {
-        let recorder = RPScreenRecorder.shared()
-        
-        guard recorder.isRecording, let outputURL = currentRecordingURL else {
-            throw DualCameraError.noRecordingInProgress
-        }
-        
-        // Create a temporary URL
-        let tempURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent(UUID().uuidString)
-            .appendingPathExtension("mp4")
-        
-        // Use the async/await version of stopRecording
-        try await recorder.stopRecording(withOutput: tempURL)
-        
-        // Copy to final destination
-        if FileManager.default.fileExists(atPath: outputURL.path) {
-            try FileManager.default.removeItem(at: outputURL)
-        }
-        
-        try FileManager.default.copyItem(at: tempURL, to: outputURL)
-        try? FileManager.default.removeItem(at: tempURL)
-        
-        recordingMode = nil
-        return outputURL
-    }
 }
-
 
 // MARK: - UIImage Extension for Video Recording
 extension UIImage {

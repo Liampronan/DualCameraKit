@@ -11,13 +11,13 @@ struct ContentView: View {
                 // Main camera view
                 DualCameraScreen(
                     controller: viewModel.dualCameraController,
-                    layout: viewModel.state.cameraLayout
+                    layout: viewModel.configuration.layout
                 )
                 .overlay(recordingIndicator, alignment: .top)
                 .overlay(controlButtons, alignment: .bottom)
                 
                 // Capture flash effect
-                if viewModel.state.operationMode.isCapturing {
+                if case .capturing = viewModel.viewState {
                     Color.white
                         .ignoresSafeArea()
                         .opacity(0.3)
@@ -25,9 +25,14 @@ struct ContentView: View {
                 }
                 
                 // Captured image overlay
-                if let capturedImage = viewModel.state.capturedImage {
+                if let capturedImage = viewModel.capturedImage {
                     capturedImageOverlay(capturedImage)
                         .transition(.opacity)
+                }
+                
+                // Error overlay for critical errors
+                if case .error(let error) = viewModel.viewState {
+                    errorOverlay(error)
                 }
             }
             .onChange(of: geoProxy.size, initial: true) { oldSize, newSize in
@@ -39,10 +44,10 @@ struct ContentView: View {
             .onDisappear {
                 viewModel.onDisappear()
             }
-            .animation(.easeInOut(duration: 0.2), value: viewModel.state.operationMode.isCapturing)
-            .animation(.easeInOut(duration: 0.3), value: viewModel.state.capturedImage != nil)
+            .animation(.easeInOut(duration: 0.2), value: viewModel.viewState)
+            .animation(.easeInOut(duration: 0.3), value: viewModel.capturedImage != nil)
             .alert(
-                item: $viewModel.state.alert
+                item: $viewModel.alert
             ) { alert in
                 if let secondaryButton = alert.secondaryButton {
                     return Alert(
@@ -66,14 +71,14 @@ struct ContentView: View {
     
     @ViewBuilder
     private var recordingIndicator: some View {
-        if viewModel.state.operationMode.isRecording {
+        if case .recording(let state) = viewModel.viewState {
             HStack {
                 Circle()
                     .fill(Color.red)
                     .frame(width: 10, height: 10)
                     .opacity(0.8)
                 
-                Text(viewModel.formatDuration(viewModel.state.operationMode.recordingDuration))
+                Text(state.formattedDuration)
                     .font(.system(size: 14, weight: .semibold, design: .monospaced))
                     .foregroundColor(.white)
             }
@@ -98,20 +103,74 @@ struct ContentView: View {
                     .padding()
                     .background(Circle().fill(Color.black.opacity(0.5)))
             }
-            .disabled(!viewModel.state.operationMode.isIdle)
+            .disabled(!viewModel.viewState.isPhotoButtonEnabled)
             
             // Video recording button
             Button(action: viewModel.toggleRecording) {
-                Image(systemName: viewModel.state.operationMode.isRecording ? "stop.fill" : "record.circle")
+                Image(systemName: viewModel.viewState.videoButtonIcon)
                     .font(.largeTitle)
-                    .foregroundColor(viewModel.state.operationMode.isRecording ? .red : .white)
+                    .foregroundColor(viewModel.viewState.videoButtonColor)
                     .padding()
                     .background(
                         Circle()
-                            .fill(viewModel.state.operationMode.isRecording ? Color.white.opacity(0.8) : Color.black.opacity(0.5))
+                            .fill(viewModel.viewState.videoButtonBackgroundColor)
                     )
             }
-            .disabled(viewModel.state.operationMode.isCapturing)
+            .disabled(!viewModel.viewState.isVideoButtonEnabled)
+            
+            // Layout picker button (optional - allows changing camera layout)
+            Menu {
+                Button("Side by Side") {
+                    viewModel.updateLayout(.sideBySide)
+                }
+                
+                Button("Stacked Vertical") {
+                    viewModel.updateLayout(.stackedVertical)
+                }
+                
+                Menu("PiP Mode") {
+                    Button("Front Mini - Top Left") {
+                        viewModel.updateLayout(.fullScreenWithMini(miniCamera: .front, miniCameraPosition: .topLeading))
+                    }
+                    
+                    Button("Front Mini - Top Right") {
+                        viewModel.updateLayout(.fullScreenWithMini(miniCamera: .front, miniCameraPosition: .topTrailing))
+                    }
+                    
+                    Button("Front Mini - Bottom Left") {
+                        viewModel.updateLayout(.fullScreenWithMini(miniCamera: .front, miniCameraPosition: .bottomLeading))
+                    }
+                    
+                    Button("Front Mini - Bottom Right") {
+                        viewModel.updateLayout(.fullScreenWithMini(miniCamera: .front, miniCameraPosition: .bottomTrailing))
+                    }
+                    
+                    Divider()
+                    
+                    Button("Back Mini - Top Left") {
+                        viewModel.updateLayout(.fullScreenWithMini(miniCamera: .back, miniCameraPosition: .topLeading))
+                    }
+                    
+                    Button("Back Mini - Top Right") {
+                        viewModel.updateLayout(.fullScreenWithMini(miniCamera: .back, miniCameraPosition: .topTrailing))
+                    }
+                    
+                    Button("Back Mini - Bottom Left") {
+                        viewModel.updateLayout(.fullScreenWithMini(miniCamera: .back, miniCameraPosition: .bottomLeading))
+                    }
+                    
+                    Button("Back Mini - Bottom Right") {
+                        viewModel.updateLayout(.fullScreenWithMini(miniCamera: .back, miniCameraPosition: .bottomTrailing))
+                    }
+                }
+            } label: {
+                Image(systemName: "rectangle.3.group")
+                    .font(.title)
+                    .foregroundColor(.white)
+                    .padding()
+                    .background(Circle().fill(Color.black.opacity(0.5)))
+            }
+            .disabled(!viewModel.viewState.isPhotoButtonEnabled)
         }
         .padding(.bottom, 30)
     }
@@ -124,10 +183,35 @@ struct ContentView: View {
             Image(uiImage: image)
                 .resizable()
                 .aspectRatio(contentMode: .fit)
-                .ignoresSafeArea(.all)
+                .ignoresSafeArea()
             
             VStack {
+                HStack {
+                    Button(action: viewModel.dismissCapturedImage) {
+                        Image(systemName: "xmark")
+                            .font(.title2)
+                            .foregroundColor(.white)
+                            .padding()
+                            .background(Circle().fill(Color.black.opacity(0.5)))
+                    }
+                    
+                    Spacer()
+                    
+                    Button(action: {
+                        // Save to photo library action would go here
+                        UIImageWriteToSavedPhotosAlbum(image, nil, nil, nil)
+                    }) {
+                        Image(systemName: "square.and.arrow.down")
+                            .font(.title2)
+                            .foregroundColor(.white)
+                            .padding()
+                            .background(Circle().fill(Color.black.opacity(0.5)))
+                    }
+                }
+                .padding()
+                
                 Spacer()
+                
                 Button("Dismiss") {
                     viewModel.dismissCapturedImage()
                 }
@@ -137,9 +221,49 @@ struct ContentView: View {
                 .padding(.bottom, 20)
             }
         }
-        .ignoresSafeArea(.all)
+        .ignoresSafeArea()
+    }
+    
+    @ViewBuilder
+    private func errorOverlay(_ error: DualCameraError) -> some View {
+        ZStack {
+            Color.black.opacity(0.85)
+                .ignoresSafeArea()
+            
+            VStack(spacing: 24) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.system(size: 48))
+                    .foregroundColor(.yellow)
+                
+                Text("Camera Error")
+                    .font(.title)
+                    .foregroundColor(.white)
+                
+                Text(error.localizedDescription)
+                    .font(.body)
+                    .foregroundColor(.white)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal)
+                
+                // Show specific hint based on error type
+                if case .permissionDenied = error {
+                    Button("Open Settings") {
+                        if let url = URL(string: UIApplication.openSettingsURLString) {
+                            UIApplication.shared.open(url)
+                        }
+                    }
+                    .padding()
+                    .background(Capsule().fill(Color.blue))
+                    .foregroundColor(.white)
+                    .padding(.top, 12)
+                }
+            }
+            .padding(30)
+        }
     }
 }
+
+// MARK: - Preview
 
 #Preview {
     ContentView()
