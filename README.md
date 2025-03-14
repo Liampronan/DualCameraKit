@@ -1,9 +1,12 @@
 # DualCameraKit
-Current Status: Alpha release working towards 1.0. Pre-release available: [v0.1.0-alpha](https://github.com/Liampronan/DualCameraKit/releases/tag/v0.1.0-alpha).
+Current Status: Alpha release working towards 1.0. Pre-release available: [v0.2.0-alpha](https://github.com/Liampronan/DualCameraKit/releases/tag/v0.2.0-alpha).
 
-Working: rendering dual cameras in SwiftUI with various layout options. 
+Working: 
+- rendering dual cameras in SwiftUI with various layout options (picture-in-picture, split vertical, split horizontal) 
+- photo capture.
+- MVP video capture using ReplayKit. The limitation with ReplayKit is that it asks for permission each time user starts a video, so unideal UX.
 
-In-progress: user can record & export dual cameras feed - currently we can only view the dual camera steams. 
+In-progress: user can record video without needing to accept ReplayKit permissions (i.e., we capture without using ReplayKit).
 
 ## Table of Contents
 - [What It Does](#what-it-does)
@@ -110,7 +113,7 @@ Since this library currently requires a real device, you cannot run it on a simu
 
 # Deep Dives
 
-- TODO: Explain our approach (dual streams) vs. `PiPVideoMixer` (single stream)
+- TODO: Explain our approach (dual streams) vs. `PiPVideoMixer` (single stream) vs `ReplayKit` (screen capture, requires user permission each time)
 - TODO: Add some diagrams
 
 # Limitations
