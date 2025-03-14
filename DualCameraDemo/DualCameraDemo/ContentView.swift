@@ -3,7 +3,13 @@ import SwiftUI
 import Photos
 
 struct ContentView: View {
-    @State private var viewModel = DualCameraViewModel()
+    @State private var viewModel: DualCameraViewModel
+    
+    init(dualCameraController: DualCameraControlling) {
+        _viewModel = State(wrappedValue: DualCameraViewModel(
+            dualCameraController: dualCameraController
+        ))
+    }
     
     var body: some View {
         GeometryReader { geoProxy in
@@ -265,6 +271,6 @@ struct ContentView: View {
 
 // MARK: - Preview
 
-#Preview {
-    ContentView()
-}
+//#Preview {
+//    ContentView()
+//}

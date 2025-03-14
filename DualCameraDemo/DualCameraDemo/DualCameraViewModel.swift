@@ -16,12 +16,13 @@ final class DualCameraViewModel {
     private(set) var capturedImage: UIImage? = nil
     var alert: AlertState? = nil
     
-    // External dependencies
-    let dualCameraController = DualCameraController(
-        videoRecorder: ReplayKitVideoRecorder()
-    )
+    let dualCameraController: DualCameraControlling
     private var recordingTimer: Timer?
-        
+    
+    init(dualCameraController: DualCameraControlling) {
+        self.dualCameraController = dualCameraController
+    }
+     
     // MARK: - Lifecycle Management
     
     func onAppear(containerSize: CGSize) {
