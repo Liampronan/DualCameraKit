@@ -1,36 +1,75 @@
-import UIKit
+import AVFoundation
 import SwiftUI
+import UIKit
+
 
 @MainActor
-public protocol DualCameraControllerProtocol {
+public protocol DualCameraControlling {
     var frontCameraStream: AsyncStream<PixelBufferWrapper> { get }
     var backCameraStream: AsyncStream<PixelBufferWrapper> { get }
+    func getRenderer(for source: CameraSource) -> CameraRenderer
+    
     func startSession() async throws
     func stopSession()
+    
+    var photoCapturer: DualCameraPhotoCapturing { get }
     func captureRawPhotos() async throws -> (front: UIImage, back: UIImage)
     func captureCurrentScreen(mode: DualCameraCaptureMode) async throws -> UIImage
+    
+    var videoRecorder: DualCameraVideoRecording { get }
+    func startVideoRecording(mode: DualCameraVideoRecordingMode, outputURL: URL) async throws
+    func stopVideoRecording() async throws -> URL
 }
 
-public extension DualCameraControllerProtocol {
-    func captureCurrentScreen(mode: DualCameraCaptureMode = .fullScreen) async throws -> UIImage {
-        try await captureCurrentScreen(mode: mode)
+// default implementations for `DualCameraVideoRecorder` - proxy to implementation in `videoRecorder`
+extension DualCameraControlling {
+    public func stopVideoRecording() async throws -> URL {
+        try await videoRecorder.stopVideoRecording()
+    }
+    
+    public func startVideoRecording(mode: DualCameraVideoRecordingMode = .screenCapture(), outputURL: URL)  async throws {
+        try await videoRecorder.startVideoRecording(mode: mode, outputURL: outputURL)
     }
 }
 
-public enum DualCameraCaptureMode {
-    case fullScreen
-    case containerSize(CGSize)
+// default implementations for `DualCameraPhotoCapturing` - proxy to implementation in `photoCapturer`
+public extension DualCameraControlling {
+    public func captureCurrentScreen(mode: DualCameraCaptureMode = .fullScreen) async throws -> UIImage {
+        try await photoCapturer.captureCurrentScreen(mode: mode)
+    }
+    
+    public func captureRawPhotos() async throws -> (front: UIImage, back: UIImage) {
+        let frontRenderer = getRenderer(for: .front)
+        let backRenderer = getRenderer(for: .back)
+        
+        return try await photoCapturer.captureRawPhotos(frontRenderer: frontRenderer, backRenderer: backRenderer)
+    }
 }
 
 @MainActor
-public final class DualCameraController: DualCameraControllerProtocol {
+public final class DualCameraController: DualCameraControlling {
+    // TODO: can these be private(set)
+    public var photoCapturer: any DualCameraPhotoCapturing
+    
+    public var videoRecorder: any DualCameraVideoRecording
+    public var renderers: [CameraSource: CameraRenderer] = [:]
+    
     private let streamSource = CameraStreamSource()
     
     // Internal storage for renderers and their stream tasks.
-    private var renderers: [CameraSource: CameraRenderer] = [:]
+    
     private var streamTasks: [CameraSource: Task<Void, Never>] = [:]
     
-    public init() {}
+    // MARK: - Video Recording Properties
+    
+    private var assetWriter: AVAssetWriter?
+    private var assetWriterVideoInput: AVAssetWriterInput?
+    private var pixelBufferAdaptor: AVAssetWriterInputPixelBufferAdaptor?
+    
+    public init(videoRecorder: any DualCameraVideoRecording, photoCapturer: any DualCameraPhotoCapturing) {
+        self.videoRecorder = videoRecorder
+        self.photoCapturer = photoCapturer
+    }
     
     nonisolated public var frontCameraStream: AsyncStream<PixelBufferWrapper> {
         streamSource.frontCameraStream
@@ -90,94 +129,5 @@ public final class DualCameraController: DualCameraControllerProtocol {
             task.cancel()
         }
         streamTasks.removeAll()
-    }
-    
-    /// Captures raw photos from both cameras without any compositing
-    public func captureRawPhotos() async throws -> (front: UIImage, back: UIImage) {
-        guard let frontRenderer = renderers[.front],
-              let backRenderer = renderers[.back] else {
-            throw DualCameraError.captureFailure(.noPrimaryRenderer)
-        }
-        
-        // Capture front camera image
-        let frontImage = try await withUnsafeThrowingContinuation { (continuation: UnsafeContinuation<UIImage, Error>) in
-            Task {
-                do {
-                    let image = try await frontRenderer.captureCurrentFrame()
-                    continuation.resume(returning: image)
-                } catch {
-                    continuation.resume(throwing: error)
-                }
-            }
-        }
-        
-        // Capture back camera image
-        let backImage = try await withUnsafeThrowingContinuation { (continuation: UnsafeContinuation<UIImage, Error>) in
-            Task {
-                do {
-                    let image = try await backRenderer.captureCurrentFrame()
-                    continuation.resume(returning: image)
-                } catch {
-                    continuation.resume(throwing: error)
-                }
-            }
-        }
-        
-        return (front: frontImage, back: backImage)
-    }
-
-    /// Captures the current screen content.
-    /// For now, we have an implicit dependency here on UIApplication for getting the keyWindow's windowScene.
-    /// In the future that might make sense to extract
-    public func captureCurrentScreen(mode: DualCameraCaptureMode = .fullScreen) async throws -> UIImage {
-        // Give SwiftUI a moment to fully render
-        try await Task.sleep(for: .milliseconds(50))
-        
-        // First try to find the app's key window (works with both UIKit and SwiftUI)
-        guard let keyWindow = await UIApplication.shared.connectedScenes
-            .compactMap({ $0 as? UIWindowScene })
-            .first(where: { $0.activationState == .foregroundActive })?
-            .windows
-            .first(where: { $0.isKeyWindow }),
-                let windowScene = keyWindow.windowScene else {
-            throw DualCameraError.captureFailure(.screenCaptureUnavailable)
-        }
-        
-        // Get scene size (full screen including safe areas)
-        let fullScreenSize = windowScene.screen.bounds.size
-        
-        switch mode {
-        case .fullScreen:
-            // Use full screen size for rendering
-            let renderer = UIGraphicsImageRenderer(size: fullScreenSize)
-            let capturedImage = renderer.image { _ in
-                keyWindow.drawHierarchy(in: CGRect(origin: .zero, size: fullScreenSize), afterScreenUpdates: true)
-            }
-            return capturedImage
-            
-        case .containerSize(let size):
-            guard !size.width.isZero && !size.height.isZero else {
-                throw DualCameraError.captureFailure(.unknownDimensions)
-            }
-            
-            // Use the container size for rendering
-            let renderer = UIGraphicsImageRenderer(size: size)
-            let capturedImage = renderer.image { context in
-                // Calculate scaling to make the full screen content fit within the container size
-                let scaleX = size.width / fullScreenSize.width
-                let scaleY = size.height / fullScreenSize.height
-                let scale = min(scaleX, scaleY) // Use min to fit the entire screen
-                
-                // Apply scaling
-                context.cgContext.scaleBy(x: scale, y: scale)
-                
-                // Draw the hierarchy scaled to fit
-                keyWindow.drawHierarchy(in: CGRect(origin: .zero, size: CGSize(
-                    width: fullScreenSize.width,
-                    height: fullScreenSize.height
-                )), afterScreenUpdates: true)
-            }
-            return capturedImage
-        }
     }
 }

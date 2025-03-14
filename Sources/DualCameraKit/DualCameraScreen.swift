@@ -1,11 +1,11 @@
 import SwiftUI
 
 public struct DualCameraScreen: View {
-    private let controller: DualCameraController
+    private let controller: DualCameraControlling
     private let layout: CameraLayout
     
     public init(
-        controller: DualCameraController,
+        controller: DualCameraControlling,
         layout: CameraLayout = .fullScreenWithMini(
             miniCamera: .front,
             miniCameraPosition: .bottomTrailing
