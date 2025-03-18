@@ -138,8 +138,8 @@ final class DualCameraViewModel {
                     recordingTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
                         Task { @MainActor [weak self] in
                             guard let self = self else { return }
-                            if case .recording(let state) = viewState {
-                                viewState = .recording(CameraViewState.RecordingState(duration: state.duration + 1))
+                            if case .recording(let state) = self.viewState {
+                                self.viewState = .recording(CameraViewState.RecordingState(duration: state.duration + 1))
                             }
                         }
                     }
@@ -223,12 +223,12 @@ final class DualCameraViewModel {
                 
                 if success {
                     // Show success alert
-                    alert = .info(title: "Video Recording", message: "Video saved to photo library")
+                    self.alert = .info(title: "Video Recording", message: "Video saved to photo library")
                     
                     // Clean up the temp file
                     try? FileManager.default.removeItem(at: videoURL)
                 } else if let error = error {
-                    showError(error, message: "Failed to save video")
+                    self.showError(error, message: "Failed to save video")
                 }
             }
         }
