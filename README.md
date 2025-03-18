@@ -118,8 +118,6 @@ Since this library currently requires a real device, you cannot run it on a simu
 
 # Limitations
 
-- BUG: demo app - first launch post-permission flow. does it render?
-- TODO: add video saving
 - iOS only. iPad support is a future enhancement, other platforms only have one camera
 - This library works on-device only! Simulator (including previews) doesn't have access to camera.
   - There's a TODO for simulator support via mocking
