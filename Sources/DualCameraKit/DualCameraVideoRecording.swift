@@ -7,7 +7,7 @@ import ReplayKit
 }
 
 /// How video recording should be performed
-public enum DualCameraVideoRecordingMode {
+public enum DualCameraVideoRecordingMode: Sendable {
     /// Records what is displayed on screen (the composed view)
     case screenCapture(DualCameraCaptureMode = .fullScreen)
     

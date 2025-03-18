@@ -1,19 +1,20 @@
 import UIKit
 
 @MainActor
-public protocol DualCameraPhotoCapturing: AnyObject {
+public protocol DualCameraPhotoCapturing: AnyObject  {
     func captureRawPhotos(frontRenderer: CameraRenderer, backRenderer: CameraRenderer) async throws -> (front: UIImage, back: UIImage)
     func captureCurrentScreen(mode: DualCameraCaptureMode) async throws -> UIImage
 }
 
 /// determines whether the photos are captured in as if displayed in `fullScreen` or in a layout not fillingl the fullscreen aka a container via `containerSize`
-public enum DualCameraCaptureMode {
+public enum DualCameraCaptureMode: Sendable {
     case fullScreen
     case containerSize(CGSize)
 }
 
-@MainActor
-public class DualCameraPhotoCapturer: DualCameraPhotoCapturing {
+//@MainActor
+// TODO: fixme if this approach improves perf
+public class DualCameraPhotoCapturer: DualCameraPhotoCapturing, @unchecked Sendable {
     
     public init() { }
     
@@ -47,6 +48,7 @@ public class DualCameraPhotoCapturer: DualCameraPhotoCapturing {
     }
 
     /// Captures the current screen content.
+    @MainActor
     public func captureCurrentScreen(mode: DualCameraCaptureMode = .fullScreen) async throws -> UIImage {
         // TODO: I think we can remove this  Give SwiftUI a moment to fully render
 //        try await Task.sleep(for: .milliseconds(50))

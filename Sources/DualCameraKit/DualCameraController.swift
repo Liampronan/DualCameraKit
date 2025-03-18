@@ -17,6 +17,7 @@ public protocol DualCameraControlling {
     func captureCurrentScreen(mode: DualCameraCaptureMode) async throws -> UIImage
     
     var videoRecorder: DualCameraVideoRecording { get }
+    var videoRecorder2: DualCameraVideoRecording2 { get }
     func startVideoRecording(mode: DualCameraVideoRecordingMode, outputURL: URL) async throws
     func stopVideoRecording() async throws -> URL
 }
@@ -24,11 +25,13 @@ public protocol DualCameraControlling {
 // default implementations for `DualCameraVideoRecorder` - proxy to implementation in `videoRecorder`
 extension DualCameraControlling {
     public func stopVideoRecording() async throws -> URL {
-        try await videoRecorder.stopVideoRecording()
+//        try await videoRecorder.stopVideoRecording()
+        try await videoRecorder2.stopVideoRecording()
     }
     
     public func startVideoRecording(mode: DualCameraVideoRecordingMode = .screenCapture(), outputURL: URL)  async throws {
-        try await videoRecorder.startVideoRecording(mode: mode, outputURL: outputURL)
+//        try await videoRecorder.startVideoRecording(mode: mode, outputURL: outputURL)
+        try await videoRecorder2.startVideoRecording(mode: mode, outputURL: outputURL)
     }
 }
 
@@ -52,6 +55,7 @@ public final class DualCameraController: DualCameraControlling {
     public var photoCapturer: any DualCameraPhotoCapturing
     
     public var videoRecorder: any DualCameraVideoRecording
+    public var videoRecorder2: any DualCameraVideoRecording2
     public var renderers: [CameraSource: CameraRenderer] = [:]
     
     private let streamSource = CameraStreamSource()
@@ -69,6 +73,9 @@ public final class DualCameraController: DualCameraControlling {
     public init(videoRecorder: any DualCameraVideoRecording, photoCapturer: any DualCameraPhotoCapturing) {
         self.videoRecorder = videoRecorder
         self.photoCapturer = photoCapturer
+        
+        
+        self.videoRecorder2 = VideoRecordingManager(captureMode: .fullScreen, photoCapturer: photoCapturer as! DualCameraPhotoCapturer)
     }
     
     nonisolated public var frontCameraStream: AsyncStream<PixelBufferWrapper> {
