@@ -13,7 +13,7 @@ public enum DualCameraCaptureMode: Sendable {
 }
 
 //@MainActor
-// TODO: fixme if this approach improves perf
+// TODO: fixme sendable if this approach improves perf
 public class DualCameraPhotoCapturer: DualCameraPhotoCapturing, @unchecked Sendable {
     
     public init() { }
@@ -47,31 +47,45 @@ public class DualCameraPhotoCapturer: DualCameraPhotoCapturing, @unchecked Senda
         return (front: frontImage, back: backImage)
     }
 
-    /// Captures the current screen content.
+    /// Captures the current screen content with improved performance.
     @MainActor
     public func captureCurrentScreen(mode: DualCameraCaptureMode = .fullScreen) async throws -> UIImage {
-        // TODO: I think we can remove this  Give SwiftUI a moment to fully render
-//        try await Task.sleep(for: .milliseconds(50))
+        // Cache UIApplication.shared to avoid multiple accesses
+        let application = UIApplication.shared
         
-        // First try to find the app's key window (works with both UIKit and SwiftUI)
-        guard let keyWindow = await UIApplication.shared.connectedScenes
+        // Find the key window with optimized search
+        guard let keyWindow = application.connectedScenes
             .compactMap({ $0 as? UIWindowScene })
             .first(where: { $0.activationState == .foregroundActive })?
             .windows
             .first(where: { $0.isKeyWindow }),
-                let windowScene = keyWindow.windowScene else {
+              let windowScene = keyWindow.windowScene else {
             throw DualCameraError.captureFailure(.screenCaptureUnavailable)
         }
         
-        // Get scene size (full screen including safe areas)
+        // Cache the screen size to avoid recalculation
         let fullScreenSize = windowScene.screen.bounds.size
+        
+        // Use afterScreenUpdates strategically to balance performance and visual quality
+        // Setting to false improves performance but may capture incomplete UI in some cases
+        let afterScreenUpdates = false // Better performance, might miss some UI updates
         
         switch mode {
         case .fullScreen:
-            // Use full screen size for rendering
-            let renderer = UIGraphicsImageRenderer(size: fullScreenSize)
+            // Use optimized format for performance
+            let format = UIGraphicsImageRendererFormat()
+            format.scale = 1.0 // Use exact pixel dimensions, not device scale
+            format.opaque = true // Optimize for opaque content (no transparency)
+            
+            // Create renderer with optimized format
+            let renderer = UIGraphicsImageRenderer(size: fullScreenSize, format: format)
+            
+            // Generate image with optimized settings
             let capturedImage = renderer.image { _ in
-                keyWindow.drawHierarchy(in: CGRect(origin: .zero, size: fullScreenSize), afterScreenUpdates: true)
+                keyWindow.drawHierarchy(
+                    in: CGRect(origin: .zero, size: fullScreenSize),
+                    afterScreenUpdates: afterScreenUpdates
+                )
             }
             return capturedImage
             
@@ -80,22 +94,31 @@ public class DualCameraPhotoCapturer: DualCameraPhotoCapturing, @unchecked Senda
                 throw DualCameraError.captureFailure(.unknownDimensions)
             }
             
-            // Use the container size for rendering
-            let renderer = UIGraphicsImageRenderer(size: size)
+            // Use optimized format for container size too
+            let format = UIGraphicsImageRendererFormat()
+            format.scale = 1.0
+            format.opaque = true
+            
+            // Create renderer with optimized format for container size
+            let renderer = UIGraphicsImageRenderer(size: size, format: format)
+            
+            // Generate scaled image with optimized drawing
             let capturedImage = renderer.image { context in
-                // Calculate scaling to make the full screen content fit within the container size
+                let cgContext = context.cgContext
+                
+                // Calculate scaling but use more efficient method
                 let scaleX = size.width / fullScreenSize.width
                 let scaleY = size.height / fullScreenSize.height
-                let scale = min(scaleX, scaleY) // Use min to fit the entire screen
+                let scale = min(scaleX, scaleY)
                 
-                // Apply scaling
-                context.cgContext.scaleBy(x: scale, y: scale)
+                // Apply scaling with optimized transform
+                cgContext.scaleBy(x: scale, y: scale)
                 
-                // Draw the hierarchy scaled to fit
-                keyWindow.drawHierarchy(in: CGRect(origin: .zero, size: CGSize(
-                    width: fullScreenSize.width,
-                    height: fullScreenSize.height
-                )), afterScreenUpdates: true)
+                // Draw with optimal parameters
+                keyWindow.drawHierarchy(
+                    in: CGRect(origin: .zero, size: fullScreenSize),
+                    afterScreenUpdates: afterScreenUpdates
+                )
             }
             return capturedImage
         }

@@ -2,7 +2,6 @@ import AVFoundation
 import SwiftUI
 import UIKit
 
-
 @MainActor
 public protocol DualCameraControlling {
     var frontCameraStream: AsyncStream<PixelBufferWrapper> { get }
@@ -18,7 +17,7 @@ public protocol DualCameraControlling {
     
     var videoRecorder: DualCameraVideoRecording { get }
     var videoRecorder2: DualCameraVideoRecording2 { get }
-    func startVideoRecording(mode: DualCameraVideoRecordingMode, outputURL: URL) async throws
+    func startVideoRecording(config: DualCameraVideoRecordingConfig) async throws
     func stopVideoRecording() async throws -> URL
 }
 
@@ -29,9 +28,9 @@ extension DualCameraControlling {
         try await videoRecorder2.stopVideoRecording()
     }
     
-    public func startVideoRecording(mode: DualCameraVideoRecordingMode = .screenCapture(), outputURL: URL)  async throws {
-//        try await videoRecorder.startVideoRecording(mode: mode, outputURL: outputURL)
-        try await videoRecorder2.startVideoRecording(mode: mode, outputURL: outputURL)
+    public func startVideoRecording(config: DualCameraVideoRecordingConfig) async throws {
+        // Delegate to the underlying implementation
+        try await videoRecorder2.startVideoRecording(config: config)
     }
 }
 
@@ -74,8 +73,7 @@ public final class DualCameraController: DualCameraControlling {
         self.videoRecorder = videoRecorder
         self.photoCapturer = photoCapturer
         
-        
-        self.videoRecorder2 = VideoRecordingManager(captureMode: .fullScreen, photoCapturer: photoCapturer as! DualCameraPhotoCapturer)
+        self.videoRecorder2 = VideoRecordingManager(photoCapturer: photoCapturer as! DualCameraPhotoCapturer)
     }
     
     nonisolated public var frontCameraStream: AsyncStream<PixelBufferWrapper> {

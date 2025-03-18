@@ -121,15 +121,11 @@ final class DualCameraViewModel {
             Task { @MainActor [weak self] in
                 guard let self = self else { return }
                 do {
-                    // Create a temporary file URL in the documents directory
-                    let tempDir = FileManager.default.temporaryDirectory
-                    let fileName = "dualcamera_recording_\(Date().timeIntervalSince1970).mp4"
-                    let fileURL = tempDir.appendingPathComponent(fileName)
-                    
-                    // Save for later use when stopping recording
-                    
+                    let videoRecordingConfig = DualCameraVideoRecordingConfig(
+                        mode: .screenCapture(.fullScreen)
+                    )
                     // Start recording
-                    try await dualCameraController.startVideoRecording(outputURL: fileURL)
+                    try await dualCameraController.startVideoRecording(config: videoRecordingConfig)
                     
                     // Update state to recording with 0 duration
                     viewState = .recording(CameraViewState.RecordingState(duration: 0))

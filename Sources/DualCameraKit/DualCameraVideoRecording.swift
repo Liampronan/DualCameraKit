@@ -40,6 +40,7 @@ public final class ReplayKitVideoRecorder: DualCameraVideoRecording {
         try await recorder.startRecording()
         
         // Log the start of recording
+        // TODO: move this to logger 
         print("📹 Screen recording started with ReplayKit")
     }
     
@@ -212,6 +213,7 @@ public final class CPUIntensiveVideoRecorder: DualCameraVideoRecording {
         // Create a task to periodically capture the screen and write frames
         recordingTask = Task {
             // 30 fps - from testing on iPhone 15, this jitters at 60 FPS, likely due too much cpu work; part of upcoming refactor should address this
+            // START: should this be dynamic based on frame
             let frameInterval: TimeInterval = 1.0 / 30.0
             guard let photoCapturer else {
                 throw DualCameraError.recordingFailed(.noPhotoCapturerAvailable) 
