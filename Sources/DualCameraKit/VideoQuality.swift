@@ -16,6 +16,7 @@ public enum VideoQuality: Sendable {
         case .premium: 24_000_000
         }
     }
+    
     // TODO: create issue for user controlled frame rate.
     /// For now, we associate framerate with quality and there is no way to override.
     /// In the future, we could make this adaptive and/or user-specificied 

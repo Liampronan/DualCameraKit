@@ -16,21 +16,19 @@ public protocol DualCameraControlling {
     func captureCurrentScreen(mode: DualCameraCaptureMode) async throws -> UIImage
     
     var videoRecorder: DualCameraVideoRecording { get }
-    var videoRecorder2: DualCameraVideoRecording2 { get }
-    func startVideoRecording(config: DualCameraVideoRecordingConfig) async throws
+    func startVideoRecording() async throws
     func stopVideoRecording() async throws -> URL
 }
 
 // default implementations for `DualCameraVideoRecorder` - proxy to implementation in `videoRecorder`
 extension DualCameraControlling {
     public func stopVideoRecording() async throws -> URL {
-//        try await videoRecorder.stopVideoRecording()
-        try await videoRecorder2.stopVideoRecording()
+        try await videoRecorder.stopVideoRecording()
     }
     
-    public func startVideoRecording(config: DualCameraVideoRecordingConfig) async throws {
+    public func startVideoRecording() async throws {
         // Delegate to the underlying implementation
-        try await videoRecorder2.startVideoRecording(config: config)
+        try await videoRecorder.startVideoRecording()
     }
 }
 
@@ -54,7 +52,6 @@ public final class DualCameraController: DualCameraControlling {
     public var photoCapturer: any DualCameraPhotoCapturing
     
     public var videoRecorder: any DualCameraVideoRecording
-    public var videoRecorder2: any DualCameraVideoRecording2
     public var renderers: [CameraSource: CameraRenderer] = [:]
     
     private let streamSource = CameraStreamSource()
@@ -73,7 +70,6 @@ public final class DualCameraController: DualCameraControlling {
         self.videoRecorder = videoRecorder
         self.photoCapturer = photoCapturer
         
-        self.videoRecorder2 = VideoRecordingManager(photoCapturer: photoCapturer as! DualCameraPhotoCapturer)
     }
     
     nonisolated public var frontCameraStream: AsyncStream<PixelBufferWrapper> {

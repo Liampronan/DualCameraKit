@@ -2,7 +2,7 @@ import AVFoundation
 import CoreVideo
 import UIKit
 
-public struct DualCameraVideoRecordingConfig: Sendable {
+public struct DualCameraCPUVideoRecorderConfig: Sendable {
     public let mode: DualCameraVideoRecordingMode
     public let quality: VideoQuality
     public let outputURL: URL?
@@ -18,25 +18,9 @@ public struct DualCameraVideoRecordingConfig: Sendable {
     }
 }
 
-public protocol DualCameraVideoRecording2: Actor {
-    func startVideoRecording(config: DualCameraVideoRecordingConfig) async throws
-    func stopVideoRecording() async throws -> URL
-}
 
-// Convenience extension if you want both approaches
-public extension DualCameraVideoRecording2 {
-    func startVideoRecording(
-        mode: DualCameraVideoRecordingMode,
-        quality: VideoQuality = .high,
-        outputURL: URL? = nil
-    ) async throws {
-        let config = DualCameraVideoRecordingConfig(mode: mode, quality: quality, outputURL: outputURL)
-        try await startVideoRecording(config: config)
-    }
-}
-
-// A dedicated actor to handle video recording operations
-actor VideoRecordingManager: DualCameraVideoRecording2 {
+/// Records video using CPU-intensive UIImage capture. 
+public actor DualCameraCPUVideoRecorderManager: DualCameraVideoRecording {
     // Core recording components
     private var assetWriter: AVAssetWriter?
     private var videoInput: AVAssetWriterInput?
@@ -53,6 +37,9 @@ actor VideoRecordingManager: DualCameraVideoRecording2 {
     private var skippedFrameCount: Int = 0
     private var frameTimeAccumulator: Double = 0.0
     
+    // queue for processing UIImage -> PixelBuffer conversion
+    private let processingQueue = DispatchQueue(label: "com.dualcamera.videoprocessing", qos: .userInitiated)
+    
     private enum RecordingState {
         case inactive
         case active(outputURL: URL, quality: VideoQuality)
@@ -61,15 +48,18 @@ actor VideoRecordingManager: DualCameraVideoRecording2 {
     private var state: RecordingState = .inactive
     // Configuration
     private let photoCapturer: any DualCameraPhotoCapturing
+    private let config: DualCameraCPUVideoRecorderConfig
     
-    init(
-        photoCapturer: any DualCameraPhotoCapturing
+    
+    public init(
+        photoCapturer: any DualCameraPhotoCapturing,
+        config: DualCameraCPUVideoRecorderConfig
     ) {
         self.photoCapturer = photoCapturer
+        self.config = config
     }
     
-    // TODO: fix this params - either use here or move to init. consider moving to init and then maknig that consistent for protocol
-    func startVideoRecording(config: DualCameraVideoRecordingConfig) async throws {
+    public func startVideoRecording() async throws {
         guard case .inactive = state else {
             throw DualCameraError.recordingInProgress
         }
@@ -130,6 +120,50 @@ actor VideoRecordingManager: DualCameraVideoRecording2 {
         state = .active(outputURL: outputURL, quality: quality)
     }
     
+    public func stopVideoRecording() async throws -> URL {
+        guard case .active(let outputURL, _) = state else {
+            throw DualCameraError.noRecordingInProgress
+        }
+        
+        // Invalidate display link
+        displayLink?.invalidate()
+        displayLink = nil
+        displayLinkTarget = nil
+        
+        // Finalize recording
+        if let videoInput = videoInput {
+            videoInput.markAsFinished()
+        }
+        
+        if let audioInput = audioInput {
+            audioInput.markAsFinished()
+        }
+        
+        // Wait for asset writer to finish
+        if let assetWriter = assetWriter {
+            await withCheckedContinuation { continuation in
+                assetWriter.finishWriting {
+                    continuation.resume()
+                }
+            }
+        }
+        // TODO: move me to logger
+        print("Recording completed with \(frameCount) frames")
+        
+        // Reset state
+        assetWriter = nil
+        videoInput = nil
+        audioInput = nil
+        pixelBufferAdaptor = nil
+        pixelBufferPool = nil
+        recordingStartTime = nil
+        previousFrameTime = nil
+        frameCount = 0
+        state = .inactive
+        
+        return outputURL
+    }
+    
     private func calculateDimensions(for mode: DualCameraVideoRecordingMode) async throws -> CGSize {
         var rawSize: CGSize
         
@@ -174,56 +208,11 @@ actor VideoRecordingManager: DualCameraVideoRecording2 {
         return CGSize(width: width, height: height)
     }
     
-    func stopVideoRecording() async throws -> URL {
-        guard case .active(let outputURL, _) = state else {
-            throw DualCameraError.noRecordingInProgress
-        }
-        
-        // Invalidate display link
-        displayLink?.invalidate()
-        displayLink = nil
-        displayLinkTarget = nil
-        
-        // Finalize recording
-        if let videoInput = videoInput {
-            videoInput.markAsFinished()
-        }
-        
-        if let audioInput = audioInput {
-            audioInput.markAsFinished()
-        }
-        
-        // Wait for asset writer to finish
-        if let assetWriter = assetWriter {
-            await withCheckedContinuation { continuation in
-                assetWriter.finishWriting {
-                    continuation.resume()
-                }
-            }
-        }
-        // TODO: move me to logger
-        print("Recording completed with \(frameCount) frames")
-        
-        // Reset state
-        assetWriter = nil
-        videoInput = nil
-        audioInput = nil
-        pixelBufferAdaptor = nil
-        pixelBufferPool = nil
-        recordingStartTime = nil
-        previousFrameTime = nil
-        frameCount = 0
-        state = .inactive
-        
-        return outputURL
-    }
-    
-    
     // Helper class to avoid retain cycles with CADisplayLink
     private class DisplayLinkTarget {
-        private weak var manager: VideoRecordingManager?
+        private weak var manager: DualCameraCPUVideoRecorderManager?
         
-        init(manager: VideoRecordingManager) {
+        init(manager: DualCameraCPUVideoRecorderManager) {
             self.manager = manager
         }
         
@@ -240,34 +229,25 @@ actor VideoRecordingManager: DualCameraVideoRecording2 {
         // Create target to avoid retain cycles
         displayLinkTarget = DisplayLinkTarget(manager: self)
         
-        // Create and configure display link with optimal settings for iOS 18+
-        displayLink = CADisplayLink(
+        // Standard CADisplayLink setup
+        let standardDisplayLink = CADisplayLink(
             target: displayLinkTarget!,
             selector: #selector(DisplayLinkTarget.captureFrame)
         )
         
         // Configure for precise frame rate control
-        displayLink?.preferredFrameRateRange = CAFrameRateRange(
+        standardDisplayLink.preferredFrameRateRange = CAFrameRateRange(
             minimum: Float(frameRate - 5),
             maximum: Float(frameRate),
             preferred: Float(frameRate)
         )
         
-        // Add to multiple run loop modes for consistent timing during interactions
+        // Set up display link
+        self.displayLink = standardDisplayLink
         let runLoop = RunLoop.main
-        displayLink?.add(to: runLoop, forMode: .common)
-        displayLink?.add(to: runLoop, forMode: .tracking)
-        
-        // Use Metal display link for better GPU synchronization if available
-        if let metalDevice = MTLCreateSystemDefaultDevice() {
-            do {
-                // TODO: ensure this is working
-//                let _ = try displayLink
-                print("Using Metal-optimized display link for recording")
-            } catch {
-                print("Standard display link in use: \(error.localizedDescription)")
-            }
-        }
+        self.displayLink?.add(to: runLoop, forMode: .common)
+        self.displayLink?.add(to: runLoop, forMode: .tracking)
+        DualCameraLogger.session.info("Standard display link in use")
     }
     
     /// Create an optimized pixel buffer pool for more efficient memory use and better performance
@@ -319,75 +299,58 @@ actor VideoRecordingManager: DualCameraVideoRecording2 {
     
     private func handleDisplayLinkCapture() async {
         do {
-            // Ensure writer is ready - exit early if not
-            guard let videoInput = videoInput, 
+            // Check that writer components are ready.
+            guard let videoInput = videoInput,
                   videoInput.isReadyForMoreMediaData,
                   let adaptor = pixelBufferAdaptor else {
-                // TODO: add error
                 return
             }
-            
             guard case .active(_, let quality) = state else {
                 throw DualCameraError.noRecordingInProgress
             }
             
-            // Get precise timing
+            // Compute presentation time.
             let currentTime = CMClockGetTime(CMClockGetHostTimeClock())
-            guard let startTime = recordingStartTime else {
-                // TODO: add error
-                return
-            }
-            
+            guard let startTime = recordingStartTime else { return }
             let presentationTime = CMTimeSubtract(currentTime, startTime)
             
-            // Advanced frame timing with adaptive rate control
+            // Adaptive frame timing.
             if let prevTime = previousFrameTime {
                 let elapsed = CMTimeSubtract(presentationTime, prevTime)
                 let elapsedSeconds = CMTimeGetSeconds(elapsed)
                 let targetFrameDuration = 1.0 / Double(quality.frameRate)
-                
-                // Update timing accumulator for smoother frame pacing
                 frameTimeAccumulator += elapsedSeconds
-                
-                // Apply dynamic frame skip based on system load
-                if frameTimeAccumulator < targetFrameDuration {
-                    // Too early for next frame
-                    return
-                }
-                
-                // Detect if we're falling behind (system under load)
+                if frameTimeAccumulator < targetFrameDuration { return }
                 if frameTimeAccumulator > (targetFrameDuration * 2.0) {
-                    // System is struggling - implement frame dropping to maintain timing
                     let framesToSkip = Int(frameTimeAccumulator / targetFrameDuration) - 1
-                    frameTimeAccumulator = 0 // Reset accumulator after skip
-                    
-                    if framesToSkip > 0 {
-                        skippedFrameCount += framesToSkip
-                        // Performance logging removed
-                    }
+                    frameTimeAccumulator = 0
+                    if framesToSkip > 0 { skippedFrameCount += framesToSkip }
                 } else {
-                    // Normal timing - consume one frame duration
                     frameTimeAccumulator -= targetFrameDuration
                 }
             }
-            // TODO: fixme cast; sending
+            
+            // Capture the screen image
+            // TODO: fixme this shouldnt be cast 
             let image = try await (photoCapturer as! DualCameraPhotoCapturer).captureCurrentScreen()
             
-            // Convert to pixel buffer efficiently
-            guard let buffer = image.pixelBuffer() else {
+            // Offload UIImage -> pixel buffer conversion to a background queue.
+            let pixelBuffer = await withCheckedContinuation { continuation in
+                processingQueue.async {
+                    let buffer = image.pixelBuffer()
+                    continuation.resume(returning: buffer)
+                }
+            }
+            guard let buffer = pixelBuffer else {
                 throw DualCameraError.captureFailure(.imageCreationFailed)
             }
             
-            // Create wrapper and append to writer
-            let pixelBufferWrapper = PixelBufferWrapper(buffer: buffer)
-            
-            if adaptor.append(pixelBufferWrapper.buffer, withPresentationTime: presentationTime) {
+            // Append the converted buffer.
+            if adaptor.append(buffer, withPresentationTime: presentationTime) {
                 previousFrameTime = presentationTime
                 frameCount += 1
             }
-            // Error logging removed for performance
         } catch {
-            // Minimized error handling for performance
             skippedFrameCount += 1
         }
     }

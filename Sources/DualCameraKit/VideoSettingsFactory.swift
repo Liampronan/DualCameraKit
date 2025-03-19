@@ -25,8 +25,7 @@ struct VideoRecorderSettingsFactory {
             videoCompressionProperties[AVVideoProfileLevelKey] = quality.profileLevel
             videoCompressionProperties[AVVideoMaxKeyFrameIntervalKey] = quality.frameRate
         }
-        
-        // Create the final video settings dictionary
+
         let videoSettings: [String: Any] = [
             AVVideoCodecKey: quality.codecType,
             AVVideoWidthKey: Int(dimensions.width),

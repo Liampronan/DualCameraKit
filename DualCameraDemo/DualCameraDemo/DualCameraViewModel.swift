@@ -121,11 +121,9 @@ final class DualCameraViewModel {
             Task { @MainActor [weak self] in
                 guard let self = self else { return }
                 do {
-                    let videoRecordingConfig = DualCameraVideoRecordingConfig(
-                        mode: .screenCapture(.fullScreen)
-                    )
+                    
                     // Start recording
-                    try await dualCameraController.startVideoRecording(config: videoRecordingConfig)
+                    try await dualCameraController.startVideoRecording()
                     
                     // Update state to recording with 0 duration
                     viewState = .recording(CameraViewState.RecordingState(duration: 0))
