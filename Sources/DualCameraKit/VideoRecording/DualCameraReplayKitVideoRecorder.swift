@@ -35,17 +35,16 @@ public actor DualCameraReplayKitVideoRecorder: DualCameraVideoRecording {
         
         let outputURL = configure(outputURL: config.outputURL)
         
-        // Start the ReplayKit recording
         try await recorder.startRecording()
         state = .active(outputURL: outputURL)
-        // Log the start of recording
-        // TODO: move this to logger 
-        print("📹 Screen recording started with ReplayKit")
+        DualCameraLogger.session.debug("📹 Screen recording started with ReplayKit")
     }
     
     /// Stops an ongoing video recording and returns the URL of the recorded file
     public func stopVideoRecording() async throws -> URL {
         let recorder = RPScreenRecorder.shared()
+        
+        DualCameraLogger.session.debug("📹 Screen recording stopped with ReplayKit")
         
         guard case .active(let outputURL) = state else {
             throw DualCameraError.noRecordingInProgress
@@ -56,7 +55,6 @@ public actor DualCameraReplayKitVideoRecorder: DualCameraVideoRecording {
             .appendingPathComponent(UUID().uuidString)
             .appendingPathExtension("mp4")
         
-        // Use the async/await version of stopRecording
         try await recorder.stopRecording(withOutput: tempURL)
         
         // Copy to final destination

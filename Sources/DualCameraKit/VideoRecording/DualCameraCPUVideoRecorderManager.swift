@@ -120,6 +120,7 @@ public actor DualCameraCPUVideoRecorderManager: DualCameraVideoRecording {
         setupDisplayLink(frameRate: frameRate)
         
         state = .active(outputURL: outputURL, quality: quality)
+        DualCameraLogger.session.debug("📹 Screen recording started with DualCameraCPUVideoRecorderManager")
     }
     
     public func stopVideoRecording() async throws -> URL {
@@ -150,7 +151,7 @@ public actor DualCameraCPUVideoRecorderManager: DualCameraVideoRecording {
             }
         }
         
-        DualCameraLogger.session.debug("Recording completed with \(self.frameCount) frames")
+        DualCameraLogger.session.debug("Recording completed with \(self.frameCount) frames using DualCameraCPUVideoRecorderManager")
         
         resetRecordingState()
         
