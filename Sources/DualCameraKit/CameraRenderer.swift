@@ -3,6 +3,7 @@ import MetalKit
 import UIKit
 
 /// Camera rendering capabilities.
+@MainActor
 public protocol CameraRenderer: AnyObject {
     /// Update renderer with new camera frame.
     func update(with buffer: CVPixelBuffer)
@@ -158,11 +159,9 @@ public final class MetalCameraRenderer: MTKView, CameraRenderer, MTKViewDelegate
 // MARK: - CameraRenderer Protocol Methods
 extension MetalCameraRenderer {
     
-    nonisolated public func update(with buffer: CVPixelBuffer) {
+    public func update(with buffer: CVPixelBuffer) {
         let bufferWrapper = PixelBufferWrapper(buffer: buffer)
-        Task { @MainActor [weak self] in
-            self?.createAndUpdateTexture(from: bufferWrapper)
-        }
+        createAndUpdateTexture(from: bufferWrapper)
     }
     
     /// Captures the current frame by reading the drawable’s texture.
@@ -248,6 +247,7 @@ extension MetalCameraRenderer {
         free(rawData)
         
         // Create and return the UIImage
+        // TODO: should this scale be dynamic? 
         return UIImage(cgImage: cgImage, scale: 1.0, orientation: .up)
     }
     

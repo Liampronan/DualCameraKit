@@ -1,6 +1,8 @@
 import AVFoundation
 
-// TODO: create issue for adaptive video quality (based on device state)
+/// Determines the quality of the recorded video.
+/// For now, we associate framerate with quality and there is no way to override.
+/// In the future, we could make this adaptive and/or user-specificied
 public enum VideoQuality: Sendable {
     /// 8 Mbps, 30 fps
     case medium
@@ -17,9 +19,6 @@ public enum VideoQuality: Sendable {
         }
     }
     
-    // TODO: create issue for user controlled frame rate.
-    /// For now, we associate framerate with quality and there is no way to override.
-    /// In the future, we could make this adaptive and/or user-specificied 
     var frameRate: Int {
         switch self {
         case .medium:  return 30

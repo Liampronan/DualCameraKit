@@ -18,7 +18,6 @@ public struct DualCameraCPUVideoRecorderConfig: Sendable {
     }
 }
 
-
 /// Records video using CPU-intensive UIImage capture. 
 public actor DualCameraCPUVideoRecorderManager: DualCameraVideoRecording {
     // Core recording components
@@ -37,6 +36,8 @@ public actor DualCameraCPUVideoRecorderManager: DualCameraVideoRecording {
     private var skippedFrameCount: Int = 0
     private var frameTimeAccumulator: Double = 0.0
     
+    private var availableBuffers: [CVPixelBuffer] = []
+
     // queue for processing UIImage -> PixelBuffer conversion
     private let processingQueue = DispatchQueue(label: "com.dualcamera.videoprocessing", qos: .userInitiated)
     
@@ -47,9 +48,11 @@ public actor DualCameraCPUVideoRecorderManager: DualCameraVideoRecording {
     
     private var state: RecordingState = .inactive
     // Configuration
-    private let photoCapturer: any DualCameraPhotoCapturing
+    nonisolated private let photoCapturer: any DualCameraPhotoCapturing
     private let config: DualCameraCPUVideoRecorderConfig
-    
+    private var photoCaptureMode: DualCameraPhotoCaptureMode {
+        config.mode.asPhotoCaptureMode!
+    }
     
     public init(
         photoCapturer: any DualCameraPhotoCapturing,
@@ -79,7 +82,6 @@ public actor DualCameraCPUVideoRecorderManager: DualCameraVideoRecording {
             throw DualCameraError.recordingFailed(.assetWriterCreationFailed)
         }
         let dimensions: CGSize = try await calculateDimensions(for: mode)
-
         let videoSettings = VideoRecorderSettingsFactory.createEncodingSettings(
             quality: quality,
             dimensions: dimensions
@@ -102,7 +104,7 @@ public actor DualCameraCPUVideoRecorderManager: DualCameraVideoRecording {
             sourcePixelBufferAttributes: [
                 kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA,
                 kCVPixelBufferWidthKey as String: Int(dimensions.width),
-                kCVPixelBufferHeightKey as String: Int(dimensions.height)
+                kCVPixelBufferHeightKey as String: Int(dimensions.height),
             ]
         )
         
@@ -147,19 +149,10 @@ public actor DualCameraCPUVideoRecorderManager: DualCameraVideoRecording {
                 }
             }
         }
-        // TODO: move me to logger
-        print("Recording completed with \(frameCount) frames")
         
-        // Reset state
-        assetWriter = nil
-        videoInput = nil
-        audioInput = nil
-        pixelBufferAdaptor = nil
-        pixelBufferPool = nil
-        recordingStartTime = nil
-        previousFrameTime = nil
-        frameCount = 0
-        state = .inactive
+        DualCameraLogger.session.debug("Recording completed with \(self.frameCount) frames")
+        
+        resetRecordingState()
         
         return outputURL
     }
@@ -280,21 +273,6 @@ public actor DualCameraCPUVideoRecorderManager: DualCameraVideoRecording {
             DualCameraLogger.errors.error("Failed to create pixel buffer pool: \(status)")
             throw DualCameraError.recordingFailed(.pixelBufferPoolCreationFailed)
         }
-        
-        // Pre-allocate buffers in the pool to avoid allocation during recording
-        var pixelBuffers = [CVPixelBuffer?](repeating: nil, count: bufferCount)
-        
-        // Create and immediately release buffers to warm up the pool
-        for i in 0..<bufferCount {
-            var pixelBuffer: CVPixelBuffer?
-            let status = CVPixelBufferPoolCreatePixelBuffer(nil, pool, &pixelBuffer)
-            
-            if status == kCVReturnSuccess {
-                pixelBuffers[i] = pixelBuffer
-            } else {
-                DualCameraLogger.errors.error("Failed to pre-allocate pixel buffer \(i): \(status)")
-            }
-        }
     }
     
     private func handleDisplayLinkCapture() async {
@@ -331,8 +309,8 @@ public actor DualCameraCPUVideoRecorderManager: DualCameraVideoRecording {
             }
             
             // Capture the screen image
-            // TODO: fixme this shouldnt be cast 
-            let image = try await (photoCapturer as! DualCameraPhotoCapturer).captureCurrentScreen()
+            let mode = photoCaptureMode
+            let image = try await photoCapturer.captureCurrentScreen(mode: mode)
             
             // Offload UIImage -> pixel buffer conversion to a background queue.
             let pixelBuffer = await withCheckedContinuation { continuation in
@@ -363,5 +341,18 @@ public actor DualCameraCPUVideoRecorderManager: DualCameraVideoRecording {
         let tempDir = FileManager.default.temporaryDirectory
         let fileName = "dualcamera_recording_\(Date().timeIntervalSince1970).mp4"
         return tempDir.appendingPathComponent(fileName)
+    }
+    
+    private func resetRecordingState() {
+        // Reset state
+        assetWriter = nil
+        videoInput = nil
+        audioInput = nil
+        pixelBufferAdaptor = nil
+        pixelBufferPool = nil
+        recordingStartTime = nil
+        previousFrameTime = nil
+        frameCount = 0
+        state = .inactive
     }
 }

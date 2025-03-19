@@ -13,7 +13,7 @@ public protocol DualCameraControlling {
     
     var photoCapturer: DualCameraPhotoCapturing { get }
     func captureRawPhotos() async throws -> (front: UIImage, back: UIImage)
-    func captureCurrentScreen(mode: DualCameraCaptureMode) async throws -> UIImage
+    func captureCurrentScreen(mode: DualCameraPhotoCaptureMode) async throws -> UIImage
     
     var videoRecorder: DualCameraVideoRecording { get }
     func startVideoRecording() async throws
@@ -34,7 +34,7 @@ extension DualCameraControlling {
 
 // default implementations for `DualCameraPhotoCapturing` - proxy to implementation in `photoCapturer`
 public extension DualCameraControlling {
-    public func captureCurrentScreen(mode: DualCameraCaptureMode = .fullScreen) async throws -> UIImage {
+    public func captureCurrentScreen(mode: DualCameraPhotoCaptureMode = .fullScreen) async throws -> UIImage {
         try await photoCapturer.captureCurrentScreen(mode: mode)
     }
     

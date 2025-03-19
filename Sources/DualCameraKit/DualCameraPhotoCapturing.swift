@@ -1,59 +1,47 @@
 import UIKit
 
 @MainActor
-public protocol DualCameraPhotoCapturing: AnyObject  {
+public protocol DualCameraPhotoCapturing: AnyObject, Sendable  {
     func captureRawPhotos(frontRenderer: CameraRenderer, backRenderer: CameraRenderer) async throws -> (front: UIImage, back: UIImage)
-    func captureCurrentScreen(mode: DualCameraCaptureMode) async throws -> UIImage
+    func captureCurrentScreen(mode: DualCameraPhotoCaptureMode) async throws -> UIImage
 }
 
 /// determines whether the photos are captured in as if displayed in `fullScreen` or in a layout not fillingl the fullscreen aka a container via `containerSize`
-public enum DualCameraCaptureMode: Sendable {
+public enum DualCameraPhotoCaptureMode: Sendable {
     case fullScreen
     case containerSize(CGSize)
 }
 
-//@MainActor
-// TODO: fixme sendable if this approach improves perf
-public class DualCameraPhotoCapturer: DualCameraPhotoCapturing, @unchecked Sendable {
+public class DualCameraPhotoCapturer: DualCameraPhotoCapturing {
     
     public init() { }
     
-    /// Captures raw photos from both cameras without any compositing
+    /// Captures raw photos from both cameras without any compositing.
+    /// Returns both images but without any context of how they were laid out.
+    ///
+    /// APPROACH: Using concurrent tasks to capture both cameras as close to simultaneously as possible
+    /// This schedules both capture operations to begin nearly at the same time, minimizing the temporal gap
+    /// between frames compared to sequential capture.
+    ///
+    /// LIMITATION: While this approach significantly reduces the time between captures (typically to single-digit
+    /// milliseconds), it doesn't guarantee perfect frame-level synchronization. True frame synchronization
+    /// would require lower-level camera APIs like AVCaptureMultiCamSession or hardware-level synchronization.
     public func captureRawPhotos(frontRenderer: CameraRenderer, backRenderer: CameraRenderer) async throws -> (front: UIImage, back: UIImage) {
-        // Capture front camera image
-        let frontImage = try await withUnsafeThrowingContinuation { (continuation: UnsafeContinuation<UIImage, Error>) in
-            Task {
-                do {
-                    let image = try await frontRenderer.captureCurrentFrame()
-                    continuation.resume(returning: image)
-                } catch {
-                    continuation.resume(throwing: error)
-                }
-            }
-        }
         
-        // Capture back camera image
-        let backImage = try await withUnsafeThrowingContinuation { (continuation: UnsafeContinuation<UIImage, Error>) in
-            Task {
-                do {
-                    let image = try await backRenderer.captureCurrentFrame()
-                    continuation.resume(returning: image)
-                } catch {
-                    continuation.resume(throwing: error)
-                }
-            }
-        }
+        let frontTask = Task { try await frontRenderer.captureCurrentFrame() }
+        let backTask = Task { try await backRenderer.captureCurrentFrame() }
+        
+        let frontImage = try await frontTask.value
+        let backImage = try await backTask.value
         
         return (front: frontImage, back: backImage)
     }
-
-    /// Captures the current screen content with improved performance.
-    @MainActor
-    public func captureCurrentScreen(mode: DualCameraCaptureMode = .fullScreen) async throws -> UIImage {
-        // Cache UIApplication.shared to avoid multiple accesses
+    
+    /// Captures the screen including any UI layout.
+    /// Returns an image that is a screenshot of the screen.
+    public func captureCurrentScreen(mode: DualCameraPhotoCaptureMode = .fullScreen) async throws -> UIImage {
         let application = UIApplication.shared
         
-        // Find the key window with optimized search
         guard let keyWindow = application.connectedScenes
             .compactMap({ $0 as? UIWindowScene })
             .first(where: { $0.activationState == .foregroundActive })?
@@ -62,25 +50,23 @@ public class DualCameraPhotoCapturer: DualCameraPhotoCapturing, @unchecked Senda
               let windowScene = keyWindow.windowScene else {
             throw DualCameraError.captureFailure(.screenCaptureUnavailable)
         }
-        
-        // Cache the screen size to avoid recalculation
+        let screenScale = windowScene.screen.scale
         let fullScreenSize = windowScene.screen.bounds.size
         
-        // Use afterScreenUpdates strategically to balance performance and visual quality
+        // Use afterScreenUpdates to balance performance and visual quality
         // Setting to false improves performance but may capture incomplete UI in some cases
-        let afterScreenUpdates = false // Better performance, might miss some UI updates
+        let afterScreenUpdates = false
         
         switch mode {
         case .fullScreen:
             // Use optimized format for performance
             let format = UIGraphicsImageRendererFormat()
-            format.scale = 1.0 // Use exact pixel dimensions, not device scale
+            format.scale = screenScale
             format.opaque = true // Optimize for opaque content (no transparency)
             
             // Create renderer with optimized format
             let renderer = UIGraphicsImageRenderer(size: fullScreenSize, format: format)
             
-            // Generate image with optimized settings
             let capturedImage = renderer.image { _ in
                 keyWindow.drawHierarchy(
                     in: CGRect(origin: .zero, size: fullScreenSize),
@@ -96,7 +82,7 @@ public class DualCameraPhotoCapturer: DualCameraPhotoCapturing, @unchecked Senda
             
             // Use optimized format for container size too
             let format = UIGraphicsImageRendererFormat()
-            format.scale = 1.0
+            format.scale = screenScale
             format.opaque = true
             
             // Create renderer with optimized format for container size
@@ -114,7 +100,6 @@ public class DualCameraPhotoCapturer: DualCameraPhotoCapturing, @unchecked Senda
                 // Apply scaling with optimized transform
                 cgContext.scaleBy(x: scale, y: scale)
                 
-                // Draw with optimal parameters
                 keyWindow.drawHierarchy(
                     in: CGRect(origin: .zero, size: fullScreenSize),
                     afterScreenUpdates: afterScreenUpdates
