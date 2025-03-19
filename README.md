@@ -25,7 +25,7 @@ In-progress: user can record video without needing to accept ReplayKit permissio
 
 # What It Does
 
-`DualCameraKit` is an iOS library that makes simultaneous front & back camera capture simple – as seen in apps like Snapchat and BeReal.
+`DualCameraKit` is an iOS library that makes simultaneous front & back camera capture simple – [TODO: this style...] as seen in apps like Snapchat and BeReal. 
 
 For simple, drop-in functionality, you can use `DualCameraScreen`, a SwiftUI View that's setup with some options for different dual-camera layouts.
 

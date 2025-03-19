@@ -2,7 +2,6 @@ import AVFoundation
 import SwiftUI
 import UIKit
 
-
 @MainActor
 public protocol DualCameraControlling {
     var frontCameraStream: AsyncStream<PixelBufferWrapper> { get }
@@ -14,10 +13,10 @@ public protocol DualCameraControlling {
     
     var photoCapturer: DualCameraPhotoCapturing { get }
     func captureRawPhotos() async throws -> (front: UIImage, back: UIImage)
-    func captureCurrentScreen(mode: DualCameraCaptureMode) async throws -> UIImage
+    func captureCurrentScreen(mode: DualCameraPhotoCaptureMode) async throws -> UIImage
     
     var videoRecorder: DualCameraVideoRecording { get }
-    func startVideoRecording(mode: DualCameraVideoRecordingMode, outputURL: URL) async throws
+    func startVideoRecording() async throws
     func stopVideoRecording() async throws -> URL
 }
 
@@ -27,14 +26,15 @@ extension DualCameraControlling {
         try await videoRecorder.stopVideoRecording()
     }
     
-    public func startVideoRecording(mode: DualCameraVideoRecordingMode = .screenCapture(), outputURL: URL)  async throws {
-        try await videoRecorder.startVideoRecording(mode: mode, outputURL: outputURL)
+    public func startVideoRecording() async throws {
+        // Delegate to the underlying implementation
+        try await videoRecorder.startVideoRecording()
     }
 }
 
 // default implementations for `DualCameraPhotoCapturing` - proxy to implementation in `photoCapturer`
 public extension DualCameraControlling {
-    public func captureCurrentScreen(mode: DualCameraCaptureMode = .fullScreen) async throws -> UIImage {
+    public func captureCurrentScreen(mode: DualCameraPhotoCaptureMode = .fullScreen) async throws -> UIImage {
         try await photoCapturer.captureCurrentScreen(mode: mode)
     }
     
@@ -69,6 +69,7 @@ public final class DualCameraController: DualCameraControlling {
     public init(videoRecorder: any DualCameraVideoRecording, photoCapturer: any DualCameraPhotoCapturing) {
         self.videoRecorder = videoRecorder
         self.photoCapturer = photoCapturer
+        
     }
     
     nonisolated public var frontCameraStream: AsyncStream<PixelBufferWrapper> {

@@ -1,75 +1,76 @@
 import UIKit
 
 @MainActor
-public protocol DualCameraPhotoCapturing: AnyObject {
+public protocol DualCameraPhotoCapturing: AnyObject, Sendable  {
     func captureRawPhotos(frontRenderer: CameraRenderer, backRenderer: CameraRenderer) async throws -> (front: UIImage, back: UIImage)
-    func captureCurrentScreen(mode: DualCameraCaptureMode) async throws -> UIImage
+    func captureCurrentScreen(mode: DualCameraPhotoCaptureMode) async throws -> UIImage
 }
 
 /// determines whether the photos are captured in as if displayed in `fullScreen` or in a layout not fillingl the fullscreen aka a container via `containerSize`
-public enum DualCameraCaptureMode {
+public enum DualCameraPhotoCaptureMode: Sendable {
     case fullScreen
     case containerSize(CGSize)
 }
 
-@MainActor
 public class DualCameraPhotoCapturer: DualCameraPhotoCapturing {
     
     public init() { }
     
-    /// Captures raw photos from both cameras without any compositing
+    /// Captures raw photos from both cameras without any compositing.
+    /// Returns both images but without any context of how they were laid out.
+    ///
+    /// APPROACH: Using concurrent tasks to capture both cameras as close to simultaneously as possible
+    /// This schedules both capture operations to begin nearly at the same time, minimizing the temporal gap
+    /// between frames compared to sequential capture.
+    ///
+    /// LIMITATION: While this approach significantly reduces the time between captures (typically to single-digit
+    /// milliseconds), it doesn't guarantee perfect frame-level synchronization. True frame synchronization
+    /// would require lower-level camera APIs like AVCaptureMultiCamSession or hardware-level synchronization.
     public func captureRawPhotos(frontRenderer: CameraRenderer, backRenderer: CameraRenderer) async throws -> (front: UIImage, back: UIImage) {
-        // Capture front camera image
-        let frontImage = try await withUnsafeThrowingContinuation { (continuation: UnsafeContinuation<UIImage, Error>) in
-            Task {
-                do {
-                    let image = try await frontRenderer.captureCurrentFrame()
-                    continuation.resume(returning: image)
-                } catch {
-                    continuation.resume(throwing: error)
-                }
-            }
-        }
         
-        // Capture back camera image
-        let backImage = try await withUnsafeThrowingContinuation { (continuation: UnsafeContinuation<UIImage, Error>) in
-            Task {
-                do {
-                    let image = try await backRenderer.captureCurrentFrame()
-                    continuation.resume(returning: image)
-                } catch {
-                    continuation.resume(throwing: error)
-                }
-            }
-        }
+        let frontTask = Task { try await frontRenderer.captureCurrentFrame() }
+        let backTask = Task { try await backRenderer.captureCurrentFrame() }
+        
+        let frontImage = try await frontTask.value
+        let backImage = try await backTask.value
         
         return (front: frontImage, back: backImage)
     }
-
-    /// Captures the current screen content.
-    public func captureCurrentScreen(mode: DualCameraCaptureMode = .fullScreen) async throws -> UIImage {
-        // TODO: I think we can remove this  Give SwiftUI a moment to fully render
-//        try await Task.sleep(for: .milliseconds(50))
+    
+    /// Captures the screen including any UI layout.
+    /// Returns an image that is a screenshot of the screen.
+    public func captureCurrentScreen(mode: DualCameraPhotoCaptureMode = .fullScreen) async throws -> UIImage {
+        let application = UIApplication.shared
         
-        // First try to find the app's key window (works with both UIKit and SwiftUI)
-        guard let keyWindow = await UIApplication.shared.connectedScenes
+        guard let keyWindow = application.connectedScenes
             .compactMap({ $0 as? UIWindowScene })
             .first(where: { $0.activationState == .foregroundActive })?
             .windows
             .first(where: { $0.isKeyWindow }),
-                let windowScene = keyWindow.windowScene else {
+              let windowScene = keyWindow.windowScene else {
             throw DualCameraError.captureFailure(.screenCaptureUnavailable)
         }
-        
-        // Get scene size (full screen including safe areas)
+        let screenScale = windowScene.screen.scale
         let fullScreenSize = windowScene.screen.bounds.size
+        
+        // Use afterScreenUpdates to balance performance and visual quality
+        // Setting to false improves performance but may capture incomplete UI in some cases
+        let afterScreenUpdates = false
         
         switch mode {
         case .fullScreen:
-            // Use full screen size for rendering
-            let renderer = UIGraphicsImageRenderer(size: fullScreenSize)
+            let format = UIGraphicsImageRendererFormat()
+            format.scale = screenScale
+            format.opaque = true // Optimize for opaque content (no transparency)
+            
+            // Create renderer with optimized format
+            let renderer = UIGraphicsImageRenderer(size: fullScreenSize, format: format)
+            
             let capturedImage = renderer.image { _ in
-                keyWindow.drawHierarchy(in: CGRect(origin: .zero, size: fullScreenSize), afterScreenUpdates: true)
+                keyWindow.drawHierarchy(
+                    in: CGRect(origin: .zero, size: fullScreenSize),
+                    afterScreenUpdates: afterScreenUpdates
+                )
             }
             return capturedImage
             
@@ -78,22 +79,29 @@ public class DualCameraPhotoCapturer: DualCameraPhotoCapturing {
                 throw DualCameraError.captureFailure(.unknownDimensions)
             }
             
-            // Use the container size for rendering
-            let renderer = UIGraphicsImageRenderer(size: size)
+            let format = UIGraphicsImageRendererFormat()
+            format.scale = screenScale
+            format.opaque = true
+            
+            // Create renderer with optimized format for container size
+            let renderer = UIGraphicsImageRenderer(size: size, format: format)
+            
+            // Generate scaled image with optimized drawing
             let capturedImage = renderer.image { context in
-                // Calculate scaling to make the full screen content fit within the container size
+                let cgContext = context.cgContext
+                
+                // Calculate scaling
                 let scaleX = size.width / fullScreenSize.width
                 let scaleY = size.height / fullScreenSize.height
-                let scale = min(scaleX, scaleY) // Use min to fit the entire screen
+                let scale = min(scaleX, scaleY)
                 
                 // Apply scaling
-                context.cgContext.scaleBy(x: scale, y: scale)
+                cgContext.scaleBy(x: scale, y: scale)
                 
-                // Draw the hierarchy scaled to fit
-                keyWindow.drawHierarchy(in: CGRect(origin: .zero, size: CGSize(
-                    width: fullScreenSize.width,
-                    height: fullScreenSize.height
-                )), afterScreenUpdates: true)
+                keyWindow.drawHierarchy(
+                    in: CGRect(origin: .zero, size: fullScreenSize),
+                    afterScreenUpdates: afterScreenUpdates
+                )
             }
             return capturedImage
         }
