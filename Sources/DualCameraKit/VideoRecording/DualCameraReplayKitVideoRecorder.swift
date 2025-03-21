@@ -1,7 +1,7 @@
 import Foundation
 import ReplayKit
 
-public struct ReplayKitVideoRecorderConfig {
+public struct DualCameraReplayKitVideoRecorderConfig: Sendable, Equatable {
     let outputURL: URL?
     
     public init(outputURL: URL? = nil) {
@@ -14,15 +14,20 @@ public actor DualCameraReplayKitVideoRecorder: DualCameraVideoRecording {
     private var recordingStartTime: CMTime?
     
     private var state: RecordingState = .inactive
-    private var config: ReplayKitVideoRecorderConfig
+    private var config: DualCameraReplayKitVideoRecorderConfig
     
-    public init(config: ReplayKitVideoRecorderConfig = ReplayKitVideoRecorderConfig()) {
-        self.config = config
+    public init(config: DualCameraReplayKitVideoRecorderConfig?) {
+        self.config = config ?? DualCameraReplayKitVideoRecorderConfig()
     }
     
-    private enum RecordingState {
+    private enum RecordingState: Equatable {
         case inactive
         case active(outputURL: URL)
+        
+        var isActive: Bool {
+            if case .active(_) = self { return true }
+            return false
+        }
     }
     
     /// Starts video recording with ReplayKit
@@ -67,6 +72,8 @@ public actor DualCameraReplayKitVideoRecorder: DualCameraVideoRecording {
         
         return outputURL
     }
+    
+    public var isCurrentlyRecording: Bool { state.isActive }
     
     private func configure(outputURL: URL?) -> URL {
         if let outputURL {

@@ -2,13 +2,13 @@ import AVFoundation
 import CoreVideo
 import UIKit
 
-public struct DualCameraCPUVideoRecorderConfig: Sendable {
-    public let mode: DualCameraVideoRecordingMode
+public struct DualCameraCPUVideoRecorderConfig: Sendable, Equatable {
+    public let mode: DualCameraPhotoCaptureMode
     public let quality: VideoQuality
     public let outputURL: URL?
     
     public init(
-        mode: DualCameraVideoRecordingMode,
+        mode: DualCameraPhotoCaptureMode,
         quality: VideoQuality = .high,
         outputURL: URL? = nil
     ) {
@@ -41,9 +41,14 @@ public actor DualCameraCPUVideoRecorderManager: DualCameraVideoRecording {
     // queue for processing UIImage -> PixelBuffer conversion
     private let processingQueue = DispatchQueue(label: "com.dualcamera.videoprocessing", qos: .userInitiated)
     
-    private enum RecordingState {
+    private enum RecordingState: Equatable {
         case inactive
         case active(outputURL: URL, quality: VideoQuality)
+        
+        var isActive: Bool {
+            if case let .active(_) = self { return true }
+            return false
+        }
     }
     
     private var state: RecordingState = .inactive
@@ -51,7 +56,7 @@ public actor DualCameraCPUVideoRecorderManager: DualCameraVideoRecording {
     nonisolated private let photoCapturer: any DualCameraPhotoCapturing
     private let config: DualCameraCPUVideoRecorderConfig
     private var photoCaptureMode: DualCameraPhotoCaptureMode {
-        config.mode.asPhotoCaptureMode!
+        config.mode
     }
     
     public init(
@@ -158,23 +163,19 @@ public actor DualCameraCPUVideoRecorderManager: DualCameraVideoRecording {
         return outputURL
     }
     
-    private func calculateDimensions(for mode: DualCameraVideoRecordingMode) async throws -> CGSize {
+    public var isCurrentlyRecording: Bool { state.isActive }
+    
+    private func calculateDimensions(for mode: DualCameraPhotoCaptureMode) async throws -> CGSize {
         var rawSize: CGSize
         
         // Get base dimensions
         switch mode {
-        case .screenCapture(let captureMode):
-            switch captureMode {
-            case .fullScreen:
-                rawSize = await MainActor.run { UIScreen.main.bounds.size }
-            case .containerSize(let size):
-                rawSize = size
-            }
-            
-        case .rawCapture:
-            throw DualCameraError.notImplemented
+        case .fullScreen:
+            rawSize = await MainActor.run { UIScreen.main.bounds.size }
+        case .containerSize(let size):
+            rawSize = size
         }
-        
+                
         // Apply resolution scaling to improve performance
         // Scale down to 720p-equivalent for smoother recording
         let maxDimension: CGFloat = 1280 // 720p max (16:9 ratio)

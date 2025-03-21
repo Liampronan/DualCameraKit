@@ -3,11 +3,11 @@ import SwiftUI
 import Photos
 
 struct ContentView: View {
-    @Environment(ManagedDualCameraController.self) private var controllerManager
+//    @Environment(ManagedDualCameraController.self) private var controllerManager
     @State private var viewModel: DualCameraViewModel
     
-    init() {
-        _viewModel = State(initialValue: DualCameraViewModel())
+    init(dualCameraController: DualCameraController) {
+        _viewModel = State(initialValue: DualCameraViewModel(dualCameraController: dualCameraController))
 
     }
     
@@ -16,7 +16,7 @@ struct ContentView: View {
             ZStack {
                 // Main camera view
                 DualCameraScreen(
-                    controller: controllerManager.controller,
+                    controller: viewModel.controller,
                     layout: viewModel.configuration.layout
                 )
                 .overlay(recordingIndicator, alignment: .top)
@@ -190,13 +190,13 @@ struct ContentView: View {
     private var recorderTypePicker: some View {
         VStack {
             Menu {
-                ForEach(VideoRecorderType.allCases) { recorderType in
+                ForEach(DualCameraVideoRecorderType.allCases) { recorderType in
                     Button {
-                        controllerManager.recorderType = recorderType
+                        viewModel.toggleRecorderType()
                     } label: {
                         HStack {
                             Text(recorderType.displayName)
-                            if controllerManager.recorderType == recorderType {
+                            if viewModel.videoRecorderType == recorderType {
                                 Image(systemName: "checkmark")
                             }
                         }
@@ -205,7 +205,7 @@ struct ContentView: View {
             } label: {
                 HStack {
                     Image(systemName: "video.fill")
-                    Text("Recorder: \(controllerManager.recorderType.displayName)")
+                    Text("Recorder: \(viewModel.videoRecorderType.displayName)")
                     Image(systemName: "chevron.up.chevron.down")
                         .font(.caption)
                 }

@@ -23,6 +23,7 @@ public enum DualCameraError: Error, Equatable {
         case noPermission
         case noPhotoCapturerAvailable
         case pixelBufferPoolCreationFailed
+        case noVideoRecorderSet
         case unknown
     }
     
@@ -91,6 +92,8 @@ public enum DualCameraError: Error, Equatable {
                 return "No photo capturer avilable for video recording."
             case .pixelBufferPoolCreationFailed:
                 return "Failed to create pixel buffer pool for video recording."
+            case .noVideoRecorderSet:
+                return "No Video Recorder set. Ensure that the controller has a valid video recorder set."
             case .unknown:
                 return "An unknown error occurred during video recording."
             }

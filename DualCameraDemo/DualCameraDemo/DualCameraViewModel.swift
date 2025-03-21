@@ -11,42 +11,22 @@ final class DualCameraViewModel {
     
     // Configuration
     var configuration = CameraConfiguration()
+    var videoRecorderType: DualCameraVideoRecorderType { configuration.videoRecorderType }
     
     // User artifacts
     private(set) var capturedImage: UIImage? = nil
     var alert: AlertState? = nil
     
-    var dualCameraController: DualCameraControlling?
+    let controller: DualCameraControlling
     private var recordingTimer: Timer?
     
-    init(dualCameraController: DualCameraControlling? = nil ) {
-        self.dualCameraController = dualCameraController
+    init(dualCameraController: DualCameraControlling) {
+        self.controller = dualCameraController
     }
      
     // MARK: - Lifecycle Management
     
-    /// Sets or updates the controller
-    func setController(_ controller: DualCameraControlling) {
-        // Clean up any existing controller
-        if let oldController = dualCameraController {
-            if case .recording = viewState {
-                stopRecording()
-            }
-            oldController.stopSession()
-        }
-        
-        // Set the new controller
-        self.dualCameraController = controller
-        
-        // Restart session with new controller if view is already visible
-        if viewState != .loading {
-            startSession()
-        }
-    }
-    
     private func startSession() {
-            guard let controller = dualCameraController else { return }
-            
             // Start camera session
             Task {
                 do {
@@ -76,8 +56,7 @@ final class DualCameraViewModel {
             stopRecording()
         }
         
-        dualCameraController?.stopSession()
-        
+        controller.stopSession()
         recordingTimer?.invalidate()
         recordingTimer = nil
     }
@@ -99,7 +78,6 @@ final class DualCameraViewModel {
     }
     
     func takePhoto() {
-        guard let dualCameraController else { return }
         Task {
             guard case .ready = viewState else { return }
             
@@ -107,7 +85,7 @@ final class DualCameraViewModel {
             
             do {
                 // Capture screen
-                let image = try await dualCameraController.captureCurrentScreen()
+                let image = try await controller.captureCurrentScreen()
                 capturedImage = image
                 viewState = .ready
             } catch let error as DualCameraError {
@@ -133,11 +111,17 @@ final class DualCameraViewModel {
         }
     }
     
+    func toggleRecorderType() {
+        if case .cpuBased = configuration.videoRecorderType {
+            configuration.videoRecorderType = .replayKit()
+        } else {
+            configuration.videoRecorderType = .cpuBased(.init(mode: .fullScreen))
+        }
+    }
+    
     // MARK: - Recording Implementation
     
     private func startRecording() {
-        guard let dualCameraController else { return }
-
         checkPhotoLibraryPermission { [weak self] hasPermission in
             guard let self = self else { return }
             
@@ -151,7 +135,7 @@ final class DualCameraViewModel {
                 do {
                     
                     // Start recording
-                    try await dualCameraController.startVideoRecording()
+                    try await controller.startVideoRecording(recorderType: configuration.videoRecorderType)
                     
                     // Update state to recording with 0 duration
                     viewState = .recording(CameraViewState.RecordingState(duration: 0))
@@ -183,8 +167,6 @@ final class DualCameraViewModel {
     }
     
     private func stopRecording() {
-        guard let dualCameraController else { return }
-
         // Stop the timer
         recordingTimer?.invalidate()
         recordingTimer = nil
@@ -192,7 +174,7 @@ final class DualCameraViewModel {
         // Stop recording
         Task {
             do {
-                let videoRecordingOutputURL = try await dualCameraController.stopVideoRecording()
+                let videoRecordingOutputURL = try await controller.stopVideoRecording()
                 
                 // Reset recording state
                 viewState = .ready
