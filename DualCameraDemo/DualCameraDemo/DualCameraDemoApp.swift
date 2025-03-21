@@ -9,7 +9,6 @@ struct DualCameraDemoApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView(dualCameraController: dualCameraController)
-//                .environment(controllerManager)
         }
     }
 }

@@ -3,7 +3,6 @@ import SwiftUI
 import Photos
 
 struct ContentView: View {
-//    @Environment(ManagedDualCameraController.self) private var controllerManager
     @State private var viewModel: DualCameraViewModel
     
     init(dualCameraController: DualCameraController) {
