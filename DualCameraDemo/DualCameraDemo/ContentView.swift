@@ -3,12 +3,12 @@ import SwiftUI
 import Photos
 
 struct ContentView: View {
+    @Environment(ManagedDualCameraController.self) private var controllerManager
     @State private var viewModel: DualCameraViewModel
     
-    init(dualCameraController: DualCameraControlling) {
-        _viewModel = State(wrappedValue: DualCameraViewModel(
-            dualCameraController: dualCameraController
-        ))
+    init() {
+        _viewModel = State(initialValue: DualCameraViewModel())
+
     }
     
     var body: some View {
@@ -16,7 +16,7 @@ struct ContentView: View {
             ZStack {
                 // Main camera view
                 DualCameraScreen(
-                    controller: viewModel.dualCameraController,
+                    controller: controllerManager.controller,
                     layout: viewModel.configuration.layout
                 )
                 .overlay(recordingIndicator, alignment: .top)
@@ -100,85 +100,121 @@ struct ContentView: View {
     
     @ViewBuilder
     private var controlButtons: some View {
-        HStack(spacing: 30) {
-            // Photo capture button
-            Button(action: viewModel.takePhoto) {
-                Image(systemName: "camera.fill")
-                    .font(.largeTitle)
-                    .foregroundColor(.white)
-                    .padding()
-                    .background(Circle().fill(Color.black.opacity(0.5)))
-            }
-            .disabled(!viewModel.viewState.isPhotoButtonEnabled)
+        VStack(spacing: 16) {
+            // Video recorder type picker
+            recorderTypePicker
             
-            // Video recording button
-            Button(action: viewModel.toggleRecording) {
-                Image(systemName: viewModel.viewState.videoButtonIcon)
-                    .font(.largeTitle)
-                    .foregroundColor(viewModel.viewState.videoButtonColor)
-                    .padding()
-                    .background(
-                        Circle()
-                            .fill(viewModel.viewState.videoButtonBackgroundColor)
-                    )
+            HStack(spacing: 32) {
+                // Photo capture button
+                Button(action: viewModel.takePhoto) {
+                    Image(systemName: "camera.fill")
+                        .font(.largeTitle)
+                        .foregroundColor(.white)
+                        .padding()
+                        .background(Circle().fill(Color.black.opacity(0.5)))
+                }
+                .disabled(!viewModel.viewState.isPhotoButtonEnabled)
+                
+                // Video recording button
+                Button(action: viewModel.toggleRecording) {
+                    Image(systemName: viewModel.viewState.videoButtonIcon)
+                        .font(.largeTitle)
+                        .foregroundColor(viewModel.viewState.videoButtonColor)
+                        .padding()
+                        .background(
+                            Circle()
+                                .fill(viewModel.viewState.videoButtonBackgroundColor)
+                        )
+                }
+                .disabled(!viewModel.viewState.isVideoButtonEnabled)
+                
+                // Layout picker button (optional - allows changing camera layout)
+                Menu {
+                    Button("Side by Side") {
+                        viewModel.updateLayout(.sideBySide)
+                    }
+                    
+                    Button("Stacked Vertical") {
+                        viewModel.updateLayout(.stackedVertical)
+                    }
+                    
+                    Menu("PiP Mode") {
+                        Button("Front Mini - Top Left") {
+                            viewModel.updateLayout(.fullScreenWithMini(miniCamera: .front, miniCameraPosition: .topLeading))
+                        }
+                        
+                        Button("Front Mini - Top Right") {
+                            viewModel.updateLayout(.fullScreenWithMini(miniCamera: .front, miniCameraPosition: .topTrailing))
+                        }
+                        
+                        Button("Front Mini - Bottom Left") {
+                            viewModel.updateLayout(.fullScreenWithMini(miniCamera: .front, miniCameraPosition: .bottomLeading))
+                        }
+                        
+                        Button("Front Mini - Bottom Right") {
+                            viewModel.updateLayout(.fullScreenWithMini(miniCamera: .front, miniCameraPosition: .bottomTrailing))
+                        }
+                        
+                        Divider()
+                        
+                        Button("Back Mini - Top Left") {
+                            viewModel.updateLayout(.fullScreenWithMini(miniCamera: .back, miniCameraPosition: .topLeading))
+                        }
+                        
+                        Button("Back Mini - Top Right") {
+                            viewModel.updateLayout(.fullScreenWithMini(miniCamera: .back, miniCameraPosition: .topTrailing))
+                        }
+                        
+                        Button("Back Mini - Bottom Left") {
+                            viewModel.updateLayout(.fullScreenWithMini(miniCamera: .back, miniCameraPosition: .bottomLeading))
+                        }
+                        
+                        Button("Back Mini - Bottom Right") {
+                            viewModel.updateLayout(.fullScreenWithMini(miniCamera: .back, miniCameraPosition: .bottomTrailing))
+                        }
+                    }
+                } label: {
+                    Image(systemName: "rectangle.3.group")
+                        .font(.title)
+                        .foregroundColor(.white)
+                        .padding()
+                        .background(Circle().fill(Color.black.opacity(0.5)))
+                }
+                .disabled(!viewModel.viewState.isPhotoButtonEnabled)
             }
-            .disabled(!viewModel.viewState.isVideoButtonEnabled)
-            
-            // Layout picker button (optional - allows changing camera layout)
+        }
+        .padding(.bottom, 30)
+    }
+    
+    @ViewBuilder
+    private var recorderTypePicker: some View {
+        VStack {
             Menu {
-                Button("Side by Side") {
-                    viewModel.updateLayout(.sideBySide)
-                }
-                
-                Button("Stacked Vertical") {
-                    viewModel.updateLayout(.stackedVertical)
-                }
-                
-                Menu("PiP Mode") {
-                    Button("Front Mini - Top Left") {
-                        viewModel.updateLayout(.fullScreenWithMini(miniCamera: .front, miniCameraPosition: .topLeading))
-                    }
-                    
-                    Button("Front Mini - Top Right") {
-                        viewModel.updateLayout(.fullScreenWithMini(miniCamera: .front, miniCameraPosition: .topTrailing))
-                    }
-                    
-                    Button("Front Mini - Bottom Left") {
-                        viewModel.updateLayout(.fullScreenWithMini(miniCamera: .front, miniCameraPosition: .bottomLeading))
-                    }
-                    
-                    Button("Front Mini - Bottom Right") {
-                        viewModel.updateLayout(.fullScreenWithMini(miniCamera: .front, miniCameraPosition: .bottomTrailing))
-                    }
-                    
-                    Divider()
-                    
-                    Button("Back Mini - Top Left") {
-                        viewModel.updateLayout(.fullScreenWithMini(miniCamera: .back, miniCameraPosition: .topLeading))
-                    }
-                    
-                    Button("Back Mini - Top Right") {
-                        viewModel.updateLayout(.fullScreenWithMini(miniCamera: .back, miniCameraPosition: .topTrailing))
-                    }
-                    
-                    Button("Back Mini - Bottom Left") {
-                        viewModel.updateLayout(.fullScreenWithMini(miniCamera: .back, miniCameraPosition: .bottomLeading))
-                    }
-                    
-                    Button("Back Mini - Bottom Right") {
-                        viewModel.updateLayout(.fullScreenWithMini(miniCamera: .back, miniCameraPosition: .bottomTrailing))
+                ForEach(VideoRecorderType.allCases) { recorderType in
+                    Button {
+                        controllerManager.recorderType = recorderType
+                    } label: {
+                        HStack {
+                            Text(recorderType.displayName)
+                            if controllerManager.recorderType == recorderType {
+                                Image(systemName: "checkmark")
+                            }
+                        }
                     }
                 }
             } label: {
-                Image(systemName: "rectangle.3.group")
-                    .font(.title)
-                    .foregroundColor(.white)
-                    .padding()
-                    .background(Circle().fill(Color.black.opacity(0.5)))
+                HStack {
+                    Image(systemName: "video.fill")
+                    Text("Recorder: \(controllerManager.recorderType.displayName)")
+                    Image(systemName: "chevron.up.chevron.down")
+                        .font(.caption)
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(Capsule().fill(Color.black.opacity(0.6)))
+                .foregroundColor(.white)
             }
-            .disabled(!viewModel.viewState.isPhotoButtonEnabled)
         }
-        .padding(.bottom, 30)
     }
     
     @ViewBuilder

@@ -16,33 +16,58 @@ final class DualCameraViewModel {
     private(set) var capturedImage: UIImage? = nil
     var alert: AlertState? = nil
     
-    let dualCameraController: DualCameraControlling
+    var dualCameraController: DualCameraControlling?
     private var recordingTimer: Timer?
     
-    init(dualCameraController: DualCameraControlling) {
+    init(dualCameraController: DualCameraControlling? = nil ) {
         self.dualCameraController = dualCameraController
     }
      
     // MARK: - Lifecycle Management
     
-    func onAppear(containerSize: CGSize) {
-        configuration.containerSize = containerSize
+    /// Sets or updates the controller
+    func setController(_ controller: DualCameraControlling) {
+        // Clean up any existing controller
+        if let oldController = dualCameraController {
+            if case .recording = viewState {
+                stopRecording()
+            }
+            oldController.stopSession()
+        }
         
-        // Start camera session
-        Task {
-            do {
-                viewState = .loading
-                try await dualCameraController.startSession()
-                viewState = .ready
-            } catch let error as DualCameraError {
-                viewState = .error(error)
-                showError(error, message: "Failed to start camera")
-            } catch {
-                let dualCameraError = DualCameraError.unknownError
-                viewState = .error(dualCameraError)
-                showError(error, message: "Failed to start camera")
+        // Set the new controller
+        self.dualCameraController = controller
+        
+        // Restart session with new controller if view is already visible
+        if viewState != .loading {
+            startSession()
+        }
+    }
+    
+    private func startSession() {
+            guard let controller = dualCameraController else { return }
+            
+            // Start camera session
+            Task {
+                do {
+                    viewState = .loading
+                    try await controller.startSession()
+                    viewState = .ready
+                } catch let error as DualCameraError {
+                    viewState = .error(error)
+                    showError(error, message: "Failed to start camera")
+                } catch {
+                    let dualCameraError = DualCameraError.unknownError
+                    viewState = .error(dualCameraError)
+                    showError(error, message: "Failed to start camera")
+                }
             }
         }
+        
+    
+    func onAppear(containerSize: CGSize) {
+        configuration.containerSize = containerSize
+        startSession()
     }
     
     func onDisappear() {
@@ -51,7 +76,7 @@ final class DualCameraViewModel {
             stopRecording()
         }
         
-        dualCameraController.stopSession()
+        dualCameraController?.stopSession()
         
         recordingTimer?.invalidate()
         recordingTimer = nil
@@ -74,6 +99,7 @@ final class DualCameraViewModel {
     }
     
     func takePhoto() {
+        guard let dualCameraController else { return }
         Task {
             guard case .ready = viewState else { return }
             
@@ -110,6 +136,8 @@ final class DualCameraViewModel {
     // MARK: - Recording Implementation
     
     private func startRecording() {
+        guard let dualCameraController else { return }
+
         checkPhotoLibraryPermission { [weak self] hasPermission in
             guard let self = self else { return }
             
@@ -155,6 +183,8 @@ final class DualCameraViewModel {
     }
     
     private func stopRecording() {
+        guard let dualCameraController else { return }
+
         // Stop the timer
         recordingTimer?.invalidate()
         recordingTimer = nil
