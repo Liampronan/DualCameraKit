@@ -7,7 +7,7 @@ public protocol DualCameraPhotoCapturing: AnyObject, Sendable  {
 }
 
 /// determines whether the photos are captured in as if displayed in `fullScreen` or in a layout not fillingl the fullscreen aka a container via `containerSize`
-public enum DualCameraPhotoCaptureMode: Sendable {
+public enum DualCameraPhotoCaptureMode: Sendable, Equatable {
     case fullScreen
     case containerSize(CGSize)
 }

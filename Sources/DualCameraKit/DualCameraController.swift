@@ -11,23 +11,38 @@ public protocol DualCameraControlling {
     func startSession() async throws
     func stopSession()
     
-    var photoCapturer: DualCameraPhotoCapturing { get }
+    var photoCapturer: any DualCameraPhotoCapturing { get }
     func captureRawPhotos() async throws -> (front: UIImage, back: UIImage)
     func captureCurrentScreen(mode: DualCameraPhotoCaptureMode) async throws -> UIImage
-    
-    var videoRecorder: DualCameraVideoRecording { get }
-    func startVideoRecording() async throws
+    // Ideally we could remove the need for `photoCapturer` and `videoRecorder` to be public.
+    // We only are accessing them from inside this file - one videoRecorder type requires access to the `photoCapturer` which we do in the extension.
+    // Probably more decoupling would help but not focused on that atm.
+    var videoRecorder: (any DualCameraVideoRecording)? { get }
+    func setVideoRecorder(_ recorder: any DualCameraVideoRecording) async throws
+    func startVideoRecording(recorderType: DualCameraVideoRecorderType) async throws
     func stopVideoRecording() async throws -> URL
+}
+
+protocol DualCameraControllerMutableVideoRecorder {
+    var videoRecorder: (any DualCameraVideoRecording)? { get }
 }
 
 // default implementations for `DualCameraVideoRecorder` - proxy to implementation in `videoRecorder`
 extension DualCameraControlling {
     public func stopVideoRecording() async throws -> URL {
-        try await videoRecorder.stopVideoRecording()
+        guard let videoRecorder else {
+            throw DualCameraError.recordingFailed(.noVideoRecorderSet)
+        }
+        return try await videoRecorder.stopVideoRecording()
     }
     
-    public func startVideoRecording() async throws {
-        // Delegate to the underlying implementation
+    public func startVideoRecording(recorderType: DualCameraVideoRecorderType) async throws {
+        let videoRecorder: any DualCameraVideoRecording = switch recorderType {
+        case .replayKit(let config): DualCameraReplayKitVideoRecorder(config: config)
+        case .cpuBased(let config): DualCameraCPUVideoRecorderManager(photoCapturer: photoCapturer, config: config)
+        }
+        try await setVideoRecorder(videoRecorder)
+
         try await videoRecorder.startVideoRecording()
     }
 }
@@ -46,19 +61,19 @@ public extension DualCameraControlling {
     }
 }
 
-@MainActor
 public final class DualCameraController: DualCameraControlling {
-    // TODO: can these be private(set)
     public var photoCapturer: any DualCameraPhotoCapturing
+    // `videoRecorder` is optionally because
+    // a) this controller may just be used to capture photos AND
+    // b) this allows dynamic VideoRecorder creation at start of video capture (see startVideoRecording(recorderType:)
+    public var videoRecorder: (any DualCameraVideoRecording)?
     
-    public var videoRecorder: any DualCameraVideoRecording
-    public var renderers: [CameraSource: CameraRenderer] = [:]
+    var renderers: [CameraSource: CameraRenderer] = [:]
     
     private let streamSource = CameraStreamSource()
     
     // Internal storage for renderers and their stream tasks.
-    
-    private var streamTasks: [CameraSource: Task<Void, Never>] = [:]
+        private var streamTasks: [CameraSource: Task<Void, Never>] = [:]
     
     // MARK: - Video Recording Properties
     
@@ -66,10 +81,8 @@ public final class DualCameraController: DualCameraControlling {
     private var assetWriterVideoInput: AVAssetWriterInput?
     private var pixelBufferAdaptor: AVAssetWriterInputPixelBufferAdaptor?
     
-    public init(videoRecorder: any DualCameraVideoRecording, photoCapturer: any DualCameraPhotoCapturing) {
-        self.videoRecorder = videoRecorder
+    public init(photoCapturer: any DualCameraPhotoCapturing = DualCameraPhotoCapturer()) {
         self.photoCapturer = photoCapturer
-        
     }
     
     nonisolated public var frontCameraStream: AsyncStream<PixelBufferWrapper> {
@@ -109,6 +122,13 @@ public final class DualCameraController: DualCameraControlling {
         renderers[source] = newRenderer
         connectStream(for: source, renderer: newRenderer)
         return newRenderer
+    }
+    
+    public func setVideoRecorder(_ recorder: any DualCameraVideoRecording) async throws {
+        if let videoRecorder, await videoRecorder.isCurrentlyRecording {
+            throw DualCameraError.recordingInProgress
+        }
+        self.videoRecorder = recorder
     }
     
     /// Connects the appropriate camera stream to the given renderer.
