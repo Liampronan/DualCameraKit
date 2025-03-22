@@ -70,24 +70,22 @@ final class DualCameraViewModel {
     
     // MARK: - User Actions
     
-    func dismissCapturedImage() {
-        capturedImage = nil
-    }
-    
     func takePhoto() {
         Task {
             guard case .ready = viewState else { return }
-            
+            viewState = .precapture
             let hasPermission = await checkPhotoLibraryPermission()
             
             guard hasPermission else {
                 alert = .permissionDenied(message: "Photo library access is required to save photos.")
+                viewState = .ready
                 return
             }
             
             viewState = .capturing
             
             do {
+                try await Task.sleep(for: .seconds(0.25))
                 let image = try await controller.captureCurrentScreen()
                 viewState = .ready
                 saveImageToPhotoLibrary(image)
