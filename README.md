@@ -4,9 +4,9 @@ Current Status: Alpha release working towards 1.0. Pre-release available: [v0.2.
 Working: 
 - rendering dual cameras in SwiftUI with various layout options (picture-in-picture, split vertical, split horizontal) 
 - photo capture.
-- MVP video capture using ReplayKit. The limitation with ReplayKit is that it asks for permission each time user starts a video, so unideal UX.
+- Video capture using ReplayKit (high-def; requires one-time camera permission + ReplayKit permission each time) or our custom implementation (medium-def; requires only one-time camera permissiion) 
 
-In-progress: user can record video without needing to accept ReplayKit permissions (i.e., we capture without using ReplayKit).
+In-progress: de-coupling components so we can offer 3 layers of varying customizability (fully implemented drop-in screen vs. individual components); adding GPU video capture for high-def, high-UX flow (no recurrent permission requests).
 
 ## Table of Contents
 - [What It Does](#what-it-does)
@@ -25,7 +25,7 @@ In-progress: user can record video without needing to accept ReplayKit permissio
 
 # What It Does
 
-`DualCameraKit` is an iOS library that makes simultaneous front & back camera capture simple – [TODO: this style...] as seen in apps like Snapchat and BeReal. 
+`DualCameraKit` is an iOS library that makes simultaneous front & back camera capture simple – blending the view and the viewer in a single shot, as seen in apps like Snapchat and BeReal. 
 
 For simple, drop-in functionality, you can use `DualCameraScreen`, a SwiftUI View that's setup with some options for different dual-camera layouts.
 
