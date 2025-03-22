@@ -23,27 +23,26 @@ final class DualCameraViewModel {
     init(dualCameraController: DualCameraControlling) {
         self.controller = dualCameraController
     }
-     
+    
     // MARK: - Lifecycle Management
     
     private func startSession() {
-            // Start camera session
-            Task {
-                do {
-                    viewState = .loading
-                    try await controller.startSession()
-                    viewState = .ready
-                } catch let error as DualCameraError {
-                    viewState = .error(error)
-                    showError(error, message: "Failed to start camera")
-                } catch {
-                    let dualCameraError = DualCameraError.unknownError
-                    viewState = .error(dualCameraError)
-                    showError(error, message: "Failed to start camera")
-                }
+        Task {
+            do {
+                viewState = .loading
+                try await controller.startSession()
+                viewState = .ready
+            } catch let error as DualCameraError {
+                viewState = .error(error)
+                showError(error, message: "Failed to start camera")
+            } catch {
+                let dualCameraError = DualCameraError.unknownError
+                viewState = .error(dualCameraError)
+                showError(error, message: "Failed to start camera")
             }
         }
-        
+    }
+    
     
     func onAppear(containerSize: CGSize) {
         configuration.containerSize = containerSize
@@ -51,11 +50,10 @@ final class DualCameraViewModel {
     }
     
     func onDisappear() {
-        // Clean up resources
+        // Clean up
         if case .recording = viewState {
             stopRecording()
         }
-        
         controller.stopSession()
         recordingTimer?.invalidate()
         recordingTimer = nil
@@ -81,7 +79,6 @@ final class DualCameraViewModel {
         Task {
             guard case .ready = viewState else { return }
             
-            // Check photo library permission first
             let hasPermission = await checkPhotoLibraryPermission()
             
             guard hasPermission else {
@@ -92,11 +89,8 @@ final class DualCameraViewModel {
             viewState = .capturing
             
             do {
-                // Capture screen
                 let image = try await controller.captureCurrentScreen()
                 viewState = .ready
-                
-                // Save to photo library instead of storing in variable
                 saveImageToPhotoLibrary(image)
                 
             } catch let error as DualCameraError {
@@ -142,10 +136,8 @@ final class DualCameraViewModel {
             }
             
             do {
-                // Start recording
                 try await controller.startVideoRecording(recorderType: configuration.videoRecorderType)
                 
-                // Update state to recording with 0 duration
                 viewState = .recording(CameraViewState.RecordingState(duration: 0))
                 
                 // Start a timer to update recording duration
@@ -161,13 +153,11 @@ final class DualCameraViewModel {
             } catch let error as DualCameraError {
                 viewState = .error(error)
                 showError(error, message: "Failed to start recording")
-                // Reset to ready state after error
                 viewState = .ready
             } catch {
                 let dualCameraError = DualCameraError.unknownError
                 viewState = .error(dualCameraError)
                 showError(error, message: "Failed to start recording")
-                // Reset to ready state after error
                 viewState = .ready
             }
         }
@@ -186,19 +176,16 @@ final class DualCameraViewModel {
                 // Reset recording state
                 viewState = .ready
                 
-                // Save video to photo library
                 saveVideoToPhotoLibrary(videoRecordingOutputURL)
                 
             } catch let error as DualCameraError {
                 viewState = .error(error)
                 showError(error, message: "Failed to stop recording")
-                // Reset to ready state even if there was an error
                 viewState = .ready
             } catch {
                 let dualCameraError = DualCameraError.unknownError
                 viewState = .error(dualCameraError)
                 showError(error, message: "Failed to stop recording")
-                // Reset to ready state even if there was an error
                 viewState = .ready
             }
         }
@@ -207,19 +194,19 @@ final class DualCameraViewModel {
     // MARK: - Permissions
     
     private func checkPhotoLibraryPermission() async -> Bool {
-            let status = PHPhotoLibrary.authorizationStatus()
-            switch status {
-            case .authorized, .limited:
-                return true
-            case .notDetermined:
-                let newStatus = await PHPhotoLibrary.requestAuthorization(for: .addOnly)
-                return newStatus == .authorized || newStatus == .limited
-            case .denied, .restricted:
-                return false
-            @unknown default:
-                return false
-            }
+        let status = PHPhotoLibrary.authorizationStatus()
+        switch status {
+        case .authorized, .limited:
+            return true
+        case .notDetermined:
+            let newStatus = await PHPhotoLibrary.requestAuthorization(for: .addOnly)
+            return newStatus == .authorized || newStatus == .limited
+        case .denied, .restricted:
+            return false
+        @unknown default:
+            return false
         }
+    }
     
     // MARK: - Photo Library
     
@@ -234,7 +221,7 @@ final class DualCameraViewModel {
                     // Show success alert
                     alert = .info(title: "Video Recording", message: "Video saved to photo library")
                     self.provideSaveSuccessHapticFeedback()
-
+                    
                     // Clean up the temp file
                     try? FileManager.default.removeItem(at: videoURL)
                 } else if let error = error {
@@ -265,10 +252,10 @@ final class DualCameraViewModel {
     }
     
     private func provideSaveSuccessHapticFeedback() {
-            // Generate "success" haptic feedback
-            let generator = UINotificationFeedbackGenerator()
-            generator.notificationOccurred(.success)
-        }
+        // Generate "success" haptic feedback
+        let generator = UINotificationFeedbackGenerator()
+        generator.notificationOccurred(.success)
+    }
 }
 
 // MARK: - UI State Helpers
