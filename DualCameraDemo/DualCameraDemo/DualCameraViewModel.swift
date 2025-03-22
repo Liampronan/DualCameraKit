@@ -43,7 +43,6 @@ final class DualCameraViewModel {
         }
     }
     
-    
     func onAppear(containerSize: CGSize) {
         configuration.containerSize = containerSize
         startSession()
