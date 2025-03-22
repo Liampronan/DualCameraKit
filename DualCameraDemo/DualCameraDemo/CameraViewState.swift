@@ -5,6 +5,7 @@ import Foundation
 enum CameraViewState: Equatable {
     case loading
     case ready
+    case precapture
     case capturing
     case recording(RecordingState)
     case error(DualCameraError)
@@ -23,5 +24,9 @@ enum CameraViewState: Equatable {
     var isRecording: Bool {
         if case .recording = self { return true }
         return false
+    }
+    
+    var captureInProgress: Bool {
+        self == .precapture || self == .capturing
     }
 }

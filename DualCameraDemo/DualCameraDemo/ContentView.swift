@@ -21,21 +21,6 @@ struct ContentView: View {
                 .overlay(recordingIndicator, alignment: .top)
                 .overlay(controlButtons, alignment: .bottom)
                 
-                // Capture flash effect
-                if case .capturing = viewModel.viewState {
-                    Color.white
-                        .ignoresSafeArea()
-                        .opacity(0.3)
-                        .transition(.opacity)
-                }
-                
-                // Captured image overlay
-                if let capturedImage = viewModel.capturedImage {
-                    capturedImageOverlay(capturedImage)
-                        .transition(.opacity)
-                }
-                
-                // Error overlay for critical errors
                 if case .error(let error) = viewModel.viewState {
                     errorOverlay(error)
                 }
@@ -50,7 +35,6 @@ struct ContentView: View {
                 viewModel.onDisappear()
             }
             .animation(.easeInOut(duration: 0.2), value: viewModel.viewState)
-            .animation(.easeInOut(duration: 0.3), value: viewModel.capturedImage != nil)
             .alert(
                 item: $viewModel.alert
             ) { alert in
@@ -182,6 +166,7 @@ struct ContentView: View {
                 .disabled(!viewModel.viewState.isPhotoButtonEnabled)
             }
         }
+        .opacity(viewModel.viewState.captureInProgress ? 0 : 1) 
         .padding(.bottom, 30)
     }
     
@@ -214,55 +199,6 @@ struct ContentView: View {
                 .foregroundColor(.white)
             }
         }
-    }
-    
-    @ViewBuilder
-    private func capturedImageOverlay(_ image: UIImage) -> some View {
-        ZStack {
-            Color.black.ignoresSafeArea()
-            
-            Image(uiImage: image)
-                .resizable()
-                .aspectRatio(contentMode: .fit)
-                .ignoresSafeArea()
-            
-            VStack {
-                HStack {
-                    Button(action: viewModel.dismissCapturedImage) {
-                        Image(systemName: "xmark")
-                            .font(.title2)
-                            .foregroundColor(.white)
-                            .padding()
-                            .background(Circle().fill(Color.black.opacity(0.5)))
-                    }
-                    
-                    Spacer()
-                    
-                    Button(action: {
-                        // Save to photo library action would go here
-                        UIImageWriteToSavedPhotosAlbum(image, nil, nil, nil)
-                    }) {
-                        Image(systemName: "square.and.arrow.down")
-                            .font(.title2)
-                            .foregroundColor(.white)
-                            .padding()
-                            .background(Circle().fill(Color.black.opacity(0.5)))
-                    }
-                }
-                .padding()
-                
-                Spacer()
-                
-                Button("Dismiss") {
-                    viewModel.dismissCapturedImage()
-                }
-                .padding()
-                .background(Capsule().fill(Color.black.opacity(0.5)))
-                .foregroundColor(.white)
-                .padding(.bottom, 20)
-            }
-        }
-        .ignoresSafeArea()
     }
     
     @ViewBuilder
