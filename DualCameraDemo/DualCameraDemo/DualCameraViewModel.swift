@@ -252,7 +252,6 @@ final class DualCameraViewModel {
     }
     
     private func provideSaveSuccessHapticFeedback() {
-        // Generate "success" haptic feedback
         let generator = UINotificationFeedbackGenerator()
         generator.notificationOccurred(.success)
     }
