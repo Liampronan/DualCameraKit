@@ -5,7 +5,7 @@ import Photos
 struct ContentView: View {
     @State private var viewModel: DualCameraViewModel
     
-    init(dualCameraController: DualCameraController) {
+    init(dualCameraController: DualCameraControlling) {
         _viewModel = State(initialValue: DualCameraViewModel(dualCameraController: dualCameraController))
 
     }
@@ -242,6 +242,6 @@ struct ContentView: View {
 
 // MARK: - Preview
 
-//#Preview {
-//    ContentView()
-//}
+#Preview() {
+    ContentView(dualCameraController: DualCameraMockController())
+}

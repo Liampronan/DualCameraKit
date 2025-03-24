@@ -1,9 +1,60 @@
 import AVFoundation
+import UIKit
 
+extension UIColor {
+    func image(_ size: CGSize = CGSize(width: 1, height: 1)) -> UIImage {
+        return UIGraphicsImageRenderer(size: size).image { rendererContext in
+            self.setFill()
+            rendererContext.fill(CGRect(origin: .zero, size: size))
+        }
+    }
+}
+
+@MainActor
+public protocol DualCameraCameraStreamSourcing {
+    func startSession() async throws
+    nonisolated func stopSession()
+    nonisolated var frontCameraStream: AsyncStream<PixelBufferWrapper> { get }
+    nonisolated var backCameraStream: AsyncStream<PixelBufferWrapper> { get }
+}
+
+
+
+public final class DualCameraMockCameraStreamSource: DualCameraCameraStreamSourcing {
+    private let frontBroadcaster = PixelBufferBroadcaster()
+    private let backBroadcaster = PixelBufferBroadcaster()
+    
+    public init() { }
+    
+    // TOOD: we need to broadcast mock PixelBuffers here for front and back broadcaster
+    public func startSession() async throws {
+        let purpleBuffer: CVPixelBuffer = UIColor.purple.image().pixelBuffer()!
+        let purpleBufferWrapper = PixelBufferWrapper(buffer: purpleBuffer)
+        
+        let yellowBuffer = UIColor.yellow.image().pixelBuffer()!
+        let yellowBufferWrapper = PixelBufferWrapper(buffer: yellowBuffer)
+        await frontBroadcaster.broadcast(yellowBufferWrapper)
+        await backBroadcaster.broadcast(purpleBufferWrapper)
+    }
+    
+    public func stopSession() {
+        print("stoppe11d...")
+    }
+    
+    nonisolated public var frontCameraStream: AsyncStream<PixelBufferWrapper> {
+        frontBroadcaster.subscribe()
+    }
+    
+    nonisolated public var backCameraStream: AsyncStream<PixelBufferWrapper> {
+        backBroadcaster.subscribe()
+    }
+}
+
+// TODO: revisit if we should make this class not @MainActor. should it itself be an actor?
 
 /// Manages low-level camera access and stream production
 @MainActor
-public final class CameraStreamSource: NSObject {
+public final class DualCameraCameraStreamSource: NSObject, DualCameraCameraStreamSourcing {
     // Session management
     private let session = AVCaptureMultiCamSession()
     private let sessionQueue = DispatchQueue(label: "DualCameraKit.session")
@@ -19,7 +70,7 @@ public final class CameraStreamSource: NSObject {
     private var backCameraOutput: AVCaptureVideoDataOutput?
     
     // Instance management
-    @MainActor private static var activeInstance: CameraStreamSource?
+    @MainActor private static var activeInstance: DualCameraCameraStreamSource?
     
     /// Initialize camera hardware interface
     public override init() {
@@ -145,7 +196,6 @@ public final class CameraStreamSource: NSObject {
         frontOutput.videoSettings = [kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA]
         backOutput.videoSettings = [kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA]
 
-        // IMPORTANT: Set this class as the sampleBufferDelegate
         frontOutput.setSampleBufferDelegate(self, queue: DispatchQueue(label: "FrontCameraQueue"))
         backOutput.setSampleBufferDelegate(self, queue: DispatchQueue(label: "BackCameraQueue"))
 
@@ -162,7 +212,7 @@ public final class CameraStreamSource: NSObject {
 }
 
 // MARK: - AVCapture Delegate Implementation
-extension CameraStreamSource: AVCaptureVideoDataOutputSampleBufferDelegate {
+extension DualCameraCameraStreamSource: AVCaptureVideoDataOutputSampleBufferDelegate {
     /// Receives camera frames from AVFoundation on background threads
     /// This method is called by the system on capture queue threads
     nonisolated public func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
