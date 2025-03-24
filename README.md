@@ -50,8 +50,6 @@ struct ContentView: View {
 }
 ```
 
-
-
 # Installing DualCameraKit
 
 Since `DualCameraKit` is published using Swift Package Manager, you can install it by following these steps:
@@ -86,7 +84,7 @@ targets: [
 - Add camera permissions to your app's `Info.plist` - `Privacy - Privacy - Camera Usage Description` 
 <img src="https://github.com/user-attachments/assets/1ef0ae3e-683c-444c-9276-4684efb08e5c" width=550 />
 
-- Live, nonsimulator device, iOS 18. 
+- Live, nonsimulator device, iOS 18 for camera usage (simulator uses mocked camera). 
 
 After installation, you can import the library in your Swift files:
 
@@ -107,7 +105,7 @@ Since this library currently requires a real device, you cannot run it on a simu
 
 # Basic Usage
 
-# Customization (Raw Streams, DI, usage with UIKit, etc.)
+# Customization (Raw Streams, usage with UIKit, etc.)
 
 # Troubleshooting
 
@@ -118,9 +116,11 @@ Since this library currently requires a real device, you cannot run it on a simu
 
 # Limitations
 
-- iOS only. iPad support is a future enhancement, other platforms only have one camera
-- This library works on-device only! Simulator (including previews) doesn't have access to camera.
-  - There's a TODO for simulator support via mocking
+- The library works fully on-device only! Limited, non-camera use in simulator (including previews).  
+  - Why? Because the simulator doesn't have access to camera.
+  - It runs in simulator & previews using mocked implementations for the cameras. The goal here is to allow you to integrate as much as possible using previews, for example, iterating on layouts. 
+  - You should still test on-device as part of your full testing flow to ensure things work as you expect. 
+- iOS only. iPad support is a future enhancement. Other platforms only have one camera
 
 # References
 
