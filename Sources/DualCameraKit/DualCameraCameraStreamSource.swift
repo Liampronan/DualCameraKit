@@ -19,7 +19,6 @@ public protocol DualCameraCameraStreamSourcing {
 }
 
 
-
 public final class DualCameraMockCameraStreamSource: DualCameraCameraStreamSourcing {
     private let frontBroadcaster = PixelBufferBroadcaster()
     private let backBroadcaster = PixelBufferBroadcaster()

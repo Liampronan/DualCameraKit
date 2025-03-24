@@ -111,63 +111,57 @@ struct ContentView: View {
                 }
                 .disabled(!viewModel.viewState.isVideoButtonEnabled)
                 
-                // Layout picker button (optional - allows changing camera layout)
-                Menu {
-                    Button("Side by Side") {
-                        viewModel.updateLayout(.sideBySide)
-                    }
-                    
-                    Button("Stacked Vertical") {
-                        viewModel.updateLayout(.stackedVertical)
-                    }
-                    
-                    Menu("PiP Mode") {
-                        Button("Front Mini - Top Left") {
-                            viewModel.updateLayout(.fullScreenWithMini(miniCamera: .front, miniCameraPosition: .topLeading))
-                        }
-                        
-                        Button("Front Mini - Top Right") {
-                            viewModel.updateLayout(.fullScreenWithMini(miniCamera: .front, miniCameraPosition: .topTrailing))
-                        }
-                        
-                        Button("Front Mini - Bottom Left") {
-                            viewModel.updateLayout(.fullScreenWithMini(miniCamera: .front, miniCameraPosition: .bottomLeading))
-                        }
-                        
-                        Button("Front Mini - Bottom Right") {
-                            viewModel.updateLayout(.fullScreenWithMini(miniCamera: .front, miniCameraPosition: .bottomTrailing))
-                        }
-                        
-                        Divider()
-                        
-                        Button("Back Mini - Top Left") {
-                            viewModel.updateLayout(.fullScreenWithMini(miniCamera: .back, miniCameraPosition: .topLeading))
-                        }
-                        
-                        Button("Back Mini - Top Right") {
-                            viewModel.updateLayout(.fullScreenWithMini(miniCamera: .back, miniCameraPosition: .topTrailing))
-                        }
-                        
-                        Button("Back Mini - Bottom Left") {
-                            viewModel.updateLayout(.fullScreenWithMini(miniCamera: .back, miniCameraPosition: .bottomLeading))
-                        }
-                        
-                        Button("Back Mini - Bottom Right") {
-                            viewModel.updateLayout(.fullScreenWithMini(miniCamera: .back, miniCameraPosition: .bottomTrailing))
-                        }
-                    }
-                } label: {
-                    Image(systemName: "rectangle.3.group")
-                        .font(.title)
-                        .foregroundColor(.white)
-                        .padding()
-                        .background(Circle().fill(Color.black.opacity(0.5)))
-                }
-                .disabled(!viewModel.viewState.isPhotoButtonEnabled)
+                layoutTypePicker
             }
         }
         .opacity(viewModel.viewState.captureInProgress ? 0 : 1) 
         .padding(.bottom, 30)
+    }
+    
+    @ViewBuilder
+    private var layoutTypePicker: some View {
+        Menu {
+            ForEach(CameraLayout.menuItems) { menuItem in
+                switch menuItem {
+                case .entry(let title, let layout):
+                    createMenuEntry(title: title, layout: layout)
+                case .submenu(let title, let items):
+                    
+                    Menu(title) {
+                        ForEach(items) { subItem in
+                            if case .entry(let subTitle, let subLayout) = subItem {
+                                createMenuEntry(title: subTitle, layout: subLayout)
+                            }
+                            Divider()
+                        }
+                    }
+                }
+            }
+        } label: {
+            Image(systemName: "rectangle.3.group")
+                .font(.title)
+                .foregroundColor(.white)
+                .padding()
+                .background(Circle().fill(Color.black.opacity(0.5)))
+            
+        }
+        .disabled(!viewModel.viewState.isPhotoButtonEnabled)
+    }
+    
+    private func createMenuEntry(title: String, layout: CameraLayout) -> some View {
+        Group {
+            
+            Button {
+                viewModel.updateLayout(layout)
+            } label: {
+                HStack {
+                    Text(title)
+                    if viewModel.configuration.layout == layout {
+                        Image(systemName: "checkmark")
+                    }
+                }
+            }
+        }
     }
     
     @ViewBuilder
