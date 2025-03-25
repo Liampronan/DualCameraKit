@@ -8,7 +8,6 @@ public protocol CameraRenderer: AnyObject {
     /// Update renderer with new camera frame.
     func update(with buffer: CVPixelBuffer)
     
-    // TODO: should this capture method be part of CameraRenderer? it seems distinct from rendering and this came up when trying to mock so not just abstract question. 
     /// Capture current frame as UIImage.
     func captureCurrentFrame() async throws -> UIImage
 }

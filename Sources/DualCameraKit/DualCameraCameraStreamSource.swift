@@ -1,15 +1,6 @@
 import AVFoundation
 import UIKit
 
-extension UIColor {
-    func image(_ size: CGSize = CGSize(width: 1, height: 1)) -> UIImage {
-        return UIGraphicsImageRenderer(size: size).image { rendererContext in
-            self.setFill()
-            rendererContext.fill(CGRect(origin: .zero, size: size))
-        }
-    }
-}
-
 @MainActor
 public protocol DualCameraCameraStreamSourcing {
     func startSession() async throws
@@ -17,39 +8,6 @@ public protocol DualCameraCameraStreamSourcing {
     nonisolated var frontCameraStream: AsyncStream<PixelBufferWrapper> { get }
     nonisolated var backCameraStream: AsyncStream<PixelBufferWrapper> { get }
 }
-
-
-public final class DualCameraMockCameraStreamSource: DualCameraCameraStreamSourcing {
-    private let frontBroadcaster = PixelBufferBroadcaster()
-    private let backBroadcaster = PixelBufferBroadcaster()
-    
-    public init() { }
-    
-    // TOOD: we need to broadcast mock PixelBuffers here for front and back broadcaster
-    public func startSession() async throws {
-        let purpleBuffer: CVPixelBuffer = UIColor.purple.image().pixelBuffer()!
-        let purpleBufferWrapper = PixelBufferWrapper(buffer: purpleBuffer)
-        
-        let yellowBuffer = UIColor.yellow.image().pixelBuffer()!
-        let yellowBufferWrapper = PixelBufferWrapper(buffer: yellowBuffer)
-        await frontBroadcaster.broadcast(yellowBufferWrapper)
-        await backBroadcaster.broadcast(purpleBufferWrapper)
-    }
-    
-    public func stopSession() {
-        print("stoppe11d...")
-    }
-    
-    nonisolated public var frontCameraStream: AsyncStream<PixelBufferWrapper> {
-        frontBroadcaster.subscribe()
-    }
-    
-    nonisolated public var backCameraStream: AsyncStream<PixelBufferWrapper> {
-        backBroadcaster.subscribe()
-    }
-}
-
-// TODO: revisit if we should make this class not @MainActor. should it itself be an actor?
 
 /// Manages low-level camera access and stream production
 @MainActor
@@ -246,5 +204,34 @@ extension DualCameraCameraStreamSource: AVCaptureVideoDataOutputSampleBufferDele
             }
         }
     }
+}
+
+
+public final class DualCameraMockCameraStreamSource: DualCameraCameraStreamSourcing {
+    private let frontBroadcaster = PixelBufferBroadcaster()
+    private let backBroadcaster = PixelBufferBroadcaster()
     
+    public init() { }
+    
+    public func startSession() async throws {
+        let purpleBuffer: CVPixelBuffer = UIColor.purple.asImage().pixelBuffer()!
+        let purpleBufferWrapper = PixelBufferWrapper(buffer: purpleBuffer)
+        
+        let yellowBuffer = UIColor.yellow.asImage().pixelBuffer()!
+        let yellowBufferWrapper = PixelBufferWrapper(buffer: yellowBuffer)
+        await frontBroadcaster.broadcast(yellowBufferWrapper)
+        await backBroadcaster.broadcast(purpleBufferWrapper)
+    }
+    
+    public func stopSession() {
+        print("mock stopped")
+    }
+    
+    nonisolated public var frontCameraStream: AsyncStream<PixelBufferWrapper> {
+        frontBroadcaster.subscribe()
+    }
+    
+    nonisolated public var backCameraStream: AsyncStream<PixelBufferWrapper> {
+        backBroadcaster.subscribe()
+    }
 }

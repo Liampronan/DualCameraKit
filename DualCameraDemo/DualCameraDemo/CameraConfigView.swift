@@ -13,6 +13,7 @@ struct CameraConfigView: View {
             layoutTypePicker
             recorderTypePicker
         }
+        .sheetStyle(title: "Config")
     }
     
     @ViewBuilder
@@ -23,7 +24,6 @@ struct CameraConfigView: View {
                 case .entry(let title, let layout):
                     createMenuEntry(title: title, layout: layout)
                 case .submenu(let title, let items):
-                    
                     Menu(title) {
                         ForEach(items) { subItem in
                             if case .entry(let subTitle, let subLayout) = subItem {
@@ -90,4 +90,8 @@ struct CameraConfigView: View {
             }
         }
     }
+}
+
+#Preview {
+    CameraConfigView(viewModel: DualCameraViewModel(dualCameraController: DualCameraMockController()))
 }
