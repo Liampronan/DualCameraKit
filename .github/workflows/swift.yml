@@ -9,21 +9,15 @@ on:
 jobs:
   swiftlint:
     name: SwiftLint
-    runs-on: macos-latest
+    runs-on: ubuntu-latest  # Switch to Linux for the SwiftLint action
     steps:
       - uses: actions/checkout@v4
       
-      - name: Install SwiftLint
-        run: brew install swiftlint
-        
-      - name: Run SwiftLint
-        run: |
-          TMPFILE=$(mktemp)
-          swiftlint --reporter json --path Sources > $TMPFILE || true
+      - name: GitHub Action for SwiftLint
+        uses: norio-nomura/action-swiftlint@3.2.1
+        with:
+          args: --path Sources
           
-          # Process SwiftLint output and create GitHub annotations
-          jq -r '.[] | "::warning file=\(.file),line=\(.line),col=\(.character)::\(.reason)"' $TMPFILE || true
-  
   build-and-test:
     runs-on: macos-latest
     needs: swiftlint
