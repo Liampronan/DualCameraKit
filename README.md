@@ -84,7 +84,7 @@ targets: [
 - Add camera permissions to your app's `Info.plist` - `Privacy - Privacy - Camera Usage Description` 
 <img src="https://github.com/user-attachments/assets/1ef0ae3e-683c-444c-9276-4684efb08e5c" width=550 />
 
-- Live, nonsimulator device, iOS 18 for camera usage (simulator uses mocked camera). 
+- Live, nonsimulator device, iOS 17+ for camera usage (simulator uses mocked camera). 
 
 After installation, you can import the library in your Swift files:
 
