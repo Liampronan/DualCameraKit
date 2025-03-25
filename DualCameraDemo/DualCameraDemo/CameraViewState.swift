@@ -27,6 +27,7 @@ enum CameraViewState: Equatable {
     }
     
     var captureInProgress: Bool {
-        self == .precapture || self == .capturing
+        if case .recording(_) = self { return true }
+        return self == .precapture || self == .capturing
     }
 }

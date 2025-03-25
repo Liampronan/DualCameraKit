@@ -37,9 +37,7 @@ public enum CameraLayout: Equatable, Hashable {
 
 extension CameraLayout {
     
-    // Generate menu structure using the enum approach
     public static var menuItems: [MenuItem] {
-        // Standard layouts as direct entries
         let standardItems: [MenuItem] = [
             .entry(title: CameraLayout.sideBySide.title, layout: .sideBySide),
             .entry(title: CameraLayout.stackedVertical.title, layout: .stackedVertical)
@@ -60,11 +58,9 @@ extension CameraLayout {
             pipItems.append(.entry(title: layout.title, layout: layout))
         }
         
-        // Return complete menu structure
         return standardItems + [.submenu(title: "PiP Mode", items: pipItems)]
     }
     
-    // Menu structure representation using enums
     public enum MenuItem: Identifiable {
         public var id: String {
             switch self {
@@ -79,7 +75,6 @@ extension CameraLayout {
         case submenu(title: String, items: [MenuItem])
     }
     
-    // Human readable text for each case
     public var title: String {
         switch self {
         case .sideBySide:

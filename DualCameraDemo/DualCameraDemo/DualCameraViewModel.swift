@@ -6,6 +6,7 @@ import SwiftUI
 @MainActor
 @Observable
 final class DualCameraViewModel {
+    
     // Core state
     private(set) var viewState: CameraViewState = .loading
     
@@ -16,6 +17,12 @@ final class DualCameraViewModel {
     // User artifacts
     private(set) var capturedImage: UIImage? = nil
     var alert: AlertState? = nil
+    
+    enum SheetType: String, Identifiable {
+        var id: String { self.rawValue }
+        case configSheet
+    }
+    var presentedSheet: SheetType?
     
     let controller: DualCameraControlling
     private var recordingTimer: Timer?
@@ -68,9 +75,15 @@ final class DualCameraViewModel {
         configuration.layout = newLayout
     }
     
+    func didTapConfigurationButton() {
+        if presentedSheet == nil {
+            presentedSheet = .configSheet
+        }
+    }
+    
     // MARK: - User Actions
     
-    func takePhoto() {
+    func capturePhotoButtonTapped() {
         Task {
             guard case .ready = viewState else { return }
             viewState = .precapture
@@ -105,7 +118,7 @@ final class DualCameraViewModel {
         }
     }
     
-    func toggleRecording() {
+    func recordVideoButtonTapped() {
         if case .recording = viewState {
             stopRecording()
         } else {
@@ -125,6 +138,8 @@ final class DualCameraViewModel {
     
     private func startRecording() {
         Task {
+            viewState = .precapture
+
             let hasPermission = await checkPhotoLibraryPermission()
             
             guard hasPermission else {

@@ -1,23 +1,21 @@
 import DualCameraKit
 import SwiftUI
-import Photos
 
 struct ContentView: View {
     @State private var viewModel: DualCameraViewModel
     
     init(dualCameraController: DualCameraControlling) {
         _viewModel = State(initialValue: DualCameraViewModel(dualCameraController: dualCameraController))
-
     }
-    
+        
     var body: some View {
         GeometryReader { geoProxy in
             ZStack {
-                // Main camera view
                 DualCameraScreen(
                     controller: viewModel.controller,
                     layout: viewModel.configuration.layout
                 )
+                .overlay(settingsButton, alignment: .topLeading)
                 .overlay(recordingIndicator, alignment: .top)
                 .overlay(controlButtons, alignment: .bottom)
                 
@@ -35,23 +33,17 @@ struct ContentView: View {
                 viewModel.onDisappear()
             }
             .animation(.easeInOut(duration: 0.2), value: viewModel.viewState)
+            .sheet(item: $viewModel.presentedSheet, content: { sheetType in
+                switch sheetType {
+                case .configSheet: CameraConfigView(
+                    viewModel: viewModel
+                )
+                }
+            })
             .alert(
                 item: $viewModel.alert
             ) { alert in
-                if let secondaryButton = alert.secondaryButton {
-                    return Alert(
-                        title: Text(alert.title),
-                        message: Text(alert.message),
-                        primaryButton: .default(Text(alert.primaryButton.text), action: alert.primaryButton.action),
-                        secondaryButton: .cancel(Text(secondaryButton.text), action: secondaryButton.action)
-                    )
-                } else {
-                    return Alert(
-                        title: Text(alert.title),
-                        message: Text(alert.message),
-                        dismissButton: .default(Text(alert.primaryButton.text), action: alert.primaryButton.action)
-                    )
-                }
+                getAlert(for: alert)
             }
         }
     }
@@ -84,12 +76,9 @@ struct ContentView: View {
     @ViewBuilder
     private var controlButtons: some View {
         VStack(spacing: 16) {
-            // Video recorder type picker
-            recorderTypePicker
-            
             HStack(spacing: 32) {
                 // Photo capture button
-                Button(action: viewModel.takePhoto) {
+                Button(action: viewModel.capturePhotoButtonTapped) {
                     Image(systemName: "camera.fill")
                         .font(.largeTitle)
                         .foregroundColor(.white)
@@ -99,7 +88,7 @@ struct ContentView: View {
                 .disabled(!viewModel.viewState.isPhotoButtonEnabled)
                 
                 // Video recording button
-                Button(action: viewModel.toggleRecording) {
+                Button(action: viewModel.recordVideoButtonTapped) {
                     Image(systemName: viewModel.viewState.videoButtonIcon)
                         .font(.largeTitle)
                         .foregroundColor(viewModel.viewState.videoButtonColor)
@@ -110,89 +99,10 @@ struct ContentView: View {
                         )
                 }
                 .disabled(!viewModel.viewState.isVideoButtonEnabled)
-                
-                layoutTypePicker
             }
         }
         .opacity(viewModel.viewState.captureInProgress ? 0 : 1) 
         .padding(.bottom, 30)
-    }
-    
-    @ViewBuilder
-    private var layoutTypePicker: some View {
-        Menu {
-            ForEach(CameraLayout.menuItems) { menuItem in
-                switch menuItem {
-                case .entry(let title, let layout):
-                    createMenuEntry(title: title, layout: layout)
-                case .submenu(let title, let items):
-                    
-                    Menu(title) {
-                        ForEach(items) { subItem in
-                            if case .entry(let subTitle, let subLayout) = subItem {
-                                createMenuEntry(title: subTitle, layout: subLayout)
-                            }
-                            Divider()
-                        }
-                    }
-                }
-            }
-        } label: {
-            Image(systemName: "rectangle.3.group")
-                .font(.title)
-                .foregroundColor(.white)
-                .padding()
-                .background(Circle().fill(Color.black.opacity(0.5)))
-            
-        }
-        .disabled(!viewModel.viewState.isPhotoButtonEnabled)
-    }
-    
-    private func createMenuEntry(title: String, layout: CameraLayout) -> some View {
-        Group {
-            
-            Button {
-                viewModel.updateLayout(layout)
-            } label: {
-                HStack {
-                    Text(title)
-                    if viewModel.configuration.layout == layout {
-                        Image(systemName: "checkmark")
-                    }
-                }
-            }
-        }
-    }
-    
-    @ViewBuilder
-    private var recorderTypePicker: some View {
-        VStack {
-            Menu {
-                ForEach(DualCameraVideoRecorderType.allCases) { recorderType in
-                    Button {
-                        viewModel.toggleRecorderType()
-                    } label: {
-                        HStack {
-                            Text(recorderType.displayName)
-                            if viewModel.videoRecorderType == recorderType {
-                                Image(systemName: "checkmark")
-                            }
-                        }
-                    }
-                }
-            } label: {
-                HStack {
-                    Image(systemName: "video.fill")
-                    Text("Recorder: \(viewModel.videoRecorderType.displayName)")
-                    Image(systemName: "chevron.up.chevron.down")
-                        .font(.caption)
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .background(Capsule().fill(Color.black.opacity(0.6)))
-                .foregroundColor(.white)
-            }
-        }
     }
     
     @ViewBuilder
@@ -231,6 +141,34 @@ struct ContentView: View {
             }
             .padding(30)
         }
+    }
+    
+    private func getAlert(for alertState: AlertState) -> Alert {
+        if let secondaryButton = alertState.secondaryButton {
+            return Alert(
+                title: Text(alertState.title),
+                message: Text(alertState.message),
+                primaryButton: .default(Text(alertState.primaryButton.text), action: alertState.primaryButton.action),
+                secondaryButton: .cancel(Text(secondaryButton.text), action: secondaryButton.action)
+            )
+        } else {
+            return Alert(
+                title: Text(alertState.title),
+                message: Text(alertState.message),
+                dismissButton: .default(Text(alertState.primaryButton.text), action: alertState.primaryButton.action)
+            )
+        }
+    }
+    
+    private var settingsButton: some View {
+        Button {
+            viewModel.didTapConfigurationButton()
+        } label: {
+            Image(systemName: "gear")
+                .font(.title2)
+        }
+        .tint(.gray)
+        .padding(.leading)
     }
 }
 
