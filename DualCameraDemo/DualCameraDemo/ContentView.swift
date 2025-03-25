@@ -1,41 +1,24 @@
 import DualCameraKit
 import SwiftUI
-import Photos
 
 struct ContentView: View {
     @State private var viewModel: DualCameraViewModel
     
-    init(dualCameraController: DualCameraController) {
+    init(dualCameraController: DualCameraControlling) {
         _viewModel = State(initialValue: DualCameraViewModel(dualCameraController: dualCameraController))
-
     }
-    
+        
     var body: some View {
         GeometryReader { geoProxy in
             ZStack {
-                // Main camera view
                 DualCameraScreen(
                     controller: viewModel.controller,
                     layout: viewModel.configuration.layout
                 )
+                .overlay(settingsButton, alignment: .topLeading)
                 .overlay(recordingIndicator, alignment: .top)
                 .overlay(controlButtons, alignment: .bottom)
                 
-                // Capture flash effect
-                if case .capturing = viewModel.viewState {
-                    Color.white
-                        .ignoresSafeArea()
-                        .opacity(0.3)
-                        .transition(.opacity)
-                }
-                
-                // Captured image overlay
-                if let capturedImage = viewModel.capturedImage {
-                    capturedImageOverlay(capturedImage)
-                        .transition(.opacity)
-                }
-                
-                // Error overlay for critical errors
                 if case .error(let error) = viewModel.viewState {
                     errorOverlay(error)
                 }
@@ -50,24 +33,17 @@ struct ContentView: View {
                 viewModel.onDisappear()
             }
             .animation(.easeInOut(duration: 0.2), value: viewModel.viewState)
-            .animation(.easeInOut(duration: 0.3), value: viewModel.capturedImage != nil)
+            .sheet(item: $viewModel.presentedSheet, content: { sheetType in
+                switch sheetType {
+                case .configSheet: CameraConfigView(
+                    viewModel: viewModel
+                )
+                }
+            })
             .alert(
                 item: $viewModel.alert
             ) { alert in
-                if let secondaryButton = alert.secondaryButton {
-                    return Alert(
-                        title: Text(alert.title),
-                        message: Text(alert.message),
-                        primaryButton: .default(Text(alert.primaryButton.text), action: alert.primaryButton.action),
-                        secondaryButton: .cancel(Text(secondaryButton.text), action: secondaryButton.action)
-                    )
-                } else {
-                    return Alert(
-                        title: Text(alert.title),
-                        message: Text(alert.message),
-                        dismissButton: .default(Text(alert.primaryButton.text), action: alert.primaryButton.action)
-                    )
-                }
+                getAlert(for: alert)
             }
         }
     }
@@ -100,12 +76,9 @@ struct ContentView: View {
     @ViewBuilder
     private var controlButtons: some View {
         VStack(spacing: 16) {
-            // Video recorder type picker
-            recorderTypePicker
-            
             HStack(spacing: 32) {
                 // Photo capture button
-                Button(action: viewModel.takePhoto) {
+                Button(action: viewModel.capturePhotoButtonTapped) {
                     Image(systemName: "camera.fill")
                         .font(.largeTitle)
                         .foregroundColor(.white)
@@ -115,7 +88,7 @@ struct ContentView: View {
                 .disabled(!viewModel.viewState.isPhotoButtonEnabled)
                 
                 // Video recording button
-                Button(action: viewModel.toggleRecording) {
+                Button(action: viewModel.recordVideoButtonTapped) {
                     Image(systemName: viewModel.viewState.videoButtonIcon)
                         .font(.largeTitle)
                         .foregroundColor(viewModel.viewState.videoButtonColor)
@@ -126,143 +99,10 @@ struct ContentView: View {
                         )
                 }
                 .disabled(!viewModel.viewState.isVideoButtonEnabled)
-                
-                // Layout picker button (optional - allows changing camera layout)
-                Menu {
-                    Button("Side by Side") {
-                        viewModel.updateLayout(.sideBySide)
-                    }
-                    
-                    Button("Stacked Vertical") {
-                        viewModel.updateLayout(.stackedVertical)
-                    }
-                    
-                    Menu("PiP Mode") {
-                        Button("Front Mini - Top Left") {
-                            viewModel.updateLayout(.fullScreenWithMini(miniCamera: .front, miniCameraPosition: .topLeading))
-                        }
-                        
-                        Button("Front Mini - Top Right") {
-                            viewModel.updateLayout(.fullScreenWithMini(miniCamera: .front, miniCameraPosition: .topTrailing))
-                        }
-                        
-                        Button("Front Mini - Bottom Left") {
-                            viewModel.updateLayout(.fullScreenWithMini(miniCamera: .front, miniCameraPosition: .bottomLeading))
-                        }
-                        
-                        Button("Front Mini - Bottom Right") {
-                            viewModel.updateLayout(.fullScreenWithMini(miniCamera: .front, miniCameraPosition: .bottomTrailing))
-                        }
-                        
-                        Divider()
-                        
-                        Button("Back Mini - Top Left") {
-                            viewModel.updateLayout(.fullScreenWithMini(miniCamera: .back, miniCameraPosition: .topLeading))
-                        }
-                        
-                        Button("Back Mini - Top Right") {
-                            viewModel.updateLayout(.fullScreenWithMini(miniCamera: .back, miniCameraPosition: .topTrailing))
-                        }
-                        
-                        Button("Back Mini - Bottom Left") {
-                            viewModel.updateLayout(.fullScreenWithMini(miniCamera: .back, miniCameraPosition: .bottomLeading))
-                        }
-                        
-                        Button("Back Mini - Bottom Right") {
-                            viewModel.updateLayout(.fullScreenWithMini(miniCamera: .back, miniCameraPosition: .bottomTrailing))
-                        }
-                    }
-                } label: {
-                    Image(systemName: "rectangle.3.group")
-                        .font(.title)
-                        .foregroundColor(.white)
-                        .padding()
-                        .background(Circle().fill(Color.black.opacity(0.5)))
-                }
-                .disabled(!viewModel.viewState.isPhotoButtonEnabled)
             }
         }
+        .opacity(viewModel.viewState.captureInProgress ? 0 : 1) 
         .padding(.bottom, 30)
-    }
-    
-    @ViewBuilder
-    private var recorderTypePicker: some View {
-        VStack {
-            Menu {
-                ForEach(DualCameraVideoRecorderType.allCases) { recorderType in
-                    Button {
-                        viewModel.toggleRecorderType()
-                    } label: {
-                        HStack {
-                            Text(recorderType.displayName)
-                            if viewModel.videoRecorderType == recorderType {
-                                Image(systemName: "checkmark")
-                            }
-                        }
-                    }
-                }
-            } label: {
-                HStack {
-                    Image(systemName: "video.fill")
-                    Text("Recorder: \(viewModel.videoRecorderType.displayName)")
-                    Image(systemName: "chevron.up.chevron.down")
-                        .font(.caption)
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .background(Capsule().fill(Color.black.opacity(0.6)))
-                .foregroundColor(.white)
-            }
-        }
-    }
-    
-    @ViewBuilder
-    private func capturedImageOverlay(_ image: UIImage) -> some View {
-        ZStack {
-            Color.black.ignoresSafeArea()
-            
-            Image(uiImage: image)
-                .resizable()
-                .aspectRatio(contentMode: .fit)
-                .ignoresSafeArea()
-            
-            VStack {
-                HStack {
-                    Button(action: viewModel.dismissCapturedImage) {
-                        Image(systemName: "xmark")
-                            .font(.title2)
-                            .foregroundColor(.white)
-                            .padding()
-                            .background(Circle().fill(Color.black.opacity(0.5)))
-                    }
-                    
-                    Spacer()
-                    
-                    Button(action: {
-                        // Save to photo library action would go here
-                        UIImageWriteToSavedPhotosAlbum(image, nil, nil, nil)
-                    }) {
-                        Image(systemName: "square.and.arrow.down")
-                            .font(.title2)
-                            .foregroundColor(.white)
-                            .padding()
-                            .background(Circle().fill(Color.black.opacity(0.5)))
-                    }
-                }
-                .padding()
-                
-                Spacer()
-                
-                Button("Dismiss") {
-                    viewModel.dismissCapturedImage()
-                }
-                .padding()
-                .background(Capsule().fill(Color.black.opacity(0.5)))
-                .foregroundColor(.white)
-                .padding(.bottom, 20)
-            }
-        }
-        .ignoresSafeArea()
     }
     
     @ViewBuilder
@@ -302,10 +142,38 @@ struct ContentView: View {
             .padding(30)
         }
     }
+    
+    private func getAlert(for alertState: AlertState) -> Alert {
+        if let secondaryButton = alertState.secondaryButton {
+            return Alert(
+                title: Text(alertState.title),
+                message: Text(alertState.message),
+                primaryButton: .default(Text(alertState.primaryButton.text), action: alertState.primaryButton.action),
+                secondaryButton: .cancel(Text(secondaryButton.text), action: secondaryButton.action)
+            )
+        } else {
+            return Alert(
+                title: Text(alertState.title),
+                message: Text(alertState.message),
+                dismissButton: .default(Text(alertState.primaryButton.text), action: alertState.primaryButton.action)
+            )
+        }
+    }
+    
+    private var settingsButton: some View {
+        Button {
+            viewModel.didTapConfigurationButton()
+        } label: {
+            Image(systemName: "gear")
+                .font(.title2)
+        }
+        .tint(.gray)
+        .padding(.leading)
+    }
 }
 
 // MARK: - Preview
 
-//#Preview {
-//    ContentView()
-//}
+#Preview() {
+    ContentView(dualCameraController: DualCameraMockController())
+}

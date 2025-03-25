@@ -6,6 +6,7 @@ import SwiftUI
 @MainActor
 @Observable
 final class DualCameraViewModel {
+    
     // Core state
     private(set) var viewState: CameraViewState = .loading
     
@@ -16,6 +17,12 @@ final class DualCameraViewModel {
     // User artifacts
     private(set) var capturedImage: UIImage? = nil
     var alert: AlertState? = nil
+    
+    enum SheetType: String, Identifiable {
+        var id: String { self.rawValue }
+        case configSheet
+    }
+    var presentedSheet: SheetType?
     
     let controller: DualCameraControlling
     private var recordingTimer: Timer?
@@ -68,26 +75,30 @@ final class DualCameraViewModel {
         configuration.layout = newLayout
     }
     
-    // MARK: - User Actions
-    
-    func dismissCapturedImage() {
-        capturedImage = nil
+    func didTapConfigurationButton() {
+        if presentedSheet == nil {
+            presentedSheet = .configSheet
+        }
     }
     
-    func takePhoto() {
+    // MARK: - User Actions
+    
+    func capturePhotoButtonTapped() {
         Task {
             guard case .ready = viewState else { return }
-            
+            viewState = .precapture
             let hasPermission = await checkPhotoLibraryPermission()
             
             guard hasPermission else {
                 alert = .permissionDenied(message: "Photo library access is required to save photos.")
+                viewState = .ready
                 return
             }
             
             viewState = .capturing
             
             do {
+                try await Task.sleep(for: .seconds(0.25))
                 let image = try await controller.captureCurrentScreen()
                 viewState = .ready
                 saveImageToPhotoLibrary(image)
@@ -107,7 +118,7 @@ final class DualCameraViewModel {
         }
     }
     
-    func toggleRecording() {
+    func recordVideoButtonTapped() {
         if case .recording = viewState {
             stopRecording()
         } else {
@@ -127,6 +138,8 @@ final class DualCameraViewModel {
     
     private func startRecording() {
         Task {
+            viewState = .precapture
+
             let hasPermission = await checkPhotoLibraryPermission()
             
             guard hasPermission else {
