@@ -31,10 +31,6 @@ jobs:
     - uses: actions/checkout@v4
     
     - name: Build Package
-      run: |
-        xcodebuild build -scheme DualCameraKit \
-        -destination 'platform=iOS Simulator,name=iPhone 16,OS=latest' \
-        -sdk iphonesimulator
-      
+      run: xcodebuild -resolvePackageDependencies -scheme DualCameraKit -destination "platform=iOS Simulator,name=iPhone 16,OS=18.0" -sdk iphonesimulator
     - name: Run tests
       run: swift test -v
