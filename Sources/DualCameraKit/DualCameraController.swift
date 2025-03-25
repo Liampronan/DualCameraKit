@@ -65,9 +65,6 @@ public final class DualCameraController: DualCameraControlling {
     
     var renderers: [CameraSource: CameraRenderer] = [:]
     
-    // TODO:
-    // - [ ] move this to be DualCameraCameraStreamSourcing and DI in inii
-    // - [ ] can we remove MockDualCameraController implementation by injecting protocol implementations with mock ones? it seems there is a lot of dupe atm - for now i am focused on getting the mvp previews working
     private let streamSource = DualCameraCameraStreamSource()
     
     // Internal storage for renderers and their stream tasks.
@@ -208,9 +205,7 @@ public final class DualCameraMockController: DualCameraControlling {
     
     public var videoRecorder: (any DualCameraVideoRecording)?
     
-    public func setVideoRecorder(_ recorder: any DualCameraVideoRecording) async throws {
-        
-    }
+    public func setVideoRecorder(_ recorder: any DualCameraVideoRecording) async throws {}
     
     private func connectStream(for source: CameraSource, renderer: CameraRenderer) {
         let stream: AsyncStream<PixelBufferWrapper> = source == .front ? frontCameraStream : backCameraStream
