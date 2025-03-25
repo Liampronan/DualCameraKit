@@ -9,14 +9,15 @@ on:
 jobs:
   swiftlint:
     name: SwiftLint
-    runs-on: ubuntu-latest  # Switch to Linux for the SwiftLint action
+    # use Linux for the SwiftLint action since this GH library requires it (so bot can post inline to PR) 
+    runs-on: ubuntu-latest  
     steps:
       - uses: actions/checkout@v4
       
       - name: GitHub Action for SwiftLint
         uses: norio-nomura/action-swiftlint@3.2.1
         with:
-          args: --path Sources
+          args: Sources
           
   build-and-test:
     runs-on: macos-latest
