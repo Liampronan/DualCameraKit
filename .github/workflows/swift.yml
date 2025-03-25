@@ -16,8 +16,8 @@ jobs:
       
       - name: GitHub Action for SwiftLint
         uses: norio-nomura/action-swiftlint@3.2.1
-        with:
-          args: Sources
+        env:
+          WORKING_DIRECTORY: Source
           
   build-and-test:
     runs-on: macos-latest
