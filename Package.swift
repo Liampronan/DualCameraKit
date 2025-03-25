@@ -21,6 +21,9 @@ let package = Package(
             dependencies: [
                 .product(name: "AsyncAlgorithms", package: "swift-async-algorithms"),
             ],
+            resources: [
+                .process("DualCameraShaders.metal")
+            ],
             swiftSettings: [
                 .unsafeFlags(["-strict-concurrency=complete"])
             ]
