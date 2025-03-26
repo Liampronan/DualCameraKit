@@ -1,20 +1,13 @@
-<div style="text-align: center;">
-<b style="font-size: 30px"> DualCameraKit</b>
+# DualCameraKit
 
 Simultaneous front & back iOS camera capture made simple.
 
-</Div>
-
-<div style="display: flex; justify-content: center; gap: 20px; margin: 20px 0;">
-  <div style="text-align: center;">
-    <img style="border-radius: 10px; margin-bottom: 10px;" src="./DocumentationAssets/Photo_Capture.png" width="250" />
-    <p style="font-weight: bold;">Photo Capture</p>
-  </div>
-  <div style="text-align: center;">
-    <img style="border-radius: 10px; margin-bottom: 10px;" src="./DocumentationAssets/Video_Recording_ReplayKit.gif" width="250" />
-    <p style="font-weight: bold;">Video Capture</p>
-  </div>
-</div>
+<table>
+<tr>
+  <td align="center"><img src="./DocumentationAssets/Photo_Capture.png" width="250"/><br><b>Photo Capture</b></td>
+  <td align="center"><img src="./DocumentationAssets/Video_Recording_ReplayKit.gif" width="250"/><br><b>Video Capture</b></td>
+</tr>
+</table>
 
 # Status Overview
 
@@ -192,8 +185,15 @@ public enum DualCameraLayout {
 
 # Video Capture Modes
 
-| Mode | Description | Implementation Status |
-| Tset | it rocks | dunzo |
+- This library offers several implementations of `DualCameraVideoRecorderType` that offer various methods of capturing.
+- You can choose which type you'd like by invoking `DualCameraControlling.startVideoRecording(recorderType:)`
+
+| Type                    | Quality |                   Description                   |      Core Technology       |          Permissions Required           |                       Layout Dependence                       | Implementation Status |
+| ----------------------- | :-----: | :---------------------------------------------: | :------------------------: | :-------------------------------------: | :-----------------------------------------------------------: | :-------------------: |
+| `.cpuBased`             | Medium  |          Takes continuous screenshots           | `DualCameraPhotoCapturing` |            Camera (one-time)            |                 Captures screen layout as-is                  |          ✅           |
+| `.replayKit`            |  High   |           System screen recording API           |         ReplayKit          | Camera (one-time) + ReplayKit (per-use) |                 Captures screen layout as-is                  |          ✅           |
+| `.gpuBasedUncomposited` |  High   |              Direct Metal capture               |   Metal/GPU acceleration   |            Camera (one-time)            |  Produces separate video streams (manual composition needed)  |          🚧           |
+| `.gpuBasedComposited`   |  High   | Direct Metal capture with automatic composition |   Metal/GPU acceleration   |            Camera (one-time)            | Automatically composes videos according to `DualCameraLayout` |          🚧           |
 
 # Customization
 
@@ -201,8 +201,8 @@ public enum DualCameraLayout {
 
 # Deep Dives
 
-- TODO: Explain our different approaches (dual streams) vs. `PiPVideoMixer` (single stream) vs `ReplayKit` (screen capture, requires user permission each time)
-- TODO: Add some diagrams
+- 🚧 Explain our different approaches (dual streams) vs. `PiPVideoMixer` (single stream) vs `ReplayKit` (screen capture, requires user permission each time)
+- 🚧 Add some diagrams
 
 # Limitations
 
@@ -219,3 +219,4 @@ Part of this project was adapted from Apple's code in [`AVMultiCamPiP: Capturing
 # License
 
 This project is available under the [MIT License](LICENSE.md).
+Looking at this table, I think some additional columns would help clarify the differences between recorder types and avoid redundancy. Here's my suggestion for an improved table structure:
