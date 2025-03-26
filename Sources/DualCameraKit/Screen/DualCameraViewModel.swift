@@ -28,7 +28,7 @@ final class DualCameraViewModel {
     
     init(
         dualCameraController: DualCameraControlling,
-        layout: CameraLayout = .fullScreenWithMini(miniCamera: .front, miniCameraPosition: .bottomTrailing)
+        layout: DualCameraLayout = .piP(miniCamera: .front, miniCameraPosition: .bottomTrailing)
     ) {
         self.controller = dualCameraController
         self.configuration = CameraConfiguration(layout: layout)
@@ -74,7 +74,7 @@ final class DualCameraViewModel {
         configuration.containerSize = newSize
     }
     
-    func updateLayout(_ newLayout: CameraLayout) {
+    func updateLayout(_ newLayout: DualCameraLayout) {
         configuration.layout = newLayout
     }
     

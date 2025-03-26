@@ -11,7 +11,7 @@ public struct DualCameraScreen: View {
 #endif
 
     public init(
-        layout: CameraLayout = .fullScreenWithMini(miniCamera: .front, miniCameraPosition: .bottomTrailing)
+        layout: DualCameraLayout = .piP(miniCamera: .front, miniCameraPosition: .bottomTrailing)
     ) {
         _viewModel = State(initialValue: DualCameraViewModel(
                 dualCameraController: dualCameraController,

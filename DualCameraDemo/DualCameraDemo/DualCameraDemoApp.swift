@@ -17,7 +17,7 @@ struct DualCameraDemoApp: App {
             switch demoType {
             case .dualCameraScreen:
                 DualCameraScreen(
-                    layout: .fullScreenWithMini(miniCamera: .front, miniCameraPosition: .bottomTrailing)
+                    layout: .piP(miniCamera: .front, miniCameraPosition: .bottomTrailing)
                 )
             case .dualCameraDisplayView, .dualCameraLowLevelComponents:
                 Text("Not Implemented Yet")

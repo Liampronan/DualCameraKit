@@ -2,11 +2,11 @@ import SwiftUI
 
 public struct DualCameraDisplayView: View {
     private let controller: DualCameraControlling
-    private let layout: CameraLayout
+    private let layout: DualCameraLayout
     
     public init(
         controller: DualCameraControlling,
-        layout: CameraLayout = .fullScreenWithMini(
+        layout: DualCameraLayout = .piP(
             miniCamera: .front,
             miniCameraPosition: .bottomTrailing
         )
@@ -18,7 +18,7 @@ public struct DualCameraDisplayView: View {
     public var body: some View {
         Group {
             switch layout {
-            case .fullScreenWithMini(let miniCamera, let position):
+            case .piP(let miniCamera, let position):
                 // A single ZStack with dynamic alignment for PiP
                 ZStack(alignment: position.alignment()) {
                     // Background camera
@@ -63,7 +63,7 @@ public struct DualCameraDisplayView: View {
     
     /// Renders a camera feed in partial or full size
     @ViewBuilder
-    private func cameraView(for source: CameraSource,
+    private func cameraView(for source: DualCameraSource,
                             widthFraction: CGFloat? = nil,
                             heightFraction: CGFloat? = nil) -> some View {
         let rendererView = RendererView(renderer: controller.getRenderer(for: source))
@@ -78,4 +78,46 @@ public struct DualCameraDisplayView: View {
             rendererView
         }
     }
+}
+
+#Preview("PiP - Bottom Trailing") {
+    DualCameraDisplayView(
+        controller: DualCameraMockController(),
+        layout: .piP(miniCamera: .front, miniCameraPosition: .bottomTrailing)
+    )
+}
+
+#Preview("PiP - Bottom Leading") {
+    DualCameraDisplayView(
+        controller: DualCameraMockController(),
+        layout: .piP(miniCamera: .front, miniCameraPosition: .bottomLeading)
+    )
+}
+
+#Preview("PiP - Top Trailing") {
+    DualCameraDisplayView(
+        controller: DualCameraMockController(),
+        layout: .piP(miniCamera: .front, miniCameraPosition: .topTrailing)
+    )
+}
+
+#Preview("PiP - Top Leading") {
+    DualCameraDisplayView(
+        controller: DualCameraMockController(),
+        layout: .piP(miniCamera: .front, miniCameraPosition: .topLeading)
+    )
+}
+
+#Preview("Stacked Vertical") {
+    DualCameraDisplayView(
+        controller: DualCameraMockController(),
+        layout: .stackedVertical
+    )
+}
+
+#Preview("Side by Side") {
+    DualCameraDisplayView(
+        controller: DualCameraMockController(),
+        layout: .sideBySide
+    )
 }

@@ -27,7 +27,7 @@ struct CameraConfigView: View {
     @ViewBuilder
     private var layoutTypePicker: some View {
         Menu {
-            ForEach(CameraLayout.menuItems) { menuItem in
+            ForEach(DualCameraLayout.menuItems) { menuItem in
                 switch menuItem {
                 case .entry(let title, let layout):
                     createMenuEntry(title: title, layout: layout)
@@ -52,7 +52,7 @@ struct CameraConfigView: View {
         }
     }
     
-    private func createMenuEntry(title: String, layout: CameraLayout) -> some View {
+    private func createMenuEntry(title: String, layout: DualCameraLayout) -> some View {
         Group {
             
             Button {

@@ -1,15 +1,11 @@
 import SwiftUI
 
 /// Defines different layouts for dual-camera display
-public enum CameraLayout: Equatable, Hashable {
+public enum DualCameraLayout: Equatable, Hashable {
     
     case sideBySide
     case stackedVertical
-    case fullScreenWithMini(miniCamera: CameraSource, miniCameraPosition: MiniCameraPosition)
-    
-    public enum MiniCamera: CaseIterable, Equatable, Hashable {
-        case front, back
-    }
+    case piP(miniCamera: CameraSource, miniCameraPosition: MiniCameraPosition)
     
     /// Positions for mini camera
     public enum MiniCameraPosition: CaseIterable {
@@ -35,12 +31,12 @@ public enum CameraLayout: Equatable, Hashable {
     }    
 }
 
-extension CameraLayout {
+extension DualCameraLayout {
     
     public static var menuItems: [MenuItem] {
         let standardItems: [MenuItem] = [
-            .entry(title: CameraLayout.sideBySide.title, layout: .sideBySide),
-            .entry(title: CameraLayout.stackedVertical.title, layout: .stackedVertical)
+            .entry(title: DualCameraLayout.sideBySide.title, layout: .sideBySide),
+            .entry(title: DualCameraLayout.stackedVertical.title, layout: .stackedVertical)
         ]
         
         // PiP layouts grouped in a submenu
@@ -48,13 +44,13 @@ extension CameraLayout {
         
         // Front camera options
         for position in MiniCameraPosition.allCases {
-            let layout: CameraLayout = .fullScreenWithMini(miniCamera: .front, miniCameraPosition: position)
+            let layout: DualCameraLayout = .piP(miniCamera: .front, miniCameraPosition: position)
             pipItems.append(.entry(title: layout.title, layout: layout))
         }
         
         // Back camera options
         for position in MiniCameraPosition.allCases {
-            let layout: CameraLayout = .fullScreenWithMini(miniCamera: .back, miniCameraPosition: position)
+            let layout: DualCameraLayout = .piP(miniCamera: .back, miniCameraPosition: position)
             pipItems.append(.entry(title: layout.title, layout: layout))
         }
         
@@ -71,7 +67,7 @@ extension CameraLayout {
             }
         }
         
-        case entry(title: String, layout: CameraLayout)
+        case entry(title: String, layout: DualCameraLayout)
         case submenu(title: String, items: [MenuItem])
     }
     
@@ -81,7 +77,7 @@ extension CameraLayout {
             return "Side by Side"
         case .stackedVertical:
             return "Stacked Vertical"
-        case .fullScreenWithMini(let miniCamera, let position):
+        case .piP(let miniCamera, let position):
             let cameraText = miniCamera == .front ? "Front" : "Back"
             return "\(cameraText) Mini - \(position.title)"
         }
@@ -93,7 +89,7 @@ extension CameraLayout {
             return "sideBySide"
         case .stackedVertical:
             return "stackedVertical"
-        case .fullScreenWithMini(let miniCamera, let position):
+        case .piP(let miniCamera, let position):
             return "fullScreenWithMini_\(miniCamera)_\(position)"
         }
     }

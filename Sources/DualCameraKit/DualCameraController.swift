@@ -6,7 +6,7 @@ import UIKit
 public protocol DualCameraControlling {
     var frontCameraStream: AsyncStream<PixelBufferWrapper> { get }
     var backCameraStream: AsyncStream<PixelBufferWrapper> { get }
-    func getRenderer(for source: CameraSource) -> CameraRenderer
+    func getRenderer(for source: DualCameraSource) -> CameraRenderer
     func startSession() async throws
     func stopSession()
     
@@ -63,12 +63,12 @@ public final class DualCameraController: DualCameraControlling {
     // b) this allows dynamic VideoRecorder creation at start of video capture (see startVideoRecording(recorderType:)
     public var videoRecorder: (any DualCameraVideoRecording)?
     
-    var renderers: [CameraSource: CameraRenderer] = [:]
+    var renderers: [DualCameraSource: CameraRenderer] = [:]
     
     private let streamSource = DualCameraCameraStreamSource()
     
     // Internal storage for renderers and their stream tasks.
-    private var streamTasks: [CameraSource: Task<Void, Never>] = [:]
+    private var streamTasks: [DualCameraSource: Task<Void, Never>] = [:]
     
     // MARK: - Video Recording Properties
     
@@ -108,7 +108,7 @@ public final class DualCameraController: DualCameraControlling {
     
     /// Returns a renderer for the specified camera source.
     /// If one does not exist yet, it is created and connected to its stream.
-    public func getRenderer(for source: CameraSource) -> CameraRenderer {
+    public func getRenderer(for source: DualCameraSource) -> CameraRenderer {
         if let renderer = renderers[source] {
             return renderer
         }
@@ -127,7 +127,7 @@ public final class DualCameraController: DualCameraControlling {
     }
     
     /// Connects the appropriate camera stream to the given renderer.
-    private func connectStream(for source: CameraSource, renderer: CameraRenderer) {
+    private func connectStream(for source: DualCameraSource, renderer: CameraRenderer) {
         let stream: AsyncStream<PixelBufferWrapper> = source == .front ? frontCameraStream : backCameraStream
         // Create a task that forwards frames from the stream to the renderer.
         let task = Task {
@@ -160,7 +160,7 @@ public final class DualCameraMockController: DualCameraControlling {
     }
     
     private var streamSource: DualCameraCameraStreamSourcing = DualCameraMockCameraStreamSource()
-    private var renderers: [CameraSource: CameraRenderer] = [:]
+    private var renderers: [DualCameraSource: CameraRenderer] = [:]
     
     public var frontCameraStream: AsyncStream<PixelBufferWrapper> {
         streamSource.frontCameraStream
@@ -177,7 +177,7 @@ public final class DualCameraMockController: DualCameraControlling {
     
     /// Returns a renderer for the specified camera source.
     /// If one does not exist yet, it is created and connected to its stream.
-    public func getRenderer(for source: CameraSource) -> CameraRenderer {
+    public func getRenderer(for source: DualCameraSource) -> CameraRenderer {
         if let renderer = renderers[source] {
             return renderer
         }
@@ -207,7 +207,7 @@ public final class DualCameraMockController: DualCameraControlling {
     
     public func setVideoRecorder(_ recorder: any DualCameraVideoRecording) async throws {}
     
-    private func connectStream(for source: CameraSource, renderer: CameraRenderer) {
+    private func connectStream(for source: DualCameraSource, renderer: CameraRenderer) {
         let stream: AsyncStream<PixelBufferWrapper> = source == .front ? frontCameraStream : backCameraStream
         // Create a task that forwards frames from the stream to the renderer.
         let task = Task {
@@ -219,7 +219,7 @@ public final class DualCameraMockController: DualCameraControlling {
         streamTasks[source] = task
     }
     
-    private var streamTasks: [CameraSource: Task<Void, Never>] = [:]
+    private var streamTasks: [DualCameraSource: Task<Void, Never>] = [:]
     
     private func cancelRendererTasks() {
         for task in streamTasks.values {
