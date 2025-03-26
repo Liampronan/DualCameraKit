@@ -1,3 +1,11 @@
+//
+//  CameraConfigView.swift
+//  DualCameraKit
+//
+//  Created by Liam Ronan on 3/25/25.
+//
+
+
 import DualCameraKit
 import SwiftUI
 

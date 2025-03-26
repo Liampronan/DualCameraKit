@@ -1,6 +1,6 @@
 import SwiftUI
 
-public struct DualCameraScreen: View {
+public struct DualCameraDisplayView: View {
     private let controller: DualCameraControlling
     private let layout: CameraLayout
     
@@ -52,7 +52,6 @@ public struct DualCameraScreen: View {
                 .ignoresSafeArea(.all)
             }
         }
-       
         .task {
             do {
                 try await controller.startSession()
@@ -79,8 +78,4 @@ public struct DualCameraScreen: View {
             rendererView
         }
     }
-}
-
-public enum CameraSource {
-    case front, back
 }

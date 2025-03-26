@@ -4,17 +4,25 @@ import SwiftUI
 
 @main 
 struct DualCameraDemoApp: App {
+    enum DemoDisplayType {
+        case dualCameraScreen
+        case dualCameraDisplayView
+        case dualCameraLowLevelComponents
+    }
     
-// mock implementation for simulators – since there is no camera in simulator.
-#if targetEnvironment(simulator)
-    var dualCameraController = DualCameraMockController()
-#else
-    var dualCameraController = DualCameraController()
-#endif
+    @State private var demoType = DemoDisplayType.dualCameraScreen
     
     var body: some Scene {
         WindowGroup {
-            ContentView(dualCameraController: dualCameraController)
+            switch demoType {
+            case .dualCameraScreen:
+                DualCameraScreen(
+                    layout: .fullScreenWithMini(miniCamera: .front, miniCameraPosition: .bottomTrailing)
+                )
+            case .dualCameraDisplayView, .dualCameraLowLevelComponents:
+                Text("Not Implemented Yet")
+            }
+            
         }
     }
 }

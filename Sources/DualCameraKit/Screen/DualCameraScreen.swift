@@ -1,17 +1,29 @@
-import DualCameraKit
 import SwiftUI
 
-struct ContentView: View {
+public struct DualCameraScreen: View {
     @State private var viewModel: DualCameraViewModel
     
-    init(dualCameraController: DualCameraControlling) {
-        _viewModel = State(initialValue: DualCameraViewModel(dualCameraController: dualCameraController))
+    // mock implementation for simulators – since there is no camera in simulator.
+#if targetEnvironment(simulator)
+    private var dualCameraController = DualCameraMockController()
+#else
+    private var dualCameraController = DualCameraController()
+#endif
+
+    public init(
+        layout: CameraLayout = .fullScreenWithMini(miniCamera: .front, miniCameraPosition: .bottomTrailing)
+    ) {
+        _viewModel = State(initialValue: DualCameraViewModel(
+                dualCameraController: dualCameraController,
+                layout: layout
+            )
+        )
     }
         
-    var body: some View {
+    public var body: some View {
         GeometryReader { geoProxy in
             ZStack {
-                DualCameraScreen(
+                DualCameraDisplayView(
                     controller: viewModel.controller,
                     layout: viewModel.configuration.layout
                 )
@@ -70,6 +82,9 @@ struct ContentView: View {
                     .fill(Color.black.opacity(0.6))
             )
             .padding(.top, 40)
+            .onTapGesture {
+                viewModel.recordVideoButtonTapped()
+            }
         }
     }
     
@@ -175,5 +190,5 @@ struct ContentView: View {
 // MARK: - Preview
 
 #Preview() {
-    ContentView(dualCameraController: DualCameraMockController())
+    DualCameraScreen()
 }

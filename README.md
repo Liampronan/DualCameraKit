@@ -27,9 +27,9 @@ In-progress: de-coupling components so we can offer 3 layers of varying customiz
 
 `DualCameraKit` is an iOS library that makes simultaneous front & back camera capture simple – blending the view and the viewer in a single shot, as seen in apps like Snapchat and BeReal. 
 
-For simple, drop-in functionality, you can use `DualCameraScreen`, a SwiftUI View that's setup with some options for different dual-camera layouts.
+For simple, drop-in functionality, you can use `DualCameraScreen`, a SwiftUI View with buttons for photo capture, video recording, and toggling through the different dual-camera layouts and recording modes.
 
-For deeper customizability, you can access raw front/back streams via the `DualCameraManager`,
+For deeper customizability, you can access the lower-level components that `DualCameraScreen` is built on 
 
 # Example Screenshot
 
@@ -39,14 +39,13 @@ The above screenshot is rendered from the code below. It's the simple, drop-in s
 
 ```swift
 struct ContentView: View {
-    private let dualCameraManager = DualCameraManager()
     
     var body: some View {
         DualCameraScreen(
-            dualCameraManager: dualCameraManager,
-            initialLayout: .fullScreenWithMini(miniCamera: .front, miniCameraPosition: .bottomTrailing)
+            layout: .fullScreenWithMini(miniCamera: .front, miniCameraPosition: .bottomTrailing)
         )
     }
+    
 }
 ```
 
@@ -81,18 +80,16 @@ targets: [
 
 ## OS/Requirements:
 
-- Add camera permissions to your app's `Info.plist` - `Privacy - Privacy - Camera Usage Description` 
+- Add camera permissions to your app's `Info.plist` - `Privacy - Camera Usage Description` 
 <img src="https://github.com/user-attachments/assets/1ef0ae3e-683c-444c-9276-4684efb08e5c" width=550 />
 
-- Live, nonsimulator device, iOS 18 for camera usage (simulator uses mocked camera). 
+- Live, nonsimulator device, iOS 17+ for camera usage (simulator uses mocked camera). 
 
 After installation, you can import the library in your Swift files:
 
 ```swift
 import DualCameraKit
 ```
-
-Now you can use `DualCameraScreen` for quick implementation or `DualCameraManager` for more customized camera control as mentioned in the README.
 
 # Running the DemoApp - Local Code Signing Setup
 To get the demo app running, you'll need to: 
@@ -102,16 +99,48 @@ To get the demo app running, you'll need to:
 Since this library currently requires a real device, you cannot run it on a simulator. 
 <img src="https://github.com/user-attachments/assets/501070af-1466-4149-b1f1-5976fb84f37d" width="70%" /> 
 
+# Overview - the three ways to use this library 
+Three are three different sets of components this library exposes, ranging from higher-level (drop-in, less customizable) to lower-level (more customizable). Each built on top of their lower level.
 
-# Basic Usage
+1. ✅ `DualCameraScreen`
+- drop-in, least customizable. 
+- a full-screen SwiftUI view which with buttons for photo capture, video recording, and toggling through the different dual-camera layouts and recording modes. 
+2. 🔜 `DualCameraDisplayView` and `DualCameraController` 
+- medium customization - useful for using pre-configured dual camera layouts while customizing the control UI and post-capture behavior. 
+- the `DualCameraDisplayView` renders streams managed by the `DualCameraController` 
+- you're responsible for wiring up UI for photo capture, video recording managment, and layout config. 
+3. 🔜 Raw Components 
+- full customization - useful for unchartered territory e.g., you need to manipulate camera streams before they are rendered. 
 
-# Customization (Raw Streams, usage with UIKit, etc.)
+# Basic Usage 
+
+## `DualCameraScreen` - drop-in, full-screen component
+```swift
+struct ContentView: View {
+    
+    var body: some View {
+        DualCameraScreen(
+            layout: .fullScreenWithMini(miniCamera: .front, miniCameraPosition: .bottomTrailing)
+        )
+    }
+    
+}
+```
+
+# Camera Layout Types
+## `.fullScreenWithMini(miniCamera:, miniCameraPosition:)`
+
+## `.stackedVertical`
+
+## `.sideBySide`
+
+# Customization (Raw Streams, usage with UIKit)
 
 # Troubleshooting
 
 # Deep Dives
 
-- TODO: Explain our approach (dual streams) vs. `PiPVideoMixer` (single stream) vs `ReplayKit` (screen capture, requires user permission each time)
+- TODO: Explain our differenet approaches (dual streams) vs. `PiPVideoMixer` (single stream) vs `ReplayKit` (screen capture, requires user permission each time)
 - TODO: Add some diagrams
 
 # Limitations

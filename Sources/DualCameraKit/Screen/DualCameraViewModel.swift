@@ -1,4 +1,3 @@
-import DualCameraKit
 import Observation
 import Photos
 import SwiftUI
@@ -11,7 +10,7 @@ final class DualCameraViewModel {
     private(set) var viewState: CameraViewState = .loading
     
     // Configuration
-    var configuration = CameraConfiguration()
+    var configuration: CameraConfiguration
     var videoRecorderType: DualCameraVideoRecorderType { configuration.videoRecorderType }
     
     // User artifacts
@@ -27,8 +26,12 @@ final class DualCameraViewModel {
     let controller: DualCameraControlling
     private var recordingTimer: Timer?
     
-    init(dualCameraController: DualCameraControlling) {
+    init(
+        dualCameraController: DualCameraControlling,
+        layout: CameraLayout = .fullScreenWithMini(miniCamera: .front, miniCameraPosition: .bottomTrailing)
+    ) {
         self.controller = dualCameraController
+        self.configuration = CameraConfiguration(layout: layout)
     }
     
     // MARK: - Lifecycle Management
