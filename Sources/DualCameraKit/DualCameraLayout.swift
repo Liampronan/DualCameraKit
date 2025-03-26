@@ -1,11 +1,11 @@
 import SwiftUI
 
 /// Defines different layouts for dual-camera display
-public enum DualCameraLayout: Equatable, Hashable {
+public enum DualCameraLayout: Hashable {
     
     case sideBySide
     case stackedVertical
-    case piP(miniCamera: CameraSource, miniCameraPosition: MiniCameraPosition)
+    case piP(miniCamera: DualCameraSource, miniCameraPosition: MiniCameraPosition)
     
     /// Positions for mini camera
     public enum MiniCameraPosition: CaseIterable {

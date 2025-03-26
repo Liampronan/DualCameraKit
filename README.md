@@ -1,34 +1,46 @@
-# DualCameraKit
+<div style="text-align: center;">
+<b style="font-size: 30px"> DualCameraKit</b>
 
-<img src="https://github.com/user-attachments/assets/af7af703-8033-4c07-b00c-261336ca8648" width=300 />
+Simultaneous front & back iOS camera capture made simple.
 
-# TODO: add video!!
+</Div>
 
-<img src="https://github.com/user-attachments/assets/af7af703-8033-4c07-b00c-261336ca8648" width=300 />
+<div style="display: flex; justify-content: center; gap: 20px; margin: 20px 0;">
+  <div style="text-align: center;">
+    <img style="border-radius: 10px; margin-bottom: 10px;" src="./DocumentationAssets/Photo_Capture.png" width="250" />
+    <p style="font-weight: bold;">Photo Capture</p>
+  </div>
+  <div style="text-align: center;">
+    <img style="border-radius: 10px; margin-bottom: 10px;" src="./DocumentationAssets/Video_Recording_ReplayKit.gif" width="250" />
+    <p style="font-weight: bold;">Video Capture</p>
+  </div>
+</div>
 
-Current Status: Alpha release working towards 1.0. Pre-release available: [v0.2.0-alpha](https://github.com/Liampronan/DualCameraKit/releases/tag/v0.2.0-alpha).
+# Status Overview
 
-Working:
+**Current Status**: Alpha release working towards 1.0
 
-- rendering dual cameras in SwiftUI with various layout options (picture-in-picture, split vertical, split horizontal)
-- photo capture.
-- Video capture using ReplayKit (high-def; requires one-time camera permission + ReplayKit permission each time) or our custom implementation (medium-def; requires only one-time camera permissiion)
+Pre-release available: [v0.3.0-alpha](https://github.com/Liampronan/DualCameraKit/releases/tag/v0.3.0-alpha).
 
-In-progress:
+| Category                | Status | Description                                                                                                                                      |
+| ----------------------- | :----: | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 📱 **UI Components**    |   ✅   | Rendering dual cameras in SwiftUI with various layout options:<br>• Picture-in-picture<br>• Split vertical<br>• Split horizontal                 |
+| 📸 **Photo Capture**    |   ✅   | Implemented via screen capture                                                                                                                   |
+| 🎬 **Video Capture**    | v1 ✅  | **ReplayKit Mode**: High-def output (requires permission each time)<br>**CPU-based Mode**: Medium-def output (one-time permission only)          |
+| 🧩 **Architecture**     |   🚧   | In progress: De-coupling components to offer 3 layers of customizability:<br>• Drop-in screen<br>• Compositional views<br>• Low-level components |
+| 🔥 **GPU Acceleration** |   🚧   | Up Next: Adding GPU video capture for high-def recording without<br>recurrent permission requests                                                |
+| 🎤 **Audio**            |   🚧   | Future: Adding audio capture support for video recording.                                                                                        |
 
-- de-coupling components so we offer 3 layers of varying customizability (fully implemented drop-in screen vs. individual components);
-- adding GPU video capture for high-def, high-UX flow (no recurrent permission requests).
-
-## Table of Contents
+# Table of Contents
 
 - [What It Does](#what-it-does)
+- [Requirements](#osrequirements)
 - [Installing DualCameraKit](#installing-dualcamerakit)
   - [In Xcode](#in-xcode)
   - [In Package.swift](#in-packageswift)
-  - [Requirements](#osrequirements)
 - [Running the DemoApp - Local Code Signing Setup](#running-the-demoapp---local-code-signing-setup)
 - [Basic Usage](#basic-usage)
-- [Customization (Raw Streams, DI, usage with UIKit, etc.)](#customization-raw-streams-di-usage-with-uikit-etc)
+- [Customization](#customization)
 - [Troubleshooting](#troubleshooting)
 - [Deep Dives](#deep-dives)
 - [Limitations](#limitations)
@@ -37,7 +49,7 @@ In-progress:
 
 # What It Does
 
-`DualCameraKit` is an iOS library that makes simultaneous front & back camera capture simple – blending the view and the viewer in a single shot, as seen in apps like Snapchat and BeReal.
+`DualCameraKit` is an iOS library that makes simultaneous front & back camera capture simple – combining the view and the viewer in a single shot, as seen in apps like Snapchat and BeReal.
 
 For simple, drop-in functionality, you can use `DualCameraScreen`, a SwiftUI View with buttons for photo capture, video recording, and toggling through the different dual-camera layouts and recording modes.
 
@@ -122,13 +134,13 @@ Three are three different sets of components this library exposes, ranging from 
 - drop-in, least customizable.
 - a full-screen SwiftUI view which with buttons for photo capture, video recording, and toggling through the different dual-camera layouts and recording modes.
 
-2. 🔜 `DualCameraDisplayView` and `DualCameraController`
+2. 🚧 `DualCameraDisplayView` and `DualCameraController`
 
 - medium customization - useful for using pre-configured dual camera layouts while customizing the control UI and post-capture behavior.
 - the `DualCameraDisplayView` renders streams managed by the `DualCameraController`
 - you're responsible for wiring up UI for photo capture, video recording managment, and layout config.
 
-3. 🔜 Raw Components
+3. 🚧 Raw Components
 
 - full customization - useful for unchartered territory e.g., you need to manipulate camera streams before they are rendered.
 
@@ -141,7 +153,10 @@ struct ContentView: View {
 
     var body: some View {
         DualCameraScreen(
-            layout: .fullScreenWithMini(miniCamera: .front, miniCameraPosition: .bottomTrailing)
+            layout: .fullScreenWithMini(
+                miniCamera: .front,
+                miniCameraPosition: .bottomTrailing
+            )
         )
     }
 
@@ -151,36 +166,36 @@ struct ContentView: View {
 # Camera Layout Types
 
 ```swift
-public enum DualCameraLayout: Equatable, Hashable {
-
+public enum DualCameraLayout {
     case sideBySide
     case stackedVertical
     case piP(miniCamera: DualCameraSource, miniCameraPosition: MiniCameraPosition)
 }
 ```
 
-| note: these screenshots are using colors to mock the front (purple) and back (yellow) cameras – this is how we're mocking things in the simulator because it doesn't have a hardware camera.
+> Note: these screenshots are using colors to mock the front (purple) and back (yellow) cameras – this is how we're mocking things in the simulator because it doesn't have a hardware camera.
 
 ## `.piP(miniCamera:, miniCameraPosition:)`
 
-| miniCameraPosition | screenshot                                                               |
-| ------------------ | ------------------------------------------------------------------------ |
-| `.topLeading`      | <img src="./DocumentationAssets/Layout_PiP_Top_Leading.png" width=200 /> |
-| `.topTrailing`     | <img src="./DocumentationAssets/Layout_PiP_Top_Leading.png" width=200 /> |
-| `.bottomLeading`   | <img src="./DocumentationAssets/Layout_PiP_Top_Leading.png" width=200 /> |
-| `.bottomTrailing`  | <img src="./DocumentationAssets/Layout_PiP_Top_Leading.png" width=200 /> |
+|                                                                                                       |                                                                                                         |
+| :---------------------------------------------------------------------------------------------------: | :-----------------------------------------------------------------------------------------------------: |
+|    <img src="./DocumentationAssets/Layout_PiP_Top_Leading.png" width="250" /><br>**`.topLeading`**    |    <img src="./DocumentationAssets/Layout_PiP_Top_Trailing.png" width="250" /><br>**`.topTrailing`**    |
+| <img src="./DocumentationAssets/Layout_PiP_Bottom_Leading.png" width="250" /><br>**`.bottomLeading`** | <img src="./DocumentationAssets/Layout_PiP_Bottom_Trailing.png" width="250" /><br>**`.bottomTrailing`** |
 
 ## `.stackedVertical`
 
-<img src="./DocumentationAssets/Layout_Stacked_Vertical.png" width=200 />
+<img src="./DocumentationAssets/Layout_Stacked_Vertical.png" width=250 />
 
 ## `.sideBySide`
 
-<img src="./DocumentationAssets/Layout_Side_by_Side.png" width=200 />
+<img src="./DocumentationAssets/Layout_Side_by_Side.png" width=250 />
 
 # Video Capture Modes
 
-# Customization (Raw Streams, usage with UIKit)
+| Mode | Description | Implementation Status |
+| Tset | it rocks | dunzo |
+
+# Customization
 
 # Troubleshooting
 
