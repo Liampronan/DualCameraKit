@@ -1,7 +1,5 @@
 import SwiftUI
 
-
-
 public struct DualCameraScreen: View {
     @State private var viewModel: DualCameraViewModel
     
@@ -15,8 +13,9 @@ public struct DualCameraScreen: View {
     public init(
         initialLayout: DualCameraLayout = .piP(miniCamera: .front, miniCameraPosition: .bottomTrailing),
         initialVideoRecorderMode: DualCameraVideoRecordingMode = .cpuBased(.init(photoCaptureMode: .fullScreen)),
-        videoSaveStrategy: VideoSaveStrategy = .saveToPhotos,
-        photoSaveStrategy: PhotoSaveStrategy = .saveToPhotos
+        // TODO: avoid this repeat instantiation. potentially lightweight DI?
+        videoSaveStrategy: VideoSaveStrategy = .saveToLibrary(MediaLibraryService()),
+        photoSaveStrategy: PhotoSaveStrategy = .saveToLibrary(MediaLibraryService())
     ) {
         _viewModel = State(initialValue: DualCameraViewModel(
                 dualCameraController: dualCameraController,

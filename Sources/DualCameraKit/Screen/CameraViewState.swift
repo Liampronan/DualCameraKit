@@ -4,6 +4,7 @@ import Foundation
 enum CameraViewState: Equatable {
     case loading
     case ready
+    // TODO: can we remove this 
     case precapture
     case capturing
     case recording(RecordingState)

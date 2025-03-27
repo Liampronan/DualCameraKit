@@ -25,6 +25,8 @@ final class DualCameraViewModel {
     
     let controller: DualCameraControlling
     private var recordingTimer: Timer?
+    private var videoSaveStrategy: VideoSaveStrategy
+    private var photoSaveStrategy: PhotoSaveStrategy
     
     init(
         dualCameraController: DualCameraControlling,
@@ -39,6 +41,8 @@ final class DualCameraViewModel {
             layout: layout,
             videoRecorderMode: videoRecorderMode
         )
+        self.videoSaveStrategy = videoSaveStrategy
+        self.photoSaveStrategy = photoSaveStrategy
     }
     
     // MARK: - Lifecycle Management
@@ -96,15 +100,6 @@ final class DualCameraViewModel {
     func capturePhotoButtonTapped() {
         Task {
             guard case .ready = viewState else { return }
-            viewState = .precapture
-            let hasPermission = await checkPhotoLibraryPermission()
-            
-            guard hasPermission else {
-                alert = .permissionDenied(message: "Photo library access is required to save photos.")
-                viewState = .ready
-                return
-            }
-            
             viewState = .capturing
             
             do {
@@ -191,14 +186,9 @@ final class DualCameraViewModel {
                 
                 // Reset recording state
                 viewState = .ready
-                let hasPermission = await checkPhotoLibraryPermission()
-                
-                guard hasPermission else {
-                    alert = .permissionDenied(message: "Photo library access is required to save videos.")
-                    return
-                }
-                saveVideoToPhotoLibrary(videoRecordingOutputURL)
-                
+
+                // TODO: ensure to test permission denied
+                try await self.videoSaveStrategy.save(url: videoRecordingOutputURL)
             } catch let error as DualCameraError {
                 viewState = .error(error)
                 showError(error, message: "Failed to stop recording")
@@ -212,22 +202,6 @@ final class DualCameraViewModel {
         }
     }
     
-    // MARK: - Permissions
-    
-    private func checkPhotoLibraryPermission() async -> Bool {
-        let status = PHPhotoLibrary.authorizationStatus()
-        switch status {
-        case .authorized, .limited:
-            return true
-        case .notDetermined:
-            let newStatus = await PHPhotoLibrary.requestAuthorization(for: .addOnly)
-            return newStatus == .authorized || newStatus == .limited
-        case .denied, .restricted:
-            return false
-        @unknown default:
-            return false
-        }
-    }
     
     // MARK: - Photo Library
     
