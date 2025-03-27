@@ -196,9 +196,8 @@ public enum DualCameraLayout {
 
 # References
 
-Part of this project was adapted from Apple's code in [`AVMultiCamPiP: Capturing from Multiple Cameras`](https://developer.apple.com/documentation/avfoundation/avmulticampip-capturing-from-multiple-cameras). Some significant updates here: this library ported the functionality to SwiftUI, including using a dual-stream approach vs. Apple's approach of mixing together both streams into a single CVPixelBuffer containing both camera sources.
+Part of this project was adapted from Apple's code in [`AVMultiCamPiP: Capturing from Multiple Cameras`](https://developer.apple.com/documentation/avfoundation/avmulticampip-capturing-from-multiple-cameras). Some significant updates here: this library ports the functionality to SwiftUI, including using a dual-stream approach with multiple types of video recorders vs. Apple's approach of mixing together both streams into a single CVPixelBuffer containing both camera sources.
 
 # License
 
 This project is available under the [MIT License](LICENSE.md).
-Looking at this table, I think some additional columns would help clarify the differences between recorder types and avoid redundancy. Here's my suggestion for an improved table structure:
