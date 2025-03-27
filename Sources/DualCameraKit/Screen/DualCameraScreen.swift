@@ -1,5 +1,7 @@
 import SwiftUI
 
+
+
 public struct DualCameraScreen: View {
     @State private var viewModel: DualCameraViewModel
     
@@ -12,16 +14,20 @@ public struct DualCameraScreen: View {
 
     public init(
         initialLayout: DualCameraLayout = .piP(miniCamera: .front, miniCameraPosition: .bottomTrailing),
-        initialVideoRecorderMode: DualCameraVideoRecordingMode = .cpuBased(.init(mode: .fullScreen))
+        initialVideoRecorderMode: DualCameraVideoRecordingMode = .cpuBased(.init(photoCaptureMode: .fullScreen)),
+        videoSaveStrategy: VideoSaveStrategy = .saveToPhotos,
+        photoSaveStrategy: PhotoSaveStrategy = .saveToPhotos
     ) {
         _viewModel = State(initialValue: DualCameraViewModel(
                 dualCameraController: dualCameraController,
                 layout: initialLayout,
-                videoRecorderMode: initialVideoRecorderMode
+                videoRecorderMode: initialVideoRecorderMode,
+                videoSaveStrategy: videoSaveStrategy,
+                photoSaveStrategy: photoSaveStrategy
             )
         )
     }
-        
+    
     public var body: some View {
         GeometryReader { geoProxy in
             ZStack {

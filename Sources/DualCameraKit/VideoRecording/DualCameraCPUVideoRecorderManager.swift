@@ -8,11 +8,11 @@ public struct DualCameraCPUVideoRecorderConfig: Sendable, Equatable {
     public let outputURL: URL?
     
     public init(
-        mode: DualCameraPhotoCaptureMode,
+        photoCaptureMode: DualCameraPhotoCaptureMode,
         quality: VideoQuality = .high,
         outputURL: URL? = nil
     ) {
-        self.mode = mode
+        self.mode = photoCaptureMode
         self.quality = quality
         self.outputURL = outputURL
     }

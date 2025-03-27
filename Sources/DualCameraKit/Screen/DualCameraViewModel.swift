@@ -29,7 +29,10 @@ final class DualCameraViewModel {
     init(
         dualCameraController: DualCameraControlling,
         layout: DualCameraLayout = .piP(miniCamera: .front, miniCameraPosition: .bottomTrailing),
-        videoRecorderMode: DualCameraVideoRecordingMode = .cpuBased(.init(mode: .fullScreen))
+        videoRecorderMode: DualCameraVideoRecordingMode = .cpuBased(.init(photoCaptureMode: .fullScreen)),
+        videoSaveStrategy: VideoSaveStrategy,
+        photoSaveStrategy: PhotoSaveStrategy
+
     ) {
         self.controller = dualCameraController
         self.configuration = CameraConfiguration(
@@ -137,7 +140,7 @@ final class DualCameraViewModel {
         if case .cpuBased = configuration.videoRecorderMode {
             configuration.videoRecorderMode = .replayKit()
         } else {
-            configuration.videoRecorderMode = .cpuBased(.init(mode: .fullScreen))
+            configuration.videoRecorderMode = .cpuBased(.init(photoCaptureMode: .fullScreen))
         }
     }
     
@@ -147,12 +150,6 @@ final class DualCameraViewModel {
         Task {
             viewState = .precapture
 
-            let hasPermission = await checkPhotoLibraryPermission()
-            
-            guard hasPermission else {
-                alert = .permissionDenied(message: "Photo library access is required to save videos.")
-                return
-            }
             
             do {
                 try await controller.startVideoRecording(mode: configuration.videoRecorderMode)
@@ -194,7 +191,12 @@ final class DualCameraViewModel {
                 
                 // Reset recording state
                 viewState = .ready
+                let hasPermission = await checkPhotoLibraryPermission()
                 
+                guard hasPermission else {
+                    alert = .permissionDenied(message: "Photo library access is required to save videos.")
+                    return
+                }
                 saveVideoToPhotoLibrary(videoRecordingOutputURL)
                 
             } catch let error as DualCameraError {

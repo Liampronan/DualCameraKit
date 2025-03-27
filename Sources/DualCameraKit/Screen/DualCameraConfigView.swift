@@ -45,7 +45,6 @@ struct DualCameraConfigView: View {
     
     private func createMenuEntry(title: String, layout: DualCameraLayout) -> some View {
         Group {
-            
             Button {
                 viewModel.updateLayout(layout)
             } label: {
@@ -92,5 +91,15 @@ struct DualCameraConfigView: View {
 }
 
 #Preview {
-    DualCameraConfigView(viewModel: DualCameraViewModel(dualCameraController: DualCameraMockController()))
+    DualCameraConfigView(
+        viewModel: DualCameraViewModel(
+            dualCameraController: DualCameraMockController(),
+            videoSaveStrategy: .custom({ savedFile in
+                print("video recorded: \(savedFile)")
+            }),
+            photoSaveStrategy: .custom( {capturedImage in
+                print("photo captured: \(capturedImage)")
+            })
+        )
+    )
 }

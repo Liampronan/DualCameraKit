@@ -6,7 +6,7 @@ public enum DualCameraVideoRecordingMode: CaseIterable, Identifiable, Sendable, 
     /// Specifically, we are not yet formally support the .cpuBased(.init(mode: .fullScreen)) config though it may work (code is not tested yet).
     public static var allCases: [DualCameraVideoRecordingMode] {
         [
-            .cpuBased(.init(mode: .fullScreen)),
+            .cpuBased(.init(photoCaptureMode: .fullScreen)),
             .replayKit(nil)
         ]
     }
