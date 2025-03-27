@@ -63,7 +63,7 @@ struct DualCameraConfigView: View {
     private var recorderTypePicker: some View {
         VStack {
             Menu {
-                ForEach(DualCameraVideoRecorderType.allCases) { recorderType in
+                ForEach(DualCameraVideoRecordingMode.allCases) { recorderType in
                     Button {
                         viewModel.toggleRecorderType()
                     } label: {

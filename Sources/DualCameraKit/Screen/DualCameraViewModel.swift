@@ -11,7 +11,7 @@ final class DualCameraViewModel {
     
     // Configuration
     var configuration: CameraConfiguration
-    var videoRecorderType: DualCameraVideoRecorderType { configuration.videoRecorderType }
+    var videoRecorderType: DualCameraVideoRecordingMode { configuration.videoRecorderMode }
     
     // User artifacts
     private(set) var capturedImage: UIImage? = nil
@@ -28,10 +28,14 @@ final class DualCameraViewModel {
     
     init(
         dualCameraController: DualCameraControlling,
-        layout: DualCameraLayout = .piP(miniCamera: .front, miniCameraPosition: .bottomTrailing)
+        layout: DualCameraLayout = .piP(miniCamera: .front, miniCameraPosition: .bottomTrailing),
+        videoRecorderMode: DualCameraVideoRecordingMode = .cpuBased(.init(mode: .fullScreen))
     ) {
         self.controller = dualCameraController
-        self.configuration = CameraConfiguration(layout: layout)
+        self.configuration = CameraConfiguration(
+            layout: layout,
+            videoRecorderMode: videoRecorderMode
+        )
     }
     
     // MARK: - Lifecycle Management
@@ -130,10 +134,10 @@ final class DualCameraViewModel {
     }
     
     func toggleRecorderType() {
-        if case .cpuBased = configuration.videoRecorderType {
-            configuration.videoRecorderType = .replayKit()
+        if case .cpuBased = configuration.videoRecorderMode {
+            configuration.videoRecorderMode = .replayKit()
         } else {
-            configuration.videoRecorderType = .cpuBased(.init(mode: .fullScreen))
+            configuration.videoRecorderMode = .cpuBased(.init(mode: .fullScreen))
         }
     }
     
@@ -151,7 +155,7 @@ final class DualCameraViewModel {
             }
             
             do {
-                try await controller.startVideoRecording(recorderType: configuration.videoRecorderType)
+                try await controller.startVideoRecording(mode: configuration.videoRecorderMode)
                 
                 viewState = .recording(CameraViewState.RecordingState(duration: 0))
                 

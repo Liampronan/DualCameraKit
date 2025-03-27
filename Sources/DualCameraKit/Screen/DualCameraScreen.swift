@@ -11,11 +11,13 @@ public struct DualCameraScreen: View {
 #endif
 
     public init(
-        layout: DualCameraLayout = .piP(miniCamera: .front, miniCameraPosition: .bottomTrailing)
+        initialLayout: DualCameraLayout = .piP(miniCamera: .front, miniCameraPosition: .bottomTrailing),
+        initialVideoRecorderMode: DualCameraVideoRecordingMode = .cpuBased(.init(mode: .fullScreen))
     ) {
         _viewModel = State(initialValue: DualCameraViewModel(
                 dualCameraController: dualCameraController,
-                layout: layout
+                layout: initialLayout,
+                videoRecorderMode: initialVideoRecorderMode
             )
         )
     }
