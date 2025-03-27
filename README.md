@@ -48,24 +48,6 @@ For simple, drop-in functionality, you can use `DualCameraScreen`, a SwiftUI Vie
 
 For deeper customizability, you can access the lower-level components that `DualCameraScreen` is built on
 
-# Example Screenshot
-
-<img src="https://github.com/user-attachments/assets/af7af703-8033-4c07-b00c-261336ca8648" width=300 />
-
-The above screenshot is rendered from the code below. It's the simple, drop-in style and is using one of the pre-configured layouts, `.fullScreenWithMini`.
-
-```swift
-struct ContentView: View {
-
-    var body: some View {
-        DualCameraScreen(
-            layout: .fullScreenWithMini(miniCamera: .front, miniCameraPosition: .bottomTrailing)
-        )
-    }
-
-}
-```
-
 # Installing DualCameraKit
 
 Since `DualCameraKit` is published using Swift Package Manager, you can install it by following these steps:
