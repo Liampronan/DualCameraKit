@@ -16,7 +16,7 @@ public enum DualCameraVideoRecorderType: CaseIterable, Identifiable, Sendable, E
     public static var allCases: [DualCameraVideoRecorderType] {
         [
             .cpuBased(.init(mode: .fullScreen)),
-                .replayKit(nil)
+            .replayKit(nil)
         ]
     }
     

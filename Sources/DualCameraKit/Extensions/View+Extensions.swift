@@ -2,7 +2,7 @@ import SwiftUI
 
 extension View {
     /// Positions the mini camera based on its layout position
-    func positioned(in position: CameraLayout.MiniCameraPosition, size: CGSize, padding: CGFloat) -> some View {
+    func positioned(in position: DualCameraLayout.MiniCameraPosition, size: CGSize, padding: CGFloat) -> some View {
         GeometryReader { geometry in
             self
                 .position(
@@ -11,7 +11,7 @@ extension View {
         }
     }
     /// Computes the appropriate position for mini-camera placement.
-    private func getPosition(for position: CameraLayout.MiniCameraPosition, in screenSize: CGSize, size: CGSize, padding: CGFloat) -> CGPoint {
+    private func getPosition(for position: DualCameraLayout.MiniCameraPosition, in screenSize: CGSize, size: CGSize, padding: CGFloat) -> CGPoint {
             switch position {
             case .topLeading:
                 return CGPoint(x: size.width / 2 + padding, y: size.height / 2 + padding)
