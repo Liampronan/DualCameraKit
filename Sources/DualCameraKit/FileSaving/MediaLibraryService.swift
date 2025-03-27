@@ -9,9 +9,7 @@ public protocol VideoLibraryPersisting {
     func saveVideo(at url: URL) async throws
 }
 
-public protocol MediaLibraryPersiting: PhotoLibraryPersisting & VideoLibraryPersisting { }
-
-public class MediaLibraryService: MediaLibraryPersiting {
+public class MediaLibraryService: PhotoLibraryPersisting & VideoLibraryPersisting {
     public init() {}
     
     // MARK: - Public API
