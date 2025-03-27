@@ -47,7 +47,7 @@ public struct DualCameraScreen: View {
             .animation(.easeInOut(duration: 0.2), value: viewModel.viewState)
             .sheet(item: $viewModel.presentedSheet, content: { sheetType in
                 switch sheetType {
-                case .configSheet: CameraConfigView(
+                case .configSheet: DualCameraConfigView(
                     viewModel: viewModel
                 )
                 }

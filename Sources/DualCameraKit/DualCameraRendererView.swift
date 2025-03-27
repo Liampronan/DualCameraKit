@@ -1,6 +1,6 @@
 import SwiftUI
 
-public struct RendererView: UIViewRepresentable {
+public struct DualCameraRendererView: UIViewRepresentable {
     private let renderer: CameraRenderer
     
     /// Create renderer view

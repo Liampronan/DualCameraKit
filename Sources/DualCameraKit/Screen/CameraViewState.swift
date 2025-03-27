@@ -1,4 +1,3 @@
-import DualCameraKit
 import Foundation
 
 /// The primary view state representing the current mode of the camera system

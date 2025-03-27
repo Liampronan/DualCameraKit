@@ -22,7 +22,7 @@ public struct DualCameraDisplayView: View {
                 // A single ZStack with dynamic alignment for PiP
                 ZStack(alignment: position.alignment()) {
                     // Background camera
-                    RendererView(
+                    DualCameraRendererView(
                         renderer: controller.getRenderer(
                             for: (miniCamera == .front ? .back : .front)
                         )
@@ -30,7 +30,7 @@ public struct DualCameraDisplayView: View {
                     .ignoresSafeArea(.all)
                     
                     // Mini camera in corner
-                    RendererView(renderer: controller.getRenderer(for: miniCamera))
+                    DualCameraRendererView(renderer: controller.getRenderer(for: miniCamera))
                         .frame(width: 150)
                         .aspectRatio(16/9, contentMode: .fit)
                         .cornerRadius(10)
@@ -66,7 +66,7 @@ public struct DualCameraDisplayView: View {
     private func cameraView(for source: DualCameraSource,
                             widthFraction: CGFloat? = nil,
                             heightFraction: CGFloat? = nil) -> some View {
-        let rendererView = RendererView(renderer: controller.getRenderer(for: source))
+        let rendererView = DualCameraRendererView(renderer: controller.getRenderer(for: source))
         
         if let widthFraction = widthFraction {
             rendererView

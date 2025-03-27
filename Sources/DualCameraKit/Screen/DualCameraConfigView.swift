@@ -1,15 +1,6 @@
-//
-//  CameraConfigView.swift
-//  DualCameraKit
-//
-//  Created by Liam Ronan on 3/25/25.
-//
-
-
-import DualCameraKit
 import SwiftUI
 
-struct CameraConfigView: View {
+struct DualCameraConfigView: View {
     @Bindable private var viewModel: DualCameraViewModel
     
     init(viewModel: DualCameraViewModel) {
@@ -101,5 +92,5 @@ struct CameraConfigView: View {
 }
 
 #Preview {
-    CameraConfigView(viewModel: DualCameraViewModel(dualCameraController: DualCameraMockController()))
+    DualCameraConfigView(viewModel: DualCameraViewModel(dualCameraController: DualCameraMockController()))
 }
