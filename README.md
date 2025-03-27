@@ -1,5 +1,13 @@
 # DualCameraKit
 
+
+![Swift](https://img.shields.io/badge/Swift-5.9-orange?logo=swift)
+![SPM Compatible](https://img.shields.io/badge/SPM-Compatible-brightgreen)
+![iOS](https://img.shields.io/badge/iOS-17+-lightgrey?logo=apple)
+![WIP](https://img.shields.io/badge/status-WIP-yellow)
+![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)
+
+
 Simultaneous front & back iOS camera capture made simple.
 
 <table>
@@ -13,7 +21,9 @@ Simultaneous front & back iOS camera capture made simple.
 
 **Current Status**: Alpha release working towards 1.0
 
-Pre-release available: [v0.3.0-alpha](https://github.com/Liampronan/DualCameraKit/releases/tag/v0.3.0-alpha).
+**Pre-release available**: [v0.3.0-alpha](https://github.com/Liampronan/DualCameraKit/releases/tag/v0.3.0-alpha).
+
+**Legend**: ✅ = Implemented | 🚧 = In Progress
 
 | Category                | Status | Description                                                                                                                                      |
 | ----------------------- | :----: | ------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -28,15 +38,18 @@ Pre-release available: [v0.3.0-alpha](https://github.com/Liampronan/DualCameraKi
 
 - [What It Does](#what-it-does)
 - [Requirements](#osrequirements)
-- [Installing DualCameraKit](#installing-dualcamerakit)
+- [Installing](#installing)
   - [In Xcode](#in-xcode)
   - [In Package.swift](#in-packageswift)
-- [Running the DemoApp - Local Code Signing Setup](#running-the-demoapp---local-code-signing-setup)
+- [Running the Demo App](#running-the-demo-app-local-code-signing-setup)
 - [Basic Usage](#basic-usage)
 - [Customization](#customization)
+  - [Camera Layout Types](#camera-layout-types)
+  - [Video Recording Modes](#video-recording-modes)
 - [Troubleshooting](#troubleshooting)
 - [Deep Dives](#deep-dives)
 - [Limitations](#limitations)
+- [API Reference](#api-reference)
 - [References](#references)
 - [License](#license)
 
@@ -48,7 +61,7 @@ For simple, drop-in functionality, you can use `DualCameraScreen`, a SwiftUI Vie
 
 For deeper customizability, you can access the lower-level components that `DualCameraScreen` is built on
 
-# Installing DualCameraKit
+# Installing
 
 Since `DualCameraKit` is published using Swift Package Manager, you can install it by following these steps:
 
@@ -90,7 +103,7 @@ After installation, you can import the library in your Swift files:
 import DualCameraKit
 ```
 
-# Running the DemoApp - Local Code Signing Setup
+# Running the Demo App: Local Code Signing Setup
 
 To get the demo app running, you'll need to:
 
@@ -100,24 +113,24 @@ To get the demo app running, you'll need to:
 Since this library currently requires a real device, you cannot run it on a simulator.
 <img src="https://github.com/user-attachments/assets/501070af-1466-4149-b1f1-5976fb84f37d" width="70%" />
 
-# Overview - the three ways to use this library
+# Overview: the three ways to use this library
 
-Three are three different sets of components this library exposes, ranging from higher-level (drop-in, less customizable) to lower-level (more customizable). Each built on top of their lower level.
+Three are three different sets of components this library exposes, ranging from higher-level (drop-in, less customizable) to lower-level (more customizable). Each is built on top of the next lower level.
 
 1. ✅ `DualCameraScreen`
 
 - drop-in, least customizable.
-- a full-screen SwiftUI view which with buttons for photo capture, video recording, and toggling through the different dual-camera layouts and recording modes.
+- a full-screen SwiftUI view which includes buttons for photo capture, video recording, and toggling through the different dual-camera layouts and recording modes.
 
 2. 🚧 `DualCameraDisplayView` and `DualCameraController`
 
 - medium customization - useful for using pre-configured dual camera layouts while customizing the control UI and post-capture behavior.
 - the `DualCameraDisplayView` renders streams managed by the `DualCameraController`
-- you're responsible for wiring up UI for photo capture, video recording managment, and layout config.
+- you're responsible for wiring up UI for photo capture, video recording management, and layout config.
 
 3. 🚧 Raw Components
 
-- full customization - useful for unchartered territory e.g., you need to manipulate camera streams before they are rendered.
+- full customization - useful for uncharted territory e.g., you need to manipulate camera streams before they are rendered.
 
 # Basic Usage
 
@@ -137,8 +150,9 @@ struct ContentView: View {
 
 }
 ```
+# Customization
 
-# Camera Layout Types
+## Camera Layout Types
 
 ```swift
 public enum DualCameraLayout {
@@ -150,34 +164,32 @@ public enum DualCameraLayout {
 
 > Note: these screenshots are using colors to mock the front (purple) and back (yellow) cameras – this is how we're mocking things in the simulator because it doesn't have a hardware camera.
 
-## `.piP(miniCamera:, miniCameraPosition:)`
+### `.piP(miniCamera:, miniCameraPosition:)`
 
 |                                                                                                       |                                                                                                         |
 | :---------------------------------------------------------------------------------------------------: | :-----------------------------------------------------------------------------------------------------: |
 |    <img src="./DocumentationAssets/Layout_PiP_Top_Leading.png" width="250" /><br>**`.topLeading`**    |    <img src="./DocumentationAssets/Layout_PiP_Top_Trailing.png" width="250" /><br>**`.topTrailing`**    |
 | <img src="./DocumentationAssets/Layout_PiP_Bottom_Leading.png" width="250" /><br>**`.bottomLeading`** | <img src="./DocumentationAssets/Layout_PiP_Bottom_Trailing.png" width="250" /><br>**`.bottomTrailing`** |
 
-## `.stackedVertical`
+### `.stackedVertical`
 
 <img src="./DocumentationAssets/Layout_Stacked_Vertical.png" width=250 />
 
-## `.sideBySide`
+### `.sideBySide`
 
 <img src="./DocumentationAssets/Layout_Side_by_Side.png" width=250 />
 
-# Video Capture Modes
+## Video Recording Modes
 
-- This library offers several implementations of `DualCameraVideoRecorderType` that offer various methods of capturing.
+- This library offers several implementations of `DualCameraVideoRecorderType` that offer various methods of recording video.
 - You can choose which type you'd like by invoking `DualCameraControlling.startVideoRecording(recorderType:)`
 
-| Type                    | Quality |                   Description                   |      Core Technology       |          Permissions Required           |                       Layout Dependence                       | Implementation Status |
-| ----------------------- | :-----: | :---------------------------------------------: | :------------------------: | :-------------------------------------: | :-----------------------------------------------------------: | :-------------------: |
-| `.cpuBased`             | Medium  |          Takes continuous screenshots           | `DualCameraPhotoCapturing` |            Camera (one-time)            |                 Captures screen layout as-is                  |          ✅           |
-| `.replayKit`            |  High   |           System screen recording API           |         ReplayKit          | Camera (one-time) + ReplayKit (per-use) |                 Captures screen layout as-is                  |          ✅           |
-| `.gpuBasedUncomposited` |  High   |              Direct Metal capture               |   Metal/GPU acceleration   |            Camera (one-time)            |  Produces separate video streams (manual composition needed)  |          🚧           |
-| `.gpuBasedComposited`   |  High   | Direct Metal capture with automatic composition |   Metal/GPU acceleration   |            Camera (one-time)            | Automatically composes videos according to `DualCameraLayout` |          🚧           |
-
-# Customization
+| Type                    | Implementation Status | Quality |                   Description                   |      Core Technology       |          Permissions Required           |                       Layout Dependence                       |
+| ----------------------- | :-------------------: | :-----: | :---------------------------------------------: | :------------------------: | :-------------------------------------: | :-----------------------------------------------------------: |
+| `.cpuBased`             |          ✅           | Medium  |          Takes continuous screenshots           | `DualCameraPhotoCapturing` |            Camera (one-time)            |                 Captures screen layout as-is                  |
+| `.replayKit`            |          ✅           |  High   |           System screen recording API           |         ReplayKit          | Camera (one-time) + ReplayKit (per-use) |                 Captures screen layout as-is                  |
+| `.gpuBasedUncomposited` |          🚧           |  High   |              Direct Metal capture               |   Metal/GPU acceleration   |            Camera (one-time)            |  Produces separate video streams (manual composition needed)  |
+| `.gpuBasedComposited`   |          🚧           |  High   | Direct Metal capture with automatic composition |   Metal/GPU acceleration   |            Camera (one-time)            | Automatically composes videos according to `DualCameraLayout` |
 
 # Troubleshooting
 
@@ -193,6 +205,9 @@ public enum DualCameraLayout {
   - It runs in simulator & previews using mocked implementations for the cameras. The goal here is to allow you to integrate as much as possible using previews, for example, iterating on layouts.
   - You should still test on-device as part of your full testing flow to ensure things work as you expect.
 - iOS only. iPad support is a future enhancement. Other platforms only have one camera
+
+# API Reference
+🚧
 
 # References
 
