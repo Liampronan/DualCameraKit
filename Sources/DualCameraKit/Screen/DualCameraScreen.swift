@@ -3,28 +3,10 @@ import SwiftUI
 public struct DualCameraScreen: View {
     @State private var viewModel: DualCameraViewModel
     
-    // mock implementation for simulators – since there is no camera in simulator.
-#if targetEnvironment(simulator)
-    private var dualCameraController = DualCameraMockController()
-#else
-    private var dualCameraController = DualCameraController()
-#endif
-
     public init(
-        initialLayout: DualCameraLayout = .piP(miniCamera: .front, miniCameraPosition: .bottomTrailing),
-        initialVideoRecorderMode: DualCameraVideoRecordingMode = .cpuBased(.init(photoCaptureMode: .fullScreen)),
-        // TODO: avoid this repeat instantiation. potentially lightweight DI?
-        videoSaveStrategy: VideoSaveStrategy = .saveToLibrary(MediaLibraryService()),
-        photoSaveStrategy: PhotoSaveStrategy = .saveToLibrary(MediaLibraryService())
+        viewModel: DualCameraViewModel = .default()
     ) {
-        _viewModel = State(initialValue: DualCameraViewModel(
-                dualCameraController: dualCameraController,
-                layout: initialLayout,
-                videoRecorderMode: initialVideoRecorderMode,
-                videoSaveStrategy: videoSaveStrategy,
-                photoSaveStrategy: photoSaveStrategy
-            )
-        )
+        _viewModel = State(initialValue: viewModel)
     }
     
     public var body: some View {

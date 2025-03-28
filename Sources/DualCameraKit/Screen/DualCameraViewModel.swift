@@ -4,7 +4,7 @@ import SwiftUI
 
 @MainActor
 @Observable
-final class DualCameraViewModel {
+public final class DualCameraViewModel {
     
     // Core state
     private(set) var viewState: CameraViewState = .loading
@@ -32,8 +32,8 @@ final class DualCameraViewModel {
         dualCameraController: DualCameraControlling,
         layout: DualCameraLayout = .piP(miniCamera: .front, miniCameraPosition: .bottomTrailing),
         videoRecorderMode: DualCameraVideoRecordingMode = .cpuBased(.init(photoCaptureMode: .fullScreen)),
-        videoSaveStrategy: VideoSaveStrategy,
-        photoSaveStrategy: PhotoSaveStrategy
+        videoSaveStrategy: VideoSaveStrategy = .videoLibrary(service: CurrentDualCameraEnvironment.mediaLibraryService),
+        photoSaveStrategy: PhotoSaveStrategy = .photoLibrary(service: CurrentDualCameraEnvironment.mediaLibraryService)
 
     ) {
         self.controller = dualCameraController
@@ -144,8 +144,6 @@ final class DualCameraViewModel {
     private func startRecording() {
         Task {
             viewState = .precapture
-
-            
             do {
                 try await controller.startVideoRecording(mode: configuration.videoRecorderMode)
                 
@@ -188,7 +186,7 @@ final class DualCameraViewModel {
                 viewState = .ready
 
                 // TODO: ensure to test permission denied
-                try await self.videoSaveStrategy.save(url: videoRecordingOutputURL)
+                try await self.videoSaveStrategy.save(videoRecordingOutputURL)
             } catch let error as DualCameraError {
                 viewState = .error(error)
                 showError(error, message: "Failed to stop recording")
@@ -249,6 +247,22 @@ final class DualCameraViewModel {
     private func provideSaveSuccessHapticFeedback() {
         let generator = UINotificationFeedbackGenerator()
         generator.notificationOccurred(.success)
+    }
+}
+
+// MARK: - Default init 
+
+extension DualCameraViewModel {
+    public static func `default`() -> DualCameraViewModel {
+        #if targetEnvironment(simulator)
+        let dualCameraController = DualCameraMockController()
+        #else
+        let dualCameraController = DualCameraController()
+        #endif
+
+        return DualCameraViewModel(
+            dualCameraController: dualCameraController
+        )
     }
 }
 

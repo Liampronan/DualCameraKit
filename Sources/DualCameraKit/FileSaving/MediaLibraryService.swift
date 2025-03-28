@@ -1,67 +1,99 @@
 import Photos
 import UIKit
 
-public protocol PhotoLibraryPersisting {
-    func saveImage(_ image: UIImage) async throws
-}
+// MARK: - Media Library Service
 
-public protocol VideoLibraryPersisting {
-    func saveVideo(at url: URL) async throws
-}
-
-public class MediaLibraryService: PhotoLibraryPersisting & VideoLibraryPersisting {
+public struct MediaLibraryService: Sendable  {
     public init() {}
     
-    // MARK: - Public API
-    
-    /// Saves an image to the photo library, handling permissions
     public func saveImage(_ image: UIImage) async throws {
-        // Check permissions first
         try await checkPhotoLibraryPermission()
-        
-        // Save the image using modern async/await
+
         try await PHPhotoLibrary.shared().performChanges {
             PHAssetChangeRequest.creationRequestForAsset(from: image)
         }
     }
-    
-    /// Saves a video to the photo library, handling permissions
+
     public func saveVideo(at url: URL) async throws {
-        // Check permissions first
         try await checkPhotoLibraryPermission()
-        
-        // Save the video using modern async/await
+
         try await PHPhotoLibrary.shared().performChanges {
             PHAssetChangeRequest.creationRequestForAssetFromVideo(atFileURL: url)
         }
-        
-        // Clean up temp file after successful save
+
         try? FileManager.default.removeItem(at: url)
     }
-    
+
     // MARK: - Permission Handling
-    
+
     private func checkPhotoLibraryPermission() async throws {
-        let status = PHPhotoLibrary.authorizationStatus(for: .addOnly)
-        
-        switch status {
+        switch PHPhotoLibrary.authorizationStatus() {
         case .authorized, .limited:
-            return // Permission granted
-            
+            return
         case .notDetermined:
             let newStatus = await PHPhotoLibrary.requestAuthorization(for: .addOnly)
-            if newStatus != .authorized && newStatus != .limited {
+            guard newStatus == .authorized || newStatus == .limited else {
                 throw MediaLibraryError.permissionDenied
             }
-                
         case .denied, .restricted:
             throw MediaLibraryError.permissionDenied
-            
         @unknown default:
             throw MediaLibraryError.unknown
         }
     }
 }
+//
+//public class MediaLibraryService {
+//    // Injected dependencies
+//    private let permissionChecker: () async throws -> Void
+//    private let performPhotoLibraryChanges: (@escaping () -> Void) async throws -> Void
+//    private let removeFile: (URL) throws -> Void
+//
+//    // Default initializer for production
+//    public init(
+//        permissionChecker: @escaping () async throws -> Void = MediaLibraryService.defaultPermissionChecker,
+//        performPhotoLibraryChanges: @escaping (@escaping () -> Void) async throws -> Void = PHPhotoLibrary.shared().performChanges,
+//        removeFile: @escaping (URL) throws -> Void = FileManager.default.removeItem
+//    ) {
+//        self.permissionChecker = permissionChecker
+//        self.performPhotoLibraryChanges = performPhotoLibraryChanges
+//        self.removeFile = removeFile
+//    }
+//
+//    public func saveImage(_ image: UIImage) async throws {
+//        try await permissionChecker()
+//        try await performPhotoLibraryChanges {
+//            PHAssetChangeRequest.creationRequestForAsset(from: image)
+//        }
+//    }
+//
+//    public func saveVideo(at url: URL) async throws {
+//        try await permissionChecker()
+//        try await performPhotoLibraryChanges {
+//            PHAssetChangeRequest.creationRequestForAssetFromVideo(atFileURL: url)
+//        }
+//        try? removeFile(url)
+//    }
+//
+//    // MARK: - Default Implementations
+//
+//    private static func defaultPermissionChecker() async throws {
+//        switch PHPhotoLibrary.authorizationStatus() {
+//        case .authorized, .limited:
+//            return
+//        case .notDetermined:
+//            let newStatus = await PHPhotoLibrary.requestAuthorization(for: .addOnly)
+//            guard newStatus == .authorized || newStatus == .limited else {
+//                throw MediaLibraryError.permissionDenied
+//            }
+//        case .denied, .restricted:
+//            throw MediaLibraryError.permissionDenied
+//        @unknown default:
+//            throw MediaLibraryError.unknown
+//        }
+//    }
+//}
+
 
 // MARK: - Error Handling
 

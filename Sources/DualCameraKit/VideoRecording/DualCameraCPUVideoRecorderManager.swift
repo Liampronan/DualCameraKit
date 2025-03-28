@@ -46,7 +46,7 @@ public actor DualCameraCPUVideoRecorderManager: DualCameraVideoRecording {
         case active(outputURL: URL, quality: VideoQuality)
         
         var isActive: Bool {
-            if case let .active(_) = self { return true }
+            if case .active(_, _) = self { return true }
             return false
         }
     }
