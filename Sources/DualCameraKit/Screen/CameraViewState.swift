@@ -20,12 +20,6 @@ enum CameraViewState: Equatable {
         }
     }
     
-    /// Returns true if the view state represents active recording
-    var isRecording: Bool {
-        if case .recording = self { return true }
-        return false
-    }
-    
     var captureInProgress: Bool {
         if case .recording(_) = self { return true }
         return self == .precapture || self == .capturing
