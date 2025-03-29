@@ -32,7 +32,7 @@ jobs:
       run: xcodebuild -list -workspace DualCameraKit.xcworkspace
       
     - name: Build for iOS simulator
-      run: xcrun xcodebuild build -workspace DualCameraKit.xcworkspace -scheme DualCameraKit -destination "platform=iOS Simulator,id=65343E75-54BF-4E13-AAF9-199BFE384009" -sdk iphonesimulator
+      run: xcrun xcodebuild build -workspace DualCameraKit.xcworkspace -scheme DualCameraKit -destination "platform=iOS Simulator,name=iPhone 16" -sdk iphonesimulator
         
     - name: Run tests
-      run: xcrun xcodebuild -workspace DualCameraKit.xcworkspace -scheme DualCameraKitTests -destination "platform=iOS Simulator,id=65343E75-54BF-4E13-AAF9-199BFE384009" -sdk iphonesimulator test
+      run: xcrun xcodebuild -workspace DualCameraKit.xcworkspace -scheme DualCameraKitTests -destination "platform=iOS Simulator,name=iPhone 16" -sdk iphonesimulator test
