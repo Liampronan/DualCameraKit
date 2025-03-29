@@ -4,8 +4,7 @@ import PackageDescription
 let package = Package(
     name: "DualCameraKit",
     platforms: [
-        .iOS(.v17),
-        .macOS(.v10_15)
+        .iOS(.v17)
     ],
     products: [
         .library(
@@ -13,15 +12,10 @@ let package = Package(
             targets: ["DualCameraKit"]
         ),
     ],
-    dependencies: [
-        .package(url: "https://github.com/apple/swift-async-algorithms", from: "1.0.0")
-    ],
     targets: [
         .target(
             name: "DualCameraKit",
-            dependencies: [
-                .product(name: "AsyncAlgorithms", package: "swift-async-algorithms"),
-            ],
+           
             resources: [
                 .process("DualCameraShaders.metal")
             ],
@@ -36,3 +30,4 @@ let package = Package(
         )
     ]
 )
+
