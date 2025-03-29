@@ -29,7 +29,7 @@ jobs:
       run: |
         # First, select the latest Xcode (16.2)
         sudo xcode-select -s /Applications/Xcode_16.2.app
-        xcodebuild build -workspace DualCameraKit.xcworkspace -scheme "DualCameraKit" -destination "platform=iOS Simulator,id=84D00BCB-FE25-4E80-BD26-52E15F00ABC" -sdk iphonesimulator
+        xcodebuild build -workspace DualCameraKit.xcworkspace -scheme "DualCameraKit" -destination "platform=iOS Simulator,id=65343E75-54BF-4E13-AAF9-199BFE38400" -sdk iphonesimulator
         
     - name: Run tests
       run: |
