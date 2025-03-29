@@ -35,4 +35,4 @@ jobs:
       run: xcrun xcodebuild build -workspace DualCameraKit.xcworkspace -scheme DualCameraKit -destination "platform=iOS Simulator,id=65343E75-54BF-4E13-AAF9-199BFE384009" -sdk iphonesimulator
         
     - name: Run tests
-      run: xcrun xcodebuild-workspace DualCameraKit.xcworkspace -scheme DualCameraKitTests -destination "platform=iOS Simulator,id=65343E75-54BF-4E13-AAF9-199BFE384009" -sdk iphonesimulator test
+      run: xcrun xcodebuild -workspace DualCameraKit.xcworkspace -scheme DualCameraKitTests -destination "platform=iOS Simulator,id=65343E75-54BF-4E13-AAF9-199BFE384009" -sdk iphonesimulator test
