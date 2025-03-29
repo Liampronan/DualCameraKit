@@ -3,23 +3,12 @@ import SwiftUI
 public struct DualCameraScreen: View {
     @State private var viewModel: DualCameraViewModel
     
-    // mock implementation for simulators – since there is no camera in simulator.
-#if targetEnvironment(simulator)
-    private var dualCameraController = DualCameraMockController()
-#else
-    private var dualCameraController = DualCameraController()
-#endif
-
     public init(
-        layout: DualCameraLayout = .piP(miniCamera: .front, miniCameraPosition: .bottomTrailing)
+        viewModel: DualCameraViewModel = .default()
     ) {
-        _viewModel = State(initialValue: DualCameraViewModel(
-                dualCameraController: dualCameraController,
-                layout: layout
-            )
-        )
+        _viewModel = State(initialValue: viewModel)
     }
-        
+    
     public var body: some View {
         GeometryReader { geoProxy in
             ZStack {

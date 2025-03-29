@@ -16,9 +16,7 @@ struct DualCameraDemoApp: App {
         WindowGroup {
             switch demoType {
             case .dualCameraScreen:
-                DualCameraScreen(
-                    layout: .piP(miniCamera: .front, miniCameraPosition: .bottomTrailing)
-                )
+                DualCameraScreen()
             case .dualCameraDisplayView, .dualCameraLowLevelComponents:
                 Text("Not Implemented Yet")
             }

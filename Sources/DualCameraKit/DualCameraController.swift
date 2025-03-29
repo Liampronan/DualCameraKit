@@ -18,7 +18,7 @@ public protocol DualCameraControlling {
     // Probably more decoupling would help but not focused on that atm.
     var videoRecorder: (any DualCameraVideoRecording)? { get }
     func setVideoRecorder(_ recorder: any DualCameraVideoRecording) async throws
-    func startVideoRecording(recorderType: DualCameraVideoRecorderType) async throws
+    func startVideoRecording(mode: DualCameraVideoRecordingMode) async throws
     func stopVideoRecording() async throws -> URL
 }
 
@@ -31,8 +31,8 @@ extension DualCameraControlling {
         return try await videoRecorder.stopVideoRecording()
     }
     
-    public func startVideoRecording(recorderType: DualCameraVideoRecorderType) async throws {
-        let videoRecorder: any DualCameraVideoRecording = switch recorderType {
+    public func startVideoRecording(mode: DualCameraVideoRecordingMode) async throws {
+        let videoRecorder: any DualCameraVideoRecording = switch mode {
         case .replayKit(let config): DualCameraReplayKitVideoRecorder(config: config)
         case .cpuBased(let config): DualCameraCPUVideoRecorderManager(photoCapturer: photoCapturer, config: config)
         }

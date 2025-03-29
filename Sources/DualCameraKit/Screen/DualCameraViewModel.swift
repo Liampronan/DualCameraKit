@@ -4,14 +4,14 @@ import SwiftUI
 
 @MainActor
 @Observable
-final class DualCameraViewModel {
+public final class DualCameraViewModel {
     
     // Core state
     private(set) var viewState: CameraViewState = .loading
     
     // Configuration
     var configuration: CameraConfiguration
-    var videoRecorderType: DualCameraVideoRecorderType { configuration.videoRecorderType }
+    var videoRecorderType: DualCameraVideoRecordingMode { configuration.videoRecorderMode }
     
     // User artifacts
     private(set) var capturedImage: UIImage? = nil
@@ -25,13 +25,24 @@ final class DualCameraViewModel {
     
     let controller: DualCameraControlling
     private var recordingTimer: Timer?
+    private var videoSaveStrategy: VideoSaveStrategy
+    private var photoSaveStrategy: PhotoSaveStrategy
     
     init(
         dualCameraController: DualCameraControlling,
-        layout: DualCameraLayout = .piP(miniCamera: .front, miniCameraPosition: .bottomTrailing)
+        layout: DualCameraLayout = .piP(miniCamera: .front, miniCameraPosition: .bottomTrailing),
+        videoRecorderMode: DualCameraVideoRecordingMode = .cpuBased(.init(photoCaptureMode: .fullScreen)),
+        videoSaveStrategy: VideoSaveStrategy = .videoLibrary(service: CurrentDualCameraEnvironment.mediaLibraryService),
+        photoSaveStrategy: PhotoSaveStrategy = .photoLibrary(service: CurrentDualCameraEnvironment.mediaLibraryService)
+
     ) {
         self.controller = dualCameraController
-        self.configuration = CameraConfiguration(layout: layout)
+        self.configuration = CameraConfiguration(
+            layout: layout,
+            videoRecorderMode: videoRecorderMode
+        )
+        self.videoSaveStrategy = videoSaveStrategy
+        self.photoSaveStrategy = photoSaveStrategy
     }
     
     // MARK: - Lifecycle Management
@@ -89,23 +100,14 @@ final class DualCameraViewModel {
     func capturePhotoButtonTapped() {
         Task {
             guard case .ready = viewState else { return }
-            viewState = .precapture
-            let hasPermission = await checkPhotoLibraryPermission()
-            
-            guard hasPermission else {
-                alert = .permissionDenied(message: "Photo library access is required to save photos.")
-                viewState = .ready
-                return
-            }
-            
             viewState = .capturing
             
             do {
                 try await Task.sleep(for: .seconds(0.25))
                 let image = try await controller.captureCurrentScreen()
                 viewState = .ready
-                saveImageToPhotoLibrary(image)
-                
+                try await self.photoSaveStrategy.save(image)
+                self.provideSaveSuccessHapticFeedback()
             } catch let error as DualCameraError {
                 viewState = .error(error)
                 showError(error, message: "Error capturing photo")
@@ -130,10 +132,10 @@ final class DualCameraViewModel {
     }
     
     func toggleRecorderType() {
-        if case .cpuBased = configuration.videoRecorderType {
-            configuration.videoRecorderType = .replayKit()
+        if case .cpuBased = configuration.videoRecorderMode {
+            configuration.videoRecorderMode = .replayKit()
         } else {
-            configuration.videoRecorderType = .cpuBased(.init(mode: .fullScreen))
+            configuration.videoRecorderMode = .cpuBased(.init(photoCaptureMode: .fullScreen))
         }
     }
     
@@ -142,16 +144,8 @@ final class DualCameraViewModel {
     private func startRecording() {
         Task {
             viewState = .precapture
-
-            let hasPermission = await checkPhotoLibraryPermission()
-            
-            guard hasPermission else {
-                alert = .permissionDenied(message: "Photo library access is required to save videos.")
-                return
-            }
-            
             do {
-                try await controller.startVideoRecording(recorderType: configuration.videoRecorderType)
+                try await controller.startVideoRecording(mode: configuration.videoRecorderMode)
                 
                 viewState = .recording(CameraViewState.RecordingState(duration: 0))
                 
@@ -190,9 +184,9 @@ final class DualCameraViewModel {
                 
                 // Reset recording state
                 viewState = .ready
-                
-                saveVideoToPhotoLibrary(videoRecordingOutputURL)
-                
+
+                try await self.videoSaveStrategy.save(videoRecordingOutputURL)
+                self.provideSaveSuccessHapticFeedback()
             } catch let error as DualCameraError {
                 viewState = .error(error)
                 showError(error, message: "Failed to stop recording")
@@ -202,57 +196,6 @@ final class DualCameraViewModel {
                 viewState = .error(dualCameraError)
                 showError(error, message: "Failed to stop recording")
                 viewState = .ready
-            }
-        }
-    }
-    
-    // MARK: - Permissions
-    
-    private func checkPhotoLibraryPermission() async -> Bool {
-        let status = PHPhotoLibrary.authorizationStatus()
-        switch status {
-        case .authorized, .limited:
-            return true
-        case .notDetermined:
-            let newStatus = await PHPhotoLibrary.requestAuthorization(for: .addOnly)
-            return newStatus == .authorized || newStatus == .limited
-        case .denied, .restricted:
-            return false
-        @unknown default:
-            return false
-        }
-    }
-    
-    // MARK: - Photo Library
-    
-    private func saveVideoToPhotoLibrary(_ videoURL: URL) {
-        PHPhotoLibrary.shared().performChanges {
-            PHAssetChangeRequest.creationRequestForAssetFromVideo(atFileURL: videoURL)
-        } completionHandler: { [weak self] success, error in
-            Task { @MainActor [weak self] in
-                guard let self = self else { return }
-                
-                if success {
-                    // Show success alert
-                    alert = .info(title: "Video Recording", message: "Video saved to photo library")
-                    self.provideSaveSuccessHapticFeedback()
-                    
-                    // Clean up the temp file
-                    try? FileManager.default.removeItem(at: videoURL)
-                } else if let error = error {
-                    showError(error, message: "Failed to save video")
-                }
-            }
-        }
-    }
-    
-    private func saveImageToPhotoLibrary(_ image: UIImage) {
-        PHPhotoLibrary.shared().performChanges {
-            PHAssetChangeRequest.creationRequestForAsset(from: image)
-        } completionHandler: { [weak self] success, error in
-            Task { @MainActor [weak self] in
-                guard let self = self else { return }
-                self.provideSaveSuccessHapticFeedback()
             }
         }
     }
@@ -269,6 +212,22 @@ final class DualCameraViewModel {
     private func provideSaveSuccessHapticFeedback() {
         let generator = UINotificationFeedbackGenerator()
         generator.notificationOccurred(.success)
+    }
+}
+
+// MARK: - Default init 
+
+extension DualCameraViewModel {
+    public static func `default`() -> DualCameraViewModel {
+        #if targetEnvironment(simulator)
+        let dualCameraController = DualCameraMockController()
+        #else
+        let dualCameraController = DualCameraController()
+        #endif
+
+        return DualCameraViewModel(
+            dualCameraController: dualCameraController
+        )
     }
 }
 

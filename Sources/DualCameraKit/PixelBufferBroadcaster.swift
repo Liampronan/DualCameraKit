@@ -20,12 +20,8 @@ public class PixelBufferBroadcaster: @unchecked Sendable {
         return AsyncStream { continuation in
             // Create a local task without capturing self
             let task = Task {
-                do {
-                    for await buffer in localChannel {
-                        continuation.yield(buffer)
-                    }
-                } catch {
-                    // TODO: Handle channel errors
+                for await buffer in localChannel {
+                    continuation.yield(buffer)
                 }
                 continuation.finish()
             }
