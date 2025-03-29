@@ -148,7 +148,7 @@ struct ContentView: View {
 
 ## `DualCameraScreen` - Customization
 
-You can customize the screen by providing your own `DualCameraViewModel`:
+You can customize the screen by providing your own `DualCameraViewModel`
 
 ```swift
 // Custom initialization with specific layout
