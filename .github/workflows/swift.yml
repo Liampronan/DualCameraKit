@@ -25,7 +25,18 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     
-    - name: Build Package
-      run: swift build
+    - name: Build for iOS simulator
+      run: |
+        swift build \
+          -Xswiftc "-sdk" \
+          -Xswiftc "$(xcrun --sdk iphonesimulator --show-sdk-path)" \
+          -Xswiftc "-target" \
+          -Xswiftc "x86_64-apple-ios15.0-simulator"
+    
     - name: Run tests
-      run: swift test -v
+      run: |
+        swift test \
+          -Xswiftc "-sdk" \
+          -Xswiftc "$(xcrun --sdk iphonesimulator --show-sdk-path)" \
+          -Xswiftc "-target" \
+          -Xswiftc "x86_64-apple-ios15.0-simulator"
