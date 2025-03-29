@@ -27,15 +27,12 @@ jobs:
     
     - name: Build for iOS simulator
       run: |
+        SDK_PATH=$(xcrun --sdk iphonesimulator --show-sdk-path)
         swift build \
           -Xswiftc "-sdk" \
-          -Xswiftc "$(xcrun --sdk iphonesimulator --show-sdk-path)" \
+          -Xswiftc "$SDK_PATH" \
           -Xswiftc "-target" \
-          -Xswiftc "x86_64-apple-ios15.0-simulator" \
-          -Xcc "-target" \
-          -Xcc "x86_64-apple-ios15.0-simulator" \
-          -Xcc "-isysroot" \
-          -Xcc "$(xcrun --sdk iphonesimulator --show-sdk-path)"
+          -Xswiftc "x86_64-apple-ios17.0-simulator"
     - name: Run tests
       run: |
         swift test \
