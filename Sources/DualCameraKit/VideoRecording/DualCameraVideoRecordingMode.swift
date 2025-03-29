@@ -1,21 +1,12 @@
 import Foundation
 
-/// How video recording should be performed
-public enum DualCameraVideoRecordingMode: Sendable {
-    /// Records what is displayed on screen (the composed view)
-    case screenCapture(DualCameraPhotoCaptureMode = .fullScreen)
-    
-    /// Records directly from camera feeds
-    case rawCapture(combineStreams: Bool = true)
-    
-}
 
-public enum DualCameraVideoRecorderType: CaseIterable, Identifiable, Sendable, Equatable {
+public enum DualCameraVideoRecordingMode: CaseIterable, Identifiable, Sendable, Equatable {
     /// For now, DualCameraKit is setup to handle these two recorders with these configs.
     /// Specifically, we are not yet formally support the .cpuBased(.init(mode: .fullScreen)) config though it may work (code is not tested yet).
-    public static var allCases: [DualCameraVideoRecorderType] {
+    public static var allCases: [DualCameraVideoRecordingMode] {
         [
-            .cpuBased(.init(mode: .fullScreen)),
+            .cpuBased(.init(photoCaptureMode: .fullScreen)),
             .replayKit(nil)
         ]
     }

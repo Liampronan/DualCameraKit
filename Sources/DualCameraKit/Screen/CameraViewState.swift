@@ -1,6 +1,6 @@
 import Foundation
 
-/// The primary view state representing the current mode of the camera system
+/// Describes the current mode of the camera system
 enum CameraViewState: Equatable {
     case loading
     case ready
@@ -17,12 +17,6 @@ enum CameraViewState: Equatable {
             let seconds = Int(duration) % 60
             return String(format: "%02d:%02d", minutes, seconds)
         }
-    }
-    
-    /// Returns true if the view state represents active recording
-    var isRecording: Bool {
-        if case .recording = self { return true }
-        return false
     }
     
     var captureInProgress: Bool {

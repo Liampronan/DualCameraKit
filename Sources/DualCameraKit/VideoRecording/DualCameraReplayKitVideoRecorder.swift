@@ -40,7 +40,7 @@ public actor DualCameraReplayKitVideoRecorder: DualCameraVideoRecording {
         
         let outputURL = configure(outputURL: config.outputURL)
         
-        try await recorder.startRecording()
+        recorder.startRecording()
         state = .active(outputURL: outputURL)
         DualCameraLogger.session.debug("📹 Screen recording started with ReplayKit")
     }

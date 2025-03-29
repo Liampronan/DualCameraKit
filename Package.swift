@@ -30,7 +30,8 @@ let package = Package(
         ),
         .testTarget(
             name: "DualCameraKitTests",
-            dependencies: ["DualCameraKit"]
-        ),
+            dependencies: ["DualCameraKit"],
+            path: "Tests"
+        )
     ]
 )

@@ -4,11 +4,11 @@ import Foundation
 struct CameraConfiguration: Equatable {
     var layout: DualCameraLayout
     var containerSize: CGSize
-    var videoRecorderType: DualCameraVideoRecorderType
+    var videoRecorderMode: DualCameraVideoRecordingMode
     
-    init(layout: DualCameraLayout  = .piP(miniCamera: .front, miniCameraPosition: .bottomTrailing), containerSize: CGSize  = .zero, videoRecorderType: DualCameraVideoRecorderType = .cpuBased(DualCameraCPUVideoRecorderConfig(mode: .fullScreen))) {
+    init(layout: DualCameraLayout  = .piP(miniCamera: .front, miniCameraPosition: .bottomTrailing), containerSize: CGSize  = .zero, videoRecorderMode: DualCameraVideoRecordingMode = .cpuBased(DualCameraCPUVideoRecorderConfig(photoCaptureMode: .fullScreen))) {
         self.layout = layout
         self.containerSize = containerSize
-        self.videoRecorderType = videoRecorderType
+        self.videoRecorderMode = videoRecorderMode
     }
 }
