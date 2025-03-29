@@ -41,7 +41,11 @@ public extension MediaLibraryService {
             saveVideo: { url in
                 try await permissionChecker()
                 try await saveVideoHandler(url)
-                try? await removeItem(url)
+                do {
+                    try await removeItem(url)
+                } catch {
+                    DualCameraLogger.errors.error("Failed to remove video at path: \(url.absoluteString, privacy: .public). Error: \(error.localizedDescription, privacy: .public)")
+                }
             }
         )
     }
