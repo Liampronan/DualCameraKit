@@ -27,14 +27,8 @@ jobs:
     
     - name: Build for iOS simulator
       run: |
-        # Set environment to ensure iOS simulator is used
-        export DEVELOPER_DIR=$(xcode-select -p)
-        
-        # Use xcodebuild instead of swift build
-        xcodebuild build \
-          -scheme DualCameraKit \
-          -destination "platform=iOS Simulator,name=iPhone 15,OS=17.0" \
-          -sdk iphonesimulator
+        xcodebuild build -scheme "DualCameraKit" -destination "platform=iOS Simulator,name=iPhone 15,OS=17.0" -sdk iphonesimulator
+
         
     - name: Run tests
       run: |
