@@ -31,8 +31,11 @@ jobs:
           -Xswiftc "-sdk" \
           -Xswiftc "$(xcrun --sdk iphonesimulator --show-sdk-path)" \
           -Xswiftc "-target" \
-          -Xswiftc "x86_64-apple-ios15.0-simulator"
-    
+          -Xswiftc "x86_64-apple-ios15.0-simulator" \
+          -Xcc "-target" \
+          -Xcc "x86_64-apple-ios15.0-simulator" \
+          -Xcc "-isysroot" \
+          -Xcc "$(xcrun --sdk iphonesimulator --show-sdk-path)"
     - name: Run tests
       run: |
         swift test \
