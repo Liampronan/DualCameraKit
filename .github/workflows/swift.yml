@@ -27,12 +27,23 @@ jobs:
     
     - name: Build for iOS simulator
       run: |
-        SDK_PATH=$(xcrun --sdk iphonesimulator --show-sdk-path)
+        # Force the use of the iOS simulator SDK
+        export SDKROOT=$(xcrun --sdk iphonesimulator --show-sdk-path)
+        export DEVELOPER_DIR=$(xcode-select -p)
+        export PLATFORM_DIR=$DEVELOPER_DIR/Platforms/iPhoneSimulator.platform
+        
+        # Build with explicit flags for both Swift and C/ObjC compilation
         swift build \
           -Xswiftc "-sdk" \
-          -Xswiftc "$SDK_PATH" \
+          -Xswiftc "$SDKROOT" \
           -Xswiftc "-target" \
-          -Xswiftc "x86_64-apple-ios17.0-simulator"
+          -Xswiftc "x86_64-apple-ios17.0-simulator" \
+          -Xcc "-isysroot" \
+          -Xcc "$SDKROOT" \
+          -Xcc "-target" \
+          -Xcc "x86_64-apple-ios17.0-simulator" \
+          -Xcc "-F$PLATFORM_DIR/Developer/SDKs/iPhoneSimulator.sdk/System/Library/Frameworks"
+        
     - name: Run tests
       run: |
         swift test \
