@@ -1,0 +1,40 @@
+name: iOS CI
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  swiftlint:
+    name: SwiftLint
+    # use Linux for the SwiftLint action since this GH library requires it (so bot can post inline to PR) 
+    runs-on: ubuntu-latest  
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: GitHub Action for SwiftLint
+        uses: norio-nomura/action-swiftlint@3.2.1
+        env:
+          WORKING_DIRECTORY: Source
+          
+  build-and-test:
+    runs-on: macos-latest
+    needs: swiftlint
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Build for iOS simulator
+      run: |
+        # First, select the latest Xcode (16.2)
+        sudo xcode-select -s /Applications/Xcode_16.2.app
+        xcodebuild build -workspace DualCameraKit.xcworkspace -scheme "DualCameraKit" -destination "platform=iOS Simulator,id=65343E75-54BF-4E13-AAF9-199BFE384009" -sdk iphonesimulator
+        
+    - name: Run tests
+      run: |
+        swift test \
+          -Xswiftc "-sdk" \
+          -Xswiftc "$(xcrun --sdk iphonesimulator --show-sdk-path)" \
+          -Xswiftc "-target" \
+          -Xswiftc "x86_64-apple-ios15.0-simulator"

@@ -1,34 +1,43 @@
-import AsyncAlgorithms
 import AVFoundation
 
 /// Multi-consumer pixel buffer broadcaster using AsyncChannel.
 /// We have multiple consumers for viewing and recording for example.
-/// TODO: fixme @unchecked Sendable - consider making this an actor
 public class PixelBufferBroadcaster: @unchecked Sendable {
+    // For thread safety
+    private let lock = NSLock()
     
-    private let channel = AsyncChannel<PixelBufferWrapper>()
+    // Storage for active continuations and buffered values
+    private var continuations: [UUID: AsyncStream<PixelBufferWrapper>.Continuation] = [:]
+    
+    public init() {}
     
     /// Broadcasts a new pixel buffer to all subscribers
     public func broadcast(_ buffer: PixelBufferWrapper) async {
-        await channel.send(buffer)
+        lock.lock()
+        let activeContinuations = continuations
+        lock.unlock()
+        
+        // Send to all active subscribers
+        for continuation in activeContinuations.values {
+            continuation.yield(buffer)
+        }
     }
     
     /// Creates a new subscription to the pixel buffer stream
     public func subscribe() -> AsyncStream<PixelBufferWrapper> {
-        let localChannel = channel // Capture channel locally
+        let id = UUID()
         
         return AsyncStream { continuation in
-            // Create a local task without capturing self
-            let task = Task {
-                for await buffer in localChannel {
-                    continuation.yield(buffer)
-                }
-                continuation.finish()
-            }
+            lock.lock()
+            continuations[id] = continuation
+            lock.unlock()
             
-            // Clean up task on cancellation
-            continuation.onTermination = { _ in
-                task.cancel()
+            // Clean up on cancellation
+            continuation.onTermination = { [weak self] _ in
+                guard let self = self else { return }
+                self.lock.lock()
+                self.continuations.removeValue(forKey: id)
+                self.lock.unlock()
             }
         }
     }

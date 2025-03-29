@@ -7,5 +7,5 @@ import UIKit
 public struct DualCameraEnvironment: Sendable {
     public var mediaLibraryService: MediaLibraryService = .live()
 }
-
+// swiftlint:disable:next identifier_name
 public let CurrentDualCameraEnvironment = DualCameraEnvironment()
