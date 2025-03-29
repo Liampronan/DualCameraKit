@@ -25,7 +25,11 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     
-    - name: Build Package
-      run: swift build
-    - name: Run tests
-      run: swift test -v
+    - name: Generate Xcode Project
+      run: swift package generate-xcodeproj
+    
+    - name: Build for iOS
+      run: xcodebuild -project DualCameraKit.xcodeproj -scheme DualCameraKit -destination "platform=iOS Simulator,name=iPhone 14" build
+    
+    - name: Test
+      run: xcodebuild -project DualCameraKit.xcodeproj -scheme DualCameraKit -destination "platform=iOS Simulator,name=iPhone 14" test
