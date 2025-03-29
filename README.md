@@ -136,20 +136,73 @@ Three are three different sets of components this library exposes, ranging from 
 
 ## `DualCameraScreen` - drop-in, full-screen component
 
+The simplest way to use DualCameraKit is with the default configuration:
+
 ```swift
 struct ContentView: View {
-
     var body: some View {
-        DualCameraScreen(
-            layout: .fullScreenWithMini(
-                miniCamera: .front,
-                miniCameraPosition: .bottomTrailing
-            )
-        )
+        DualCameraScreen()
     }
-
 }
 ```
+
+## `DualCameraScreen` - Customization
+
+You can customize the screen by providing your own `DualCameraViewModel`:
+
+```swift
+// Custom initialization with specific layout
+let customViewModel = DualCameraViewModel(
+    dualCameraController: DualCameraController(),
+    layout: .sideBySide,
+    videoRecorderMode: .replayKit(),
+    videoSaveStrategy: .custom { url in
+        // Custom video handling
+        print("Video saved to: \(url)")
+    },
+    photoSaveStrategy: .custom { image in
+        // Custom photo handling
+        saveToCloudService(image)
+    }
+)
+
+struct ContentView: View {
+    var body: some View {
+        DualCameraScreen(viewModel: customViewModel)
+    }
+}
+```
+
+## `DualCameraScreen` - Parameters
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `viewModel` | `DualCameraViewModel` | `.default()` | Provides complete configuration for the camera screen including layout, video recording options, and media saving strategies. |
+
+## `DualCameraViewModel` Configuration
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `dualCameraController` | `DualCameraControlling` | Device-specific controller | Core camera controller. Uses `DualCameraMockController` on simulator and `DualCameraController` on device. |
+| `layout` | `DualCameraLayout` | `.piP(miniCamera: .front, miniCameraPosition: .bottomTrailing)` | Determines how cameras are displayed (picture-in-picture, side-by-side, or stacked). |
+| `videoRecorderMode` | `DualCameraVideoRecordingMode` | `.cpuBased(.init(photoCaptureMode: .fullScreen))` | Configures video recording strategy and quality. |
+| `videoSaveStrategy` | `VideoSaveStrategy` | `.videoLibrary(service: CurrentDualCameraEnvironment.mediaLibraryService)` | Strategy for saving recorded videos. |
+| `photoSaveStrategy` | `PhotoSaveStrategy` | `.photoLibrary(service: CurrentDualCameraEnvironment.mediaLibraryService)` | Strategy for saving captured photos. |
+
+> Note on Default Media Handling: By default, all photos and videos are saved to the device's photo library. This requires the user to grant permission when first capturing media. The default implementation handles permission requests, file cleanup, and provides success feedback. When using custom strategies, you'll need to implement these aspects yourself if needed.
+
+## Testing Support
+
+For testing, you can use the mock implementations:
+
+```swift
+let testViewModel = DualCameraViewModel(
+    dualCameraController: DualCameraMockController(),
+    videoSaveStrategy: .custom { _ in },
+    photoSaveStrategy: .custom { _ in }
+)
+```
+
 # Customization
 
 ## Camera Layout Types
