@@ -30,9 +30,12 @@ jobs:
 
     - name: List schemes
       run: xcodebuild -list -workspace DualCameraKit.xcworkspace
+
+    - name: List Devices
+      run: xcrun simctl list devices
       
     - name: Build for iOS simulator
-      run: xcrun xcodebuild build -workspace DualCameraKit.xcworkspace -scheme DualCameraKit -destination "platform=iOS Simulator,name=iPhone 16" -sdk iphonesimulator
+      run: xcrun xcodebuild build -workspace DualCameraKit.xcworkspace -scheme DualCameraKit -destination "platform=iOS Simulator,name=iPhone 15" -sdk iphonesimulator
         
     - name: Run tests
-      run: xcrun xcodebuild -workspace DualCameraKit.xcworkspace -scheme DualCameraKitTests -destination "platform=iOS Simulator,name=iPhone 16" -sdk iphonesimulator test
+      run: xcrun xcodebuild -workspace DualCameraKit.xcworkspace -scheme DualCameraKitTests -destination "platform=iOS Simulator,name=iPhone 15" -sdk iphonesimulator test
