@@ -25,11 +25,10 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     
-    - name: Generate Xcode Project
-      run: swift package generate-xcodeproj
+    - name: Build Package
+      run: |
+        xcodebuild -scheme DualCameraKit -destination "platform=iOS Simulator,name=iPhone 15" build
     
-    - name: Build for iOS
-      run: xcodebuild -project DualCameraKit.xcodeproj -scheme DualCameraKit -destination "platform=iOS Simulator,name=iPhone 14" build
-    
-    - name: Test
-      run: xcodebuild -project DualCameraKit.xcodeproj -scheme DualCameraKit -destination "platform=iOS Simulator,name=iPhone 14" test
+    - name: Run Tests
+      run: |
+        xcodebuild -scheme DualCameraKit -destination "platform=iOS Simulator,name=iPhone 15" test
