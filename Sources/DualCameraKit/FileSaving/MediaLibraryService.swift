@@ -3,36 +3,81 @@ import UIKit
 
 // MARK: - Media Library Service
 
-public struct MediaLibraryService: Sendable  {
-    public init() {}
-    
-    public func saveImage(_ image: UIImage) async throws {
-        try await checkPhotoLibraryPermission()
+public struct MediaLibraryService: Sendable {
+    public var saveImage: @Sendable (UIImage) async throws -> Void
+    public var saveVideo: @Sendable (URL) async throws -> Void
 
-        try await PHPhotoLibrary.shared().performChanges {
-            PHAssetChangeRequest.creationRequestForAsset(from: image)
+    public init(
+        saveImage: @escaping @Sendable (UIImage) async throws -> Void,
+        saveVideo: @escaping @Sendable (URL) async throws -> Void
+    ) {
+        self.saveImage = saveImage
+        self.saveVideo = saveVideo
+    }
+}
+
+public extension MediaLibraryService {
+    static func live(
+        permissionChecker: @escaping @Sendable () async throws -> Void = Self.defaultPermissionChecker,
+        saveImageHandler: @escaping @Sendable (UIImage) async throws -> Void = { image in
+            try await PHPhotoLibrary.shared().performChanges {
+                PHAssetChangeRequest.creationRequestForAsset(from: image)
+            }
+        },
+        saveVideoHandler: @escaping @Sendable (URL) async throws -> Void = { url in
+            try await PHPhotoLibrary.shared().performChanges {
+                PHAssetChangeRequest.creationRequestForAssetFromVideo(atFileURL: url)
+            }
+        },
+        removeItem: @escaping @Sendable (URL) async throws -> Void = {
+            try FileManager.default.removeItem(at: $0)
         }
+    ) -> Self {
+        Self(
+            saveImage: { image in
+                try await permissionChecker()
+                try await saveImageHandler(image)
+            },
+            saveVideo: { url in
+                try await permissionChecker()
+                try await saveVideoHandler(url)
+                try? await removeItem(url)
+            }
+        )
     }
 
-    public func saveVideo(at url: URL) async throws {
-        try await checkPhotoLibraryPermission()
-
-        try await PHPhotoLibrary.shared().performChanges {
-            PHAssetChangeRequest.creationRequestForAssetFromVideo(atFileURL: url)
-        }
-
-        try? FileManager.default.removeItem(at: url)
+    static func test(
+        saveImage: @escaping @Sendable (UIImage) async throws -> Void = { _ in },
+        saveVideo: @escaping @Sendable (URL) async throws -> Void = { _ in }
+    ) -> Self {
+        Self(saveImage: saveImage, saveVideo: saveVideo)
     }
 
-    // MARK: - Permission Handling
+    static var noop: Self {
+        Self(
+            saveImage: { _ in },
+            saveVideo: { _ in }
+        )
+    }
 
-    private func checkPhotoLibraryPermission() async throws {
+    static var failing: Self {
+        Self(
+            saveImage: { _ in
+                throw MediaLibraryError.savingFailed(underlyingError: NSError(domain: "MediaLibraryService", code: 1, userInfo: [NSLocalizedDescriptionKey: "Unimplemented saveImage."]))
+            },
+            saveVideo: { _ in
+                throw MediaLibraryError.savingFailed(underlyingError: NSError(domain: "MediaLibraryService", code: 2, userInfo: [NSLocalizedDescriptionKey: "Unimplemented saveVideo."]))
+            }
+        )
+    }
+
+    static let defaultPermissionChecker: @Sendable () async throws -> Void = {
         switch PHPhotoLibrary.authorizationStatus() {
         case .authorized, .limited:
             return
         case .notDetermined:
-            let newStatus = await PHPhotoLibrary.requestAuthorization(for: .addOnly)
-            guard newStatus == .authorized || newStatus == .limited else {
+            let status = await PHPhotoLibrary.requestAuthorization(for: .addOnly)
+            guard status == .authorized || status == .limited else {
                 throw MediaLibraryError.permissionDenied
             }
         case .denied, .restricted:
@@ -42,58 +87,6 @@ public struct MediaLibraryService: Sendable  {
         }
     }
 }
-//
-//public class MediaLibraryService {
-//    // Injected dependencies
-//    private let permissionChecker: () async throws -> Void
-//    private let performPhotoLibraryChanges: (@escaping () -> Void) async throws -> Void
-//    private let removeFile: (URL) throws -> Void
-//
-//    // Default initializer for production
-//    public init(
-//        permissionChecker: @escaping () async throws -> Void = MediaLibraryService.defaultPermissionChecker,
-//        performPhotoLibraryChanges: @escaping (@escaping () -> Void) async throws -> Void = PHPhotoLibrary.shared().performChanges,
-//        removeFile: @escaping (URL) throws -> Void = FileManager.default.removeItem
-//    ) {
-//        self.permissionChecker = permissionChecker
-//        self.performPhotoLibraryChanges = performPhotoLibraryChanges
-//        self.removeFile = removeFile
-//    }
-//
-//    public func saveImage(_ image: UIImage) async throws {
-//        try await permissionChecker()
-//        try await performPhotoLibraryChanges {
-//            PHAssetChangeRequest.creationRequestForAsset(from: image)
-//        }
-//    }
-//
-//    public func saveVideo(at url: URL) async throws {
-//        try await permissionChecker()
-//        try await performPhotoLibraryChanges {
-//            PHAssetChangeRequest.creationRequestForAssetFromVideo(atFileURL: url)
-//        }
-//        try? removeFile(url)
-//    }
-//
-//    // MARK: - Default Implementations
-//
-//    private static func defaultPermissionChecker() async throws {
-//        switch PHPhotoLibrary.authorizationStatus() {
-//        case .authorized, .limited:
-//            return
-//        case .notDetermined:
-//            let newStatus = await PHPhotoLibrary.requestAuthorization(for: .addOnly)
-//            guard newStatus == .authorized || newStatus == .limited else {
-//                throw MediaLibraryError.permissionDenied
-//            }
-//        case .denied, .restricted:
-//            throw MediaLibraryError.permissionDenied
-//        @unknown default:
-//            throw MediaLibraryError.unknown
-//        }
-//    }
-//}
-
 
 // MARK: - Error Handling
 
@@ -101,7 +94,7 @@ public enum MediaLibraryError: Error, LocalizedError {
     case permissionDenied
     case savingFailed(underlyingError: Error)
     case unknown
-    
+
     public var errorDescription: String? {
         switch self {
         case .permissionDenied:
@@ -112,7 +105,7 @@ public enum MediaLibraryError: Error, LocalizedError {
             return "Unknown error occurred while saving media."
         }
     }
-    
+
     public var recoverySuggestion: String? {
         switch self {
         case .permissionDenied:
@@ -121,6 +114,20 @@ public enum MediaLibraryError: Error, LocalizedError {
             return "Please try again. If the problem persists, check available storage."
         case .unknown:
             return "Please try again later."
+        }
+    }
+}
+
+extension MediaLibraryError: Equatable {
+    public static func == (lhs: MediaLibraryError, rhs: MediaLibraryError) -> Bool {
+        switch (lhs, rhs) {
+        case (.permissionDenied, .permissionDenied),
+             (.unknown, .unknown):
+            return true
+        case (.savingFailed, .savingFailed):
+            return true
+        default:
+            return false
         }
     }
 }

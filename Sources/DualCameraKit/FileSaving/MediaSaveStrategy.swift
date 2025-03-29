@@ -41,7 +41,7 @@ public extension VideoSaveStrategy {
     /// - Returns: A configured save strategy for photos.
     static func videoLibrary(service: MediaLibraryService) -> VideoSaveStrategy {
         .saveToMediaLibrary { [service] url in
-            try await service.saveVideo(at: url)
+            try await service.saveVideo(url)
         }
     }
 }
