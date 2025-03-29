@@ -106,8 +106,8 @@ public final class DualCameraViewModel {
                 try await Task.sleep(for: .seconds(0.25))
                 let image = try await controller.captureCurrentScreen()
                 viewState = .ready
-                saveImageToPhotoLibrary(image)
-                
+                try await self.photoSaveStrategy.save(image)
+                self.provideSaveSuccessHapticFeedback()
             } catch let error as DualCameraError {
                 viewState = .error(error)
                 showError(error, message: "Error capturing photo")
@@ -185,8 +185,8 @@ public final class DualCameraViewModel {
                 // Reset recording state
                 viewState = .ready
 
-                // TODO: ensure to test permission denied
                 try await self.videoSaveStrategy.save(videoRecordingOutputURL)
+                self.provideSaveSuccessHapticFeedback()
             } catch let error as DualCameraError {
                 viewState = .error(error)
                 showError(error, message: "Failed to stop recording")
@@ -196,41 +196,6 @@ public final class DualCameraViewModel {
                 viewState = .error(dualCameraError)
                 showError(error, message: "Failed to stop recording")
                 viewState = .ready
-            }
-        }
-    }
-    
-    
-    // MARK: - Photo Library
-    
-    private func saveVideoToPhotoLibrary(_ videoURL: URL) {
-        PHPhotoLibrary.shared().performChanges {
-            PHAssetChangeRequest.creationRequestForAssetFromVideo(atFileURL: videoURL)
-        } completionHandler: { [weak self] success, error in
-            Task { @MainActor [weak self] in
-                guard let self = self else { return }
-                
-                if success {
-                    // Show success alert
-                    alert = .info(title: "Video Recording", message: "Video saved to photo library")
-                    self.provideSaveSuccessHapticFeedback()
-                    
-                    // Clean up the temp file
-                    try? FileManager.default.removeItem(at: videoURL)
-                } else if let error = error {
-                    showError(error, message: "Failed to save video")
-                }
-            }
-        }
-    }
-    
-    private func saveImageToPhotoLibrary(_ image: UIImage) {
-        PHPhotoLibrary.shared().performChanges {
-            PHAssetChangeRequest.creationRequestForAsset(from: image)
-        } completionHandler: { [weak self] success, error in
-            Task { @MainActor [weak self] in
-                guard let self = self else { return }
-                self.provideSaveSuccessHapticFeedback()
             }
         }
     }
