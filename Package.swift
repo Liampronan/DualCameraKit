@@ -22,7 +22,8 @@ let package = Package(
             swiftSettings: [
                 .unsafeFlags(["-strict-concurrency=complete"])
             ]
-        ),
+        )
+        ,
         .testTarget(
             name: "DualCameraKitTests",
             dependencies: ["DualCameraKit"],
