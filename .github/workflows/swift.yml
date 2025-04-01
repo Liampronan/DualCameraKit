@@ -1,0 +1,42 @@
+name: iOS CI
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  swiftlint:
+    name: SwiftLint
+    # use Linux for the SwiftLint action since this GH library requires it (so bot can post inline to PR) 
+    runs-on: ubuntu-latest  
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: GitHub Action for SwiftLint
+        uses: norio-nomura/action-swiftlint@3.2.1
+        env:
+          WORKING_DIRECTORY: Source
+          
+  build:
+    runs-on: macos-latest
+    needs: swiftlint
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Select appropriate Xcode 
+      run: sudo xcode-select -s /Applications/Xcode_16.2.app
+
+    - name: List schemes
+      run: xcodebuild -list -workspace DualCameraKit.xcworkspace
+
+    - name: List Devices
+      run: xcrun simctl list devices
+      
+    - name: Build for iOS simulator
+      run: xcrun xcodebuild build -workspace DualCameraKit.xcworkspace -scheme DualCameraKit -destination "platform=iOS Simulator,name=iPhone 16,OS=18.2" -sdk iphonesimulator
+
+# Tests not working in CI atm. run locally while we work on fix 
+    # - name: Run tests
+      # run: xcrun xcodebuild -workspace DualCameraKit.xcworkspace -scheme DualCameraKitTests -destination "platform=iOS Simulator,id=02A210DA-73F3-45AB-975A-9003C1E9B9D4" -sdk iphonesimulator test
