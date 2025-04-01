@@ -21,7 +21,7 @@ struct SheetStyle: ViewModifier {
             }
             .padding(.top)
             .background(Color(.systemBackground))
-            // todo: testing out this swiftlint post-to-github action, does it work...
+            
             content
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .padding()
