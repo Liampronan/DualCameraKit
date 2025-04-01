@@ -19,7 +19,7 @@ jobs:
         env:
           WORKING_DIRECTORY: Source
           
-  build-and-test:
+  build:
     runs-on: macos-latest
     needs: swiftlint
     steps:
@@ -35,7 +35,7 @@ jobs:
       run: xcrun simctl list devices
       
     - name: Build for iOS simulator
-      run: xcrun xcodebuild build -workspace DualCameraKit.xcworkspace -scheme DualCameraKit -destination "platform=iOS Simulator,id=02A210DA-73F3-45AB-975A-9003C1E9B9D4" -sdk iphonesimulator
+      run: xcrun xcodebuild build -workspace DualCameraKit.xcworkspace -scheme DualCameraKit -destination "platform=iOS Simulator,name=iPhone 16,OS=18.2" -sdk iphonesimulator
 
 # Tests not working in CI atm. run locally while we work on fix 
     # - name: Run tests
