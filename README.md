@@ -1,12 +1,10 @@
 # DualCameraKit
 
-
 ![Swift](https://img.shields.io/badge/Swift-5.9-orange?logo=swift)
 ![SPM Compatible](https://img.shields.io/badge/SPM-Compatible-brightgreen)
 ![iOS](https://img.shields.io/badge/iOS-17+-lightgrey?logo=apple)
 ![WIP](https://img.shields.io/badge/status-WIP-yellow)
 ![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)
-
 
 Simultaneous front & back iOS camera capture made simple.
 
@@ -92,10 +90,22 @@ targets: [
 
 ## OS/Requirements:
 
-- Add camera permissions to your app's `Info.plist` - `Privacy - Camera Usage Description`
-  <img src="https://github.com/user-attachments/assets/1ef0ae3e-683c-444c-9276-4684efb08e5c" width=550 />
+### Permissions
 
-- Live, nonsimulator device, iOS 17+ for camera usage (simulator uses mocked camera).
+- [Required] Add camera permissions to your app's `Info.plist` - `Privacy - Camera Usage Description`
+  <img src="./DocumentationAssets/Setup_Permissions_Camera_Usage.png" width=550 />
+  - This camera permission is required because this library needs to access cameras in order to be useful.
+- [Optional] Add photo library permissions to your app's `Info.plist` - `Privacy - Photo Library Additions Usage Description`
+  <img src="./DocumentationAssets/Setup_Permissions_Photo_Library_Additions.png" width=550 />
+  - This photo library addition permission is optional because you don't need to save to the user's media library after capture.
+  - See `videoSaveStrategy` and `photoSaveStrategy` for customizing this behavior.
+
+### Device
+
+- Live, nonsimulator device, iOS 17+ for camera usage.
+- The simulator uses a mocked camera.
+
+## Importing DualCameraKit
 
 After installation, you can import the library in your Swift files:
 
@@ -175,19 +185,19 @@ struct ContentView: View {
 
 ## `DualCameraScreen` - Parameters
 
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
+| Parameter   | Type                  | Default      | Description                                                                                                                   |
+| ----------- | --------------------- | ------------ | ----------------------------------------------------------------------------------------------------------------------------- |
 | `viewModel` | `DualCameraViewModel` | `.default()` | Provides complete configuration for the camera screen including layout, video recording options, and media saving strategies. |
 
 ## `DualCameraViewModel` Configuration
 
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `dualCameraController` | `DualCameraControlling` | Device-specific controller | Core camera controller. Uses `DualCameraMockController` on simulator and `DualCameraController` on device. |
-| `layout` | `DualCameraLayout` | `.piP(miniCamera: .front, miniCameraPosition: .bottomTrailing)` | Determines how cameras are displayed (picture-in-picture, side-by-side, or stacked). |
-| `videoRecorderMode` | `DualCameraVideoRecordingMode` | `.cpuBased(.init(photoCaptureMode: .fullScreen))` | Configures video recording strategy and quality. |
-| `videoSaveStrategy` | `VideoSaveStrategy` | `.videoLibrary(service: CurrentDualCameraEnvironment.mediaLibraryService)` | Strategy for saving recorded videos. |
-| `photoSaveStrategy` | `PhotoSaveStrategy` | `.photoLibrary(service: CurrentDualCameraEnvironment.mediaLibraryService)` | Strategy for saving captured photos. |
+| Parameter              | Type                           | Default                                                                    | Description                                                                                                |
+| ---------------------- | ------------------------------ | -------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `dualCameraController` | `DualCameraControlling`        | Device-specific controller                                                 | Core camera controller. Uses `DualCameraMockController` on simulator and `DualCameraController` on device. |
+| `layout`               | `DualCameraLayout`             | `.piP(miniCamera: .front, miniCameraPosition: .bottomTrailing)`            | Determines how cameras are displayed (picture-in-picture, side-by-side, or stacked).                       |
+| `videoRecorderMode`    | `DualCameraVideoRecordingMode` | `.cpuBased(.init(photoCaptureMode: .fullScreen))`                          | Configures video recording strategy and quality.                                                           |
+| `videoSaveStrategy`    | `VideoSaveStrategy`            | `.videoLibrary(service: CurrentDualCameraEnvironment.mediaLibraryService)` | Strategy for saving recorded videos.                                                                       |
+| `photoSaveStrategy`    | `PhotoSaveStrategy`            | `.photoLibrary(service: CurrentDualCameraEnvironment.mediaLibraryService)` | Strategy for saving captured photos.                                                                       |
 
 > Note on Default Media Handling: By default, all photos and videos are saved to the device's photo library. This requires the user to grant permission when first capturing media. The default implementation handles permission requests, file cleanup, and provides success feedback. When using custom strategies, you'll need to implement these aspects yourself if needed.
 
@@ -260,6 +270,7 @@ public enum DualCameraLayout {
 - iOS only. iPad support is a future enhancement. Other platforms only have one camera
 
 # API Reference
+
 🚧
 
 # References
