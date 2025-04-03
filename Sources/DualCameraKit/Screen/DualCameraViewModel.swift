@@ -25,15 +25,15 @@ public final class DualCameraViewModel {
     
     let controller: DualCameraControlling
     private var recordingTimer: Timer?
-    private var videoSaveStrategy: VideoSaveStrategy
-    private var photoSaveStrategy: PhotoSaveStrategy
+    private var videoSaveStrategy: DualCameraVideoSaveStrategy
+    private var photoSaveStrategy: DualCameraPhotoSaveStrategy
     
-    init(
-        dualCameraController: DualCameraControlling,
+    public init(
+        dualCameraController: DualCameraControlling = CurrentDualCameraEnvironment.dualCameraController,
         layout: DualCameraLayout = .piP(miniCamera: .front, miniCameraPosition: .bottomTrailing),
         videoRecorderMode: DualCameraVideoRecordingMode = .cpuBased(.init(photoCaptureMode: .fullScreen)),
-        videoSaveStrategy: VideoSaveStrategy = .videoLibrary(service: CurrentDualCameraEnvironment.mediaLibraryService),
-        photoSaveStrategy: PhotoSaveStrategy = .photoLibrary(service: CurrentDualCameraEnvironment.mediaLibraryService)
+        videoSaveStrategy: DualCameraVideoSaveStrategy = .videoLibrary(service: CurrentDualCameraEnvironment.mediaLibraryService),
+        photoSaveStrategy: DualCameraPhotoSaveStrategy = .photoLibrary(service: CurrentDualCameraEnvironment.mediaLibraryService)
 
     ) {
         self.controller = dualCameraController
@@ -219,16 +219,10 @@ public final class DualCameraViewModel {
 
 extension DualCameraViewModel {
     public static func `default`() -> DualCameraViewModel {
-        #if targetEnvironment(simulator)
-        let dualCameraController = DualCameraMockController()
-        #else
-        let dualCameraController = DualCameraController()
-        #endif
-
         return DualCameraViewModel(
-            dualCameraController: dualCameraController
+            dualCameraController: CurrentDualCameraEnvironment.dualCameraController
         )
-    }
+    }    
 }
 
 // MARK: - UI State Helpers

@@ -6,12 +6,12 @@ final class MediaSaveStrategyTests: XCTestCase {
         let imageBox = TestBox<UIImage>()
         let testImage = UIImage()
         
-        let strategy = PhotoSaveStrategy.custom { image in
+        let strategy = DualCameraPhotoSaveStrategy.custom { image in
             await imageBox.set(image)
         }
 
         try await strategy.save(testImage)
-        
+
         let savedImage = await imageBox.get()
         XCTAssertEqual(savedImage, testImage)
     }
@@ -20,7 +20,7 @@ final class MediaSaveStrategyTests: XCTestCase {
         let urlBox = TestBox<URL>()
         let testUrl = URL.mock()
         
-        let strategy = VideoSaveStrategy.custom { url in
+        let strategy = DualCameraVideoSaveStrategy.custom { url in
             await urlBox.set(url)
         }
 
@@ -33,11 +33,11 @@ final class MediaSaveStrategyTests: XCTestCase {
     func test_mediaLibraryVideoStrategy() async throws {
         let urlBox = TestBox<URL>()
         let testUrl = URL.mock()
-        let mock = MediaLibraryService.test(saveVideo:  { url in
+        let mock = MediaLibraryService.test(saveVideo: { url in
             await urlBox.set(url)
         })
         
-        let strategy = VideoSaveStrategy.saveToMediaLibrary(mock.saveVideo)
+        let strategy = DualCameraVideoSaveStrategy.saveToMediaLibrary(mock.saveVideo)
         try await strategy.save(testUrl)
         let savedUrl = await urlBox.get()
         XCTAssertEqual(savedUrl, testUrl)
@@ -46,18 +46,18 @@ final class MediaSaveStrategyTests: XCTestCase {
     func test_mediaLibraryPhotoStrategy() async throws {
         let imageBox = TestBox<UIImage>()
         let testImage = UIImage()
-        let mock = MediaLibraryService.test(saveImage:  { image in
+        let mock = MediaLibraryService.test(saveImage: { image in
             await imageBox.set(image)
         })
         
-        let strategy = PhotoSaveStrategy.saveToMediaLibrary(mock.saveImage)
+        let strategy = DualCameraPhotoSaveStrategy.saveToMediaLibrary(mock.saveImage)
         try await strategy.save(testImage)
         let savedImage = await imageBox.get()
         XCTAssertEqual(savedImage, testImage)
     }
     
     func test_mediaLibraryStrategy_unimplementedFails() async {
-        let strategy = PhotoSaveStrategy.saveToMediaLibrary(MediaLibraryService.failing.saveImage)
+        let strategy = DualCameraPhotoSaveStrategy.saveToMediaLibrary(MediaLibraryService.failing.saveImage)
         await XCTAssertThrowsError(ofType: MediaLibraryError.self, try await strategy.save(UIImage()) )
     }
 
