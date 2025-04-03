@@ -20,7 +20,6 @@ private struct AppTabView: View {
     
     let vm = DualCameraViewModel(
         captureScope: .container
-//        photoSaveStrategy: photoSaveStrategy
     )
     
     var body: some View {
