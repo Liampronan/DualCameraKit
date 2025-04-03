@@ -17,6 +17,8 @@ let photoSaveStrategy: DualCameraPhotoSaveStrategy = .custom { image in
 
 private struct AppTabView: View {
     @State private var selectedTab: Tab = .camera
+    // TODO: can/should this be dynamic?
+    @State private var tabBarHeight: CGFloat = 130
     
     let vm = DualCameraViewModel(
         captureScope: .container
