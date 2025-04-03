@@ -44,11 +44,11 @@ extension DualCameraControlling {
 
 // default implementations for `DualCameraPhotoCapturing` - proxy to implementation in `photoCapturer`
 public extension DualCameraControlling {
-    public func captureCurrentScreen(mode: DualCameraPhotoCaptureMode = .fullScreen) async throws -> UIImage {
+    func captureCurrentScreen(mode: DualCameraPhotoCaptureMode = .fullScreen) async throws -> UIImage {
         try await photoCapturer.captureCurrentScreen(mode: mode)
     }
     
-    public func captureRawPhotos() async throws -> (front: UIImage, back: UIImage) {
+    func captureRawPhotos() async throws -> (front: UIImage, back: UIImage) {
         let frontRenderer = getRenderer(for: .front)
         let backRenderer = getRenderer(for: .back)
         
@@ -133,7 +133,7 @@ public final class DualCameraController: DualCameraControlling {
         let task = Task {
             for await buffer in stream {
                 if Task.isCancelled { break }
-                await renderer.update(with: buffer.buffer)
+                renderer.update(with: buffer.buffer)
             }
         }
         streamTasks[source] = task
@@ -213,7 +213,7 @@ public final class DualCameraMockController: DualCameraControlling {
         let task = Task {
             for await buffer in stream {
                 if Task.isCancelled { break }
-                await renderer.update(with: buffer.buffer)
+                renderer.update(with: buffer.buffer)
             }
         }
         streamTasks[source] = task

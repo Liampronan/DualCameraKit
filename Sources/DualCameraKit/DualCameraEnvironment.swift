@@ -8,10 +8,10 @@ import UIKit
 ///  at some point it might  be worth  moving it to a more formal DI.
 public struct DualCameraEnvironment: Sendable {
     public var mediaLibraryService: MediaLibraryService = .live()
+    
     public var dualCameraController: DualCameraControlling = Self.getDefaultCameraController()
     
-    
-    @MainActor
+    @MainActor 
     static func getDefaultCameraController() -> DualCameraControlling {
 #if targetEnvironment(simulator)
         return DualCameraMockController()
@@ -20,5 +20,6 @@ public struct DualCameraEnvironment: Sendable {
 #endif
     }
 }
+
 // swiftlint:disable:next identifier_name
-public let CurrentDualCameraEnvironment = DualCameraEnvironment()
+public var CurrentDualCameraEnvironment = DualCameraEnvironment()

@@ -1,4 +1,3 @@
-
 actor TestBox<T> {
     private(set) var value: T?
 

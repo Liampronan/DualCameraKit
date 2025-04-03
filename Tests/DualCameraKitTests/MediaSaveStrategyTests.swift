@@ -11,7 +11,7 @@ final class MediaSaveStrategyTests: XCTestCase {
         }
 
         try await strategy.save(testImage)
-        
+
         let savedImage = await imageBox.get()
         XCTAssertEqual(savedImage, testImage)
     }
@@ -33,7 +33,7 @@ final class MediaSaveStrategyTests: XCTestCase {
     func test_mediaLibraryVideoStrategy() async throws {
         let urlBox = TestBox<URL>()
         let testUrl = URL.mock()
-        let mock = MediaLibraryService.test(saveVideo:  { url in
+        let mock = MediaLibraryService.test(saveVideo: { url in
             await urlBox.set(url)
         })
         
@@ -46,7 +46,7 @@ final class MediaSaveStrategyTests: XCTestCase {
     func test_mediaLibraryPhotoStrategy() async throws {
         let imageBox = TestBox<UIImage>()
         let testImage = UIImage()
-        let mock = MediaLibraryService.test(saveImage:  { image in
+        let mock = MediaLibraryService.test(saveImage: { image in
             await imageBox.set(image)
         })
         
