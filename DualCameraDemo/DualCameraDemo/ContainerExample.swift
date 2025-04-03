@@ -17,8 +17,14 @@ let photoSaveStrategy: DualCameraPhotoSaveStrategy = .custom { image in
 
 private struct AppTabView: View {
     @State private var selectedTab: Tab = .camera
+    // TODO: can/should this be dynamic?
+    @State private var tabBarHeight: CGFloat = 130
     
-    let vm = DualCameraViewModel(photoSaveStrategy: photoSaveStrategy)
+    let vm = DualCameraViewModel(
+        // TODO: cleanup this hard-coding; also move this config 
+        videoRecorderMode: .cpuBased(.init(photoCaptureMode: .containerSize(.init(width: 393, height: 722))))
+//        photoSaveStrategy: photoSaveStrategy
+    )
     
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -30,9 +36,18 @@ private struct AppTabView: View {
                         Color.mint
                     }
                 case .camera:
-                    DualCameraScreen(
-                        viewModel: vm
-                    )
+                    ZStack {
+                        GeometryReader { proxy in
+                            DualCameraScreen(
+                                viewModel: vm
+                            )
+                            .onAppear {
+                                print("proxy", proxy.size)
+                            }
+                        }.padding(.bottom, tabBarHeight)
+                        
+                    }
+                    
                 case .map:
                     VStack {
                         Color.teal

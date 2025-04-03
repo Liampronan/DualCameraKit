@@ -172,6 +172,7 @@ public struct DualCameraScreen: View {
                 .font(.title2)
         }
         .tint(.gray)
+        .opacity(viewModel.viewState.captureInProgress ? 0 : 1)
         .padding(.leading)
     }
 }

@@ -104,7 +104,7 @@ public final class DualCameraViewModel {
             
             do {
                 try await Task.sleep(for: .seconds(0.25))
-                let image = try await controller.captureCurrentScreen()
+                let image = try await controller.captureCurrentScreen(mode: configuration.videoRecorderMode.photoCaptureMode)
                 viewState = .ready
                 try await self.photoSaveStrategy.save(image)
                 self.provideSaveSuccessHapticFeedback()

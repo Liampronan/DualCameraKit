@@ -5,25 +5,23 @@ import SwiftUI
 @main 
 struct DualCameraDemoApp: App {
     enum DemoDisplayType {
-        case dualCameraScreen(photoCaptureMode: DualCameraPhotoCaptureMode)
+        case dualCameraScreen(isFullScreen: Bool)
         case dualCameraDisplayView
         case dualCameraLowLevelComponents
     }
     
-    @State private var demoType = DemoDisplayType.dualCameraScreen(photoCaptureMode: .fullScreen)
+    @State private var demoType = DemoDisplayType.dualCameraScreen(isFullScreen: false)
     
     var body: some Scene {
         WindowGroup {
             switch demoType {
-            case .dualCameraScreen(let photoCaptureMode):
-                switch photoCaptureMode {
-                case .fullScreen:
+            case .dualCameraScreen(let isFullScreen):
+                switch isFullScreen {
+                case true:
                     DualCameraScreen()
-                case .containerSize(let cGSize):
+                case false:
                     ContainerExample()
                 }
-                
-            
             case .dualCameraDisplayView, .dualCameraLowLevelComponents:
                 Text("Not Implemented Yet")
             }

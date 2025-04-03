@@ -55,11 +55,10 @@ final class MediaSaveStrategyTests: XCTestCase {
         let savedImage = await imageBox.get()
         XCTAssertEqual(savedImage, testImage)
     }
-    
+
     func test_mediaLibraryStrategy_unimplementedFails() async {
         let strategy = DualCameraPhotoSaveStrategy.saveToMediaLibrary(MediaLibraryService.failing.saveImage)
         await XCTAssertThrowsError(ofType: MediaLibraryError.self, try await strategy.save(UIImage()) )
     }
-
 
 }
