@@ -25,7 +25,6 @@ struct DualCameraDemoApp: App {
             case .dualCameraDisplayView, .dualCameraLowLevelComponents:
                 Text("Not Implemented Yet")
             }
-            
         }
     }
 }

@@ -44,8 +44,8 @@ private struct AppTabView: View {
                             .onAppear {
                                 print("proxy", proxy.size)
                             }
-                        }.padding(.bottom, tabBarHeight)
-                        
+                        }
+                        .padding(.bottom, tabBarHeight)
                     }
                     
                 case .map:
