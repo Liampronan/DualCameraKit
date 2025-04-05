@@ -103,6 +103,8 @@ public final class DualCameraViewModel {
             viewState = .capturing
             
             do {
+                // allow for ui updates based on viewState changing
+                // (e.g., hiding buttons for screenshot-based approach)
                 try await Task.sleep(for: .seconds(0.25))
                 let image = try await controller.captureCurrentScreen()
                 viewState = .ready

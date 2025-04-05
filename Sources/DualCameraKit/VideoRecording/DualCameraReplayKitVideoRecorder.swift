@@ -40,9 +40,23 @@ public actor DualCameraReplayKitVideoRecorder: DualCameraVideoRecording {
         
         let outputURL = configure(outputURL: config.outputURL)
         
-        recorder.startRecording()
-        state = .active(outputURL: outputURL)
-        DualCameraLogger.session.debug("📹 Screen recording started with ReplayKit")
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            recorder.startRecording { error in
+                if let error = error {
+
+                    if let nsError = error as? NSError, nsError.domain == RPRecordingErrorDomain {
+                        continuation.resume(throwing: DualCameraError.permissionDenied)
+                    } else {
+                        continuation.resume(throwing: error)
+                    }
+                    return
+                }
+
+                self.state = .active(outputURL: outputURL)
+                DualCameraLogger.session.debug("📱Screen recording started with ReplayKit")
+                continuation.resume()
+            }
+        }
     }
     
     /// Stops an ongoing video recording and returns the URL of the recorded file
