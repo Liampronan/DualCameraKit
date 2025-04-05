@@ -3,16 +3,16 @@ import CoreVideo
 import UIKit
 
 public struct DualCameraCPUVideoRecorderConfig: Sendable, Equatable {
-    public let mode: DualCameraPhotoCaptureMode
+//    public let mode: DualCameraPhotoCaptureMode
     public let quality: VideoQuality
     public let outputURL: URL?
     
     public init(
-        photoCaptureMode: DualCameraPhotoCaptureMode,
+//        photoCaptureMode: DualCameraPhotoCaptureMode,
         quality: VideoQuality = .high,
         outputURL: URL? = nil
     ) {
-        self.mode = photoCaptureMode
+//        self.mode = photoCaptureMode
         self.quality = quality
         self.outputURL = outputURL
     }
@@ -55,9 +55,9 @@ public actor DualCameraCPUVideoRecorderManager: DualCameraVideoRecording {
     // Configuration
     nonisolated private let photoCapturer: any DualCameraPhotoCapturing
     private let config: DualCameraCPUVideoRecorderConfig
-    private var photoCaptureMode: DualCameraPhotoCaptureMode {
-        config.mode
-    }
+//    private var photoCaptureMode: DualCameraPhotoCaptureMode {
+//        config.mode
+//    }
     
     public init(
         photoCapturer: any DualCameraPhotoCapturing,
