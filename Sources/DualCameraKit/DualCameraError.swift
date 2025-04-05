@@ -75,7 +75,7 @@ public enum DualCameraError: Error, Equatable {
         case .notImplemented:
             return "This feature is not yet implemented."
         case .permissionDenied:
-            return "Camera permission was denied by the user."
+            return "Camera permission was denied – if you want to record please try again and accept the ReplayKit permission prompt."
         case .recordingFailed(let reason):
             switch reason {
             case .assetWriterConfigurationFailed:
