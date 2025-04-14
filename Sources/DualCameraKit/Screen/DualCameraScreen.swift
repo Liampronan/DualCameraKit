@@ -29,6 +29,7 @@ public struct DualCameraScreen: View {
                 }
             }
             .onAppear {
+                print("initial size", geoProxy.size	)
                 viewModel.onAppear(containerSize: geoProxy.size)
             }
             .onChange(of: geoProxy.size, initial: false) { oldSize, newSize in
