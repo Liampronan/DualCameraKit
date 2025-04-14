@@ -17,18 +17,14 @@ let photoSaveStrategy: DualCameraPhotoSaveStrategy = .custom { image in
 
 private struct AppTabView: View {
     @State private var selectedTab: Tab = .camera
-    // TODO: can/should this be dynamic?
-    @State private var tabBarHeight: CGFloat = 130
     
     let vm = DualCameraViewModel(
-        // TODO: cleanup this hard-coding; also move this config 
-        videoRecorderMode: .cpuBased(.init(photoCaptureMode: .containerSize(.init(width: 393, height: 722))))
+        captureScope: .container
 //        photoSaveStrategy: photoSaveStrategy
     )
     
     var body: some View {
-        ZStack(alignment: .bottom) {
-            // Switch between the different views based on the selected tab.
+        VStack {
             Group {
                 switch selectedTab {
                 case .feed:
@@ -41,37 +37,38 @@ private struct AppTabView: View {
                             DualCameraScreen(
                                 viewModel: vm
                             )
-                            .onAppear {
-                                print("proxy", proxy.size)
+                            .onChange(of: proxy.size, initial: true) { _, newSize in
+                                vm.containerSizeChanged(newSize)
                             }
                         }
-                        .padding(.bottom, tabBarHeight)
                     }
-                    
                 case .map:
                     VStack {
                         Color.teal
                     }
                 }
             }
+            tabBar
             .edgesIgnoringSafeArea(.all)
-            
-            // Custom tab bar at the bottom.
-            HStack {
-                tabBarButton(tab: .feed, image: "house.fill")
-                Spacer()
-                tabBarButton(tab: .camera, image: "camera.fill", isCenter: true)
-                Spacer()
-                tabBarButton(tab: .map, image: "bubble.left.and.bubble.right.fill")
-            }
-            .padding(.horizontal, 30)
-            .padding(.vertical, 10)
-            .background(Color(UIColor.systemBackground).opacity(0.95))
-            .cornerRadius(20)
-            .shadow(radius: 5)
-            .padding(.horizontal)
-            .padding(.bottom, 10)
         }
+    }
+    
+    @ViewBuilder
+    private var tabBar: some View {
+        HStack {
+            tabBarButton(tab: .feed, image: "house.fill")
+            Spacer()
+            tabBarButton(tab: .camera, image: "camera.fill", isCenter: true)
+            Spacer()
+            tabBarButton(tab: .map, image: "bubble.left.and.bubble.right.fill")
+        }
+        .padding(.horizontal, 30)
+        .padding(.vertical, 10)
+        .background(Color(UIColor.systemBackground).opacity(0.95))
+        .cornerRadius(20)
+        .shadow(radius: 5)
+        .padding(.horizontal)
+        .padding(.bottom, 10)
     }
     
     @ViewBuilder
@@ -80,7 +77,6 @@ private struct AppTabView: View {
             selectedTab = tab
         }) {
             if isCenter {
-                // The center button is styled larger and in a circular shape.
                 ZStack {
                     Circle()
                         .fill(Color.white)

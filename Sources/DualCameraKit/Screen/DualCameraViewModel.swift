@@ -2,6 +2,36 @@ import Observation
 import Photos
 import SwiftUI
 
+public enum CaptureScope: Equatable {
+    case fullScreen
+    case container
+    
+    var displayName: String {
+        switch self {
+        case .fullScreen: return "Full Screen"
+        case .container: return "Container Only"
+        }
+    }
+    
+    func toPhotoCaptureMode(using size: CGSize) -> DualCameraPhotoCaptureMode {
+        switch self {
+        case .fullScreen:
+            return .fullScreen
+        case .container:
+            return .containerSize(size)
+        }
+    }
+}
+
+public enum DualCameraRecorderType: String, Equatable, CaseIterable, Identifiable {
+    case cpuBased = "CPU Recorder"
+    case replayKit = "ReplayKit"
+    
+    public var id: String { rawValue }
+    
+    public var displayName: String { rawValue }
+}
+
 @MainActor
 @Observable
 public final class DualCameraViewModel {
@@ -9,9 +39,14 @@ public final class DualCameraViewModel {
     // Core state
     private(set) var viewState: CameraViewState = .loading
     
-    // Configuration
-    var configuration: CameraConfiguration
-    var videoRecorderType: DualCameraVideoRecordingMode { configuration.videoRecorderMode }
+    var cameraLayout: DualCameraLayout = .piP(miniCamera: .front, miniCameraPosition: .bottomTrailing)
+    
+    // Size tracking
+    var containerSize: CGSize = .zero
+    
+    // Recording configuration
+    private(set) var selectedRecorderType: DualCameraRecorderType
+    private(set) var selectedCaptureScope: CaptureScope
     
     // User artifacts
     private(set) var capturedImage: UIImage? = nil
@@ -31,27 +66,38 @@ public final class DualCameraViewModel {
     public init(
         dualCameraController: DualCameraControlling = CurrentDualCameraEnvironment.dualCameraController,
         layout: DualCameraLayout = .piP(miniCamera: .front, miniCameraPosition: .bottomTrailing),
-        videoRecorderMode: DualCameraVideoRecordingMode = .cpuBased(.init(photoCaptureMode: .fullScreen)),
+        captureScope: CaptureScope = .fullScreen,
+        videoRecorderMode: DualCameraRecorderType = .cpuBased,
         videoSaveStrategy: DualCameraVideoSaveStrategy = .videoLibrary(service: CurrentDualCameraEnvironment.mediaLibraryService),
         photoSaveStrategy: DualCameraPhotoSaveStrategy = .photoLibrary(service: CurrentDualCameraEnvironment.mediaLibraryService)
 
     ) {
         self.controller = dualCameraController
-        self.configuration = CameraConfiguration(
-            layout: layout,
-            videoRecorderMode: videoRecorderMode
-        )
+        self.cameraLayout = layout
+        self.selectedRecorderType = videoRecorderMode
+        self.selectedCaptureScope = captureScope
+        
         self.videoSaveStrategy = videoSaveStrategy
         self.photoSaveStrategy = photoSaveStrategy
     }
     
     // MARK: - Lifecycle Management
     
+    public func onAppear(containerSize: CGSize) {
+        self.containerSize = containerSize
+        startSession()
+    }
+    
     private func startSession() {
+        print("startSEssion() called")
         Task {
             do {
                 viewState = .loading
                 try await controller.startSession()
+                if Task.isCancelled {
+                            print("Task was cancelled before finishing")
+                        }
+                print("session start!")
                 viewState = .ready
             } catch let error as DualCameraError {
                 viewState = .error(error)
@@ -62,11 +108,6 @@ public final class DualCameraViewModel {
                 showError(error, message: "Failed to start camera")
             }
         }
-    }
-    
-    func onAppear(containerSize: CGSize) {
-        configuration.containerSize = containerSize
-        startSession()
     }
     
     func onDisappear() {
@@ -81,12 +122,12 @@ public final class DualCameraViewModel {
     
     // MARK: - Configuration Updates
     
-    func containerSizeChanged(_ newSize: CGSize) {
-        configuration.containerSize = newSize
+    public func containerSizeChanged(_ newSize: CGSize) {
+        self.containerSize = newSize
     }
     
     func updateLayout(_ newLayout: DualCameraLayout) {
-        configuration.layout = newLayout
+        self.cameraLayout = newLayout
     }
     
     func didTapConfigurationButton() {
@@ -99,12 +140,13 @@ public final class DualCameraViewModel {
     
     func capturePhotoButtonTapped() {
         Task {
+            print("capturePhotoButtonTapped viewSTate", viewState)
             guard case .ready = viewState else { return }
             viewState = .capturing
             
             do {
                 try await Task.sleep(for: .seconds(0.25))
-                let image = try await controller.captureCurrentScreen(mode: configuration.videoRecorderMode.photoCaptureMode)
+                let image = try await controller.captureCurrentScreen(mode: selectedCaptureScope.toPhotoCaptureMode(using: containerSize))
                 viewState = .ready
                 try await self.photoSaveStrategy.save(image)
                 self.provideSaveSuccessHapticFeedback()
@@ -132,10 +174,10 @@ public final class DualCameraViewModel {
     }
     
     func toggleRecorderType() {
-        if case .cpuBased = configuration.videoRecorderMode {
-            configuration.videoRecorderMode = .replayKit()
+        if case .cpuBased = selectedRecorderType {
+            selectedRecorderType = .replayKit
         } else {
-            configuration.videoRecorderMode = .cpuBased(.init(photoCaptureMode: .fullScreen))
+            selectedRecorderType = .cpuBased
         }
     }
     
@@ -145,7 +187,7 @@ public final class DualCameraViewModel {
         Task {
             viewState = .precapture
             do {
-                try await controller.startVideoRecording(mode: configuration.videoRecorderMode)
+                try await controller.startVideoRecording(mode: effectiveRecorderMode)
                 
                 viewState = .recording(CameraViewState.RecordingState(duration: 0))
                 
@@ -200,6 +242,16 @@ public final class DualCameraViewModel {
         }
     }
     
+    private var effectiveRecorderMode: DualCameraVideoRecordingMode {
+        switch selectedRecorderType {
+        case .cpuBased:
+            return .cpuBased(.init(photoCaptureMode: selectedCaptureScope.toPhotoCaptureMode(using: containerSize)))
+        case .replayKit:
+            // ReplayKit always uses full screen regardless of selected scope
+            return .replayKit()
+        }
+    }
+    
     // MARK: - Error Handling
     
     private func showError(_ error: Error, message: String) {
@@ -230,6 +282,7 @@ extension DualCameraViewModel {
 extension CameraViewState {
     // Button state helpers
     var isPhotoButtonEnabled: Bool {
+        print("isPhotoButtonEnabled", self)
         if case .ready = self { return true }
         return false
     }

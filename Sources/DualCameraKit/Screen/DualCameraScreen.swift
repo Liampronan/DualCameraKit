@@ -14,8 +14,9 @@ public struct DualCameraScreen: View {
             ZStack {
                 DualCameraDisplayView(
                     controller: viewModel.controller,
-                    layout: viewModel.configuration.layout
+                    layout: viewModel.cameraLayout
                 )
+                .ignoresSafeArea()
                 .overlay(settingsButton, alignment: .topLeading)
                 .overlay(recordingIndicator, alignment: .top)
                 .overlay(controlButtons, alignment: .bottom)
@@ -24,11 +25,16 @@ public struct DualCameraScreen: View {
                     errorOverlay(error)
                 }
             }
-            .onChange(of: geoProxy.size, initial: true) { oldSize, newSize in
-                viewModel.containerSizeChanged(newSize)
-            }
             .onAppear {
+                print("initial size", geoProxy.size	)
                 viewModel.onAppear(containerSize: geoProxy.size)
+            }
+            .onChange(of: geoProxy.size, initial: false) { oldSize, newSize in
+                print("safeAreaInsets", geoProxy.safeAreaInsets, newSize)
+                print("frame (global):", geoProxy.frame(in: .global))
+                print("frame (local):", geoProxy.frame(in: .local))
+                print("frame (named parent):", geoProxy.frame(in: .named("parent")))
+                viewModel.containerSizeChanged(newSize)
             }
             .onDisappear {
                 viewModel.onDisappear()
@@ -38,14 +44,14 @@ public struct DualCameraScreen: View {
                 switch sheetType {
                 case .configSheet: DualCameraConfigView(
                     viewModel: viewModel
-                )
-                }
+                )}
             })
             .alert(
                 item: $viewModel.alert
             ) { alert in
                 getAlert(for: alert)
             }
+            
         }
     }
     
