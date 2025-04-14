@@ -89,11 +89,14 @@ public final class DualCameraController: DualCameraControlling {
     }
     
     public func startSession() async throws {
+        print("1")
         try await streamSource.startSession()
-        
+        print("2")
         // Auto-initialize renderers
         _ = getRenderer(for: .front)
+        print("3")
         _ = getRenderer(for: .back)
+        print("4")
     }
     
     public func stopSession() {
