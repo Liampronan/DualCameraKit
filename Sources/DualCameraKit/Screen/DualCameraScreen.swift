@@ -17,7 +17,7 @@ public struct DualCameraScreen: View {
                     layout: viewModel.cameraLayout
                 )
                 .ignoresSafeArea()
-                .overlay(settingsButton, alignment: .topLeading)
+                .overlay(viewModel.isSettingsButtonVisible ? settingsButton : nil, alignment: .topLeading)
                 .overlay(recordingIndicator, alignment: .top)
                 .overlay(controlButtons, alignment: .bottom)
                 
@@ -97,18 +97,20 @@ public struct DualCameraScreen: View {
                 }
                 .disabled(!viewModel.viewState.isPhotoButtonEnabled)
                 
-                // Video recording button
-                Button(action: viewModel.recordVideoButtonTapped) {
-                    Image(systemName: viewModel.viewState.videoButtonIcon)
-                        .font(.largeTitle)
-                        .foregroundColor(viewModel.viewState.videoButtonColor)
-                        .padding()
-                        .background(
-                            Circle()
-                                .fill(viewModel.viewState.videoButtonBackgroundColor)
-                        )
+                if viewModel.isVideoButtonVisible {
+                    // Video recording button
+                    Button(action: viewModel.recordVideoButtonTapped) {
+                        Image(systemName: viewModel.viewState.videoButtonIcon)
+                            .font(.largeTitle)
+                            .foregroundColor(viewModel.viewState.videoButtonColor)
+                            .padding()
+                            .background(
+                                Circle()
+                                    .fill(viewModel.viewState.videoButtonBackgroundColor)
+                            )
+                    }
+                    .disabled(!viewModel.viewState.isVideoButtonEnabled)
                 }
-                .disabled(!viewModel.viewState.isVideoButtonEnabled)
             }
         }
         .opacity(viewModel.viewState.captureInProgress ? 0 : 1) 
@@ -185,6 +187,20 @@ public struct DualCameraScreen: View {
 
 // MARK: - Preview
 
-#Preview() {
+#Preview("Photo & Video") {
     DualCameraScreen()
 }
+
+#Preview("Photo & Video -  Show Settings Button") {
+    DualCameraScreen(viewModel: .init(
+        showSettingsButton: false
+    ))
+}
+
+#Preview("Photo") {
+    DualCameraScreen(viewModel: .init(
+        videoSaveStrategy: nil,
+        showSettingsButton: false
+    ))
+}
+

@@ -59,8 +59,11 @@ public final class DualCameraViewModel {
     var presentedSheet: SheetType?
     
     let controller: DualCameraControlling
+    var isVideoButtonVisible: Bool { videoSaveStrategy != nil }
+    var isSettingsButtonVisible: Bool
+
     private var recordingTimer: Timer?
-    private var videoSaveStrategy: DualCameraVideoSaveStrategy
+    private var videoSaveStrategy: DualCameraVideoSaveStrategy?
     private var photoSaveStrategy: DualCameraPhotoSaveStrategy
     
     public init(
@@ -68,15 +71,15 @@ public final class DualCameraViewModel {
         layout: DualCameraLayout = .piP(miniCamera: .front, miniCameraPosition: .bottomTrailing),
         captureScope: CaptureScope = .fullScreen,
         videoRecorderMode: DualCameraRecorderType = .cpuBased,
-        videoSaveStrategy: DualCameraVideoSaveStrategy = .videoLibrary(service: CurrentDualCameraEnvironment.mediaLibraryService),
-        photoSaveStrategy: DualCameraPhotoSaveStrategy = .photoLibrary(service: CurrentDualCameraEnvironment.mediaLibraryService)
-
+        videoSaveStrategy: DualCameraVideoSaveStrategy? = .videoLibrary(service: CurrentDualCameraEnvironment.mediaLibraryService),
+        photoSaveStrategy: DualCameraPhotoSaveStrategy = .photoLibrary(service: CurrentDualCameraEnvironment.mediaLibraryService),
+        showSettingsButton: Bool = false
     ) {
         self.controller = dualCameraController
         self.cameraLayout = layout
         self.selectedRecorderType = videoRecorderMode
         self.selectedCaptureScope = captureScope
-        
+        self.isSettingsButtonVisible = showSettingsButton
         self.videoSaveStrategy = videoSaveStrategy
         self.photoSaveStrategy = photoSaveStrategy
     }
@@ -89,15 +92,10 @@ public final class DualCameraViewModel {
     }
     
     private func startSession() {
-        print("startSEssion() called")
         Task {
             do {
                 viewState = .loading
                 try await controller.startSession()
-                if Task.isCancelled {
-                            print("Task was cancelled before finishing")
-                        }
-                print("session start!")
                 viewState = .ready
             } catch let error as DualCameraError {
                 viewState = .error(error)
@@ -140,7 +138,6 @@ public final class DualCameraViewModel {
     
     func capturePhotoButtonTapped() {
         Task {
-            print("capturePhotoButtonTapped viewSTate", viewState)
             guard case .ready = viewState else { return }
             viewState = .capturing
             
@@ -227,7 +224,7 @@ public final class DualCameraViewModel {
                 // Reset recording state
                 viewState = .ready
 
-                try await self.videoSaveStrategy.save(videoRecordingOutputURL)
+                try await self.videoSaveStrategy?.save(videoRecordingOutputURL)
                 self.provideSaveSuccessHapticFeedback()
             } catch let error as DualCameraError {
                 viewState = .error(error)
@@ -282,7 +279,6 @@ extension DualCameraViewModel {
 extension CameraViewState {
     // Button state helpers
     var isPhotoButtonEnabled: Bool {
-        print("isPhotoButtonEnabled", self)
         if case .ready = self { return true }
         return false
     }
