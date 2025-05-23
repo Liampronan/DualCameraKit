@@ -50,7 +50,7 @@ struct DualCameraConfigView: View {
             } label: {
                 HStack {
                     Text(title)
-                    if viewModel.configuration.layout == layout {
+                    if viewModel.cameraLayout == layout {
                         Image(systemName: "checkmark")
                     }
                 }
@@ -62,13 +62,13 @@ struct DualCameraConfigView: View {
     private var recorderTypePicker: some View {
         VStack {
             Menu {
-                ForEach(DualCameraVideoRecordingMode.allCases) { recorderType in
+                ForEach(DualCameraRecorderType.allCases) { recorderType in
                     Button {
                         viewModel.toggleRecorderType()
                     } label: {
                         HStack {
                             Text(recorderType.displayName)
-                            if viewModel.videoRecorderType == recorderType {
+                            if viewModel.selectedRecorderType == recorderType {
                                 Image(systemName: "checkmark")
                             }
                         }
@@ -77,7 +77,7 @@ struct DualCameraConfigView: View {
             } label: {
                 HStack {
                     Image(systemName: "video.fill")
-                    Text("Recorder: \(viewModel.videoRecorderType.displayName)")
+                    Text("Recorder: \(viewModel.selectedRecorderType.displayName)")
                     Image(systemName: "chevron.up.chevron.down")
                         .font(.caption)
                 }

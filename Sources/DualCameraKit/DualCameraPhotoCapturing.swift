@@ -41,7 +41,7 @@ public class DualCameraPhotoCapturer: DualCameraPhotoCapturing {
     /// Returns an image that is a screenshot of the screen.
     public func captureCurrentScreen(mode: DualCameraPhotoCaptureMode = .fullScreen) async throws -> UIImage {
         let application = UIApplication.shared
-        
+        print("mode is", mode)
         guard let keyWindow = application.connectedScenes
             .compactMap({ $0 as? UIWindowScene })
             .first(where: { $0.activationState == .foregroundActive })?
@@ -91,12 +91,12 @@ public class DualCameraPhotoCapturer: DualCameraPhotoCapturing {
                 let cgContext = context.cgContext
                 
                 // Calculate scaling
-                let scaleX = size.width / fullScreenSize.width
-                let scaleY = size.height / fullScreenSize.height
-                let scale = min(scaleX, scaleY)
-                
-                // Apply scaling
-                cgContext.scaleBy(x: scale, y: scale)
+//                let scaleX = size.width / fullScreenSize.width
+//                let scaleY = size.height / fullScreenSize.height
+//                let scale = min(scaleX, scaleY)
+//                
+//                // Apply scaling
+//                cgContext.scaleBy(x: scale, y: scale)
                 
                 keyWindow.drawHierarchy(
                     in: CGRect(origin: .zero, size: fullScreenSize),
