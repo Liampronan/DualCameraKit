@@ -92,15 +92,10 @@ public final class DualCameraViewModel {
     }
     
     private func startSession() {
-        print("startSEssion() called")
         Task {
             do {
                 viewState = .loading
                 try await controller.startSession()
-                if Task.isCancelled {
-                            print("Task was cancelled before finishing")
-                        }
-                print("session start!")
                 viewState = .ready
             } catch let error as DualCameraError {
                 viewState = .error(error)
@@ -143,7 +138,6 @@ public final class DualCameraViewModel {
     
     func capturePhotoButtonTapped() {
         Task {
-            print("capturePhotoButtonTapped viewSTate", viewState)
             guard case .ready = viewState else { return }
             viewState = .capturing
             
@@ -285,7 +279,6 @@ extension DualCameraViewModel {
 extension CameraViewState {
     // Button state helpers
     var isPhotoButtonEnabled: Bool {
-        print("isPhotoButtonEnabled", self)
         if case .ready = self { return true }
         return false
     }
