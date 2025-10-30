@@ -6,10 +6,21 @@ public protocol DualCameraPhotoCapturing: AnyObject, Sendable  {
     func captureCurrentScreen(mode: DualCameraPhotoCaptureMode) async throws -> UIImage
 }
 
-/// determines whether the photos are captured in as if displayed in `fullScreen` or in a layout not fillingl the fullscreen aka a container via `containerSize`
+/// Determines the capture mode for photo screenshots.
+///
+/// - `fullScreen`: Captures the entire screen
+/// - `containerFrame`: Captures only the specified frame region (used for container mode)
 public enum DualCameraPhotoCaptureMode: Sendable, Equatable {
     case fullScreen
-    case containerSize(CGSize)
+    /// Captures a specific rectangular region of the screen in global window coordinates.
+    /// The frame's origin determines the top-left corner to start capturing from,
+    /// and the size determines the dimensions of the captured area.
+    case containerFrame(CGRect)
+
+    @available(*, deprecated, message: "Use containerFrame instead")
+    public static func containerSize(_ size: CGSize) -> DualCameraPhotoCaptureMode {
+        .containerFrame(CGRect(origin: .zero, size: size))
+    }
 }
 
 public class DualCameraPhotoCapturer: DualCameraPhotoCapturing {
@@ -73,27 +84,33 @@ public class DualCameraPhotoCapturer: DualCameraPhotoCapturing {
             }
             return capturedImage
             
-        case .containerSize(let size):
-            guard !size.width.isZero && !size.height.isZero else {
+        case .containerFrame(let frame):
+            guard !frame.size.width.isZero && !frame.size.height.isZero else {
                 throw DualCameraError.captureFailure(.unknownDimensions)
             }
-            
+
+
             let format = UIGraphicsImageRendererFormat()
             format.scale = screenScale
             format.opaque = true
-            
+
             // Create renderer with optimized format for container size
-            let renderer = UIGraphicsImageRenderer(size: size, format: format)
-            
-            // Generate scaled image with optimized drawing
+            let renderer = UIGraphicsImageRenderer(size: frame.size, format: format)
+
+            // Generate cropped image by translating the drawing context
             let capturedImage = renderer.image { context in
                 let cgContext = context.cgContext
-                
+
+                // Translate the context to "shift" the window so the desired frame is at origin
+                cgContext.translateBy(x: -frame.origin.x, y: -frame.origin.y)
+
+                // Draw the full window hierarchy, but only the translated portion will be visible
                 keyWindow.drawHierarchy(
                     in: CGRect(origin: .zero, size: fullScreenSize),
                     afterScreenUpdates: afterScreenUpdates
                 )
             }
+
             return capturedImage
         }
     }

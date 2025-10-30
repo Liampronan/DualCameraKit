@@ -23,7 +23,7 @@ public struct DualCameraScreen: View {
                 .overlay(viewModel.isSettingsButtonVisible ? settingsButton : nil, alignment: .topLeading)
                 .overlay(recordingIndicator, alignment: .top)
                 .overlay(controlButtons, alignment: .bottom)
-                
+
                 if case .error(let error) = viewModel.viewState {
                     errorOverlay(error)
                 }
@@ -31,7 +31,7 @@ public struct DualCameraScreen: View {
             .onAppear {
                 viewModel.onAppear(containerSize: geoProxy.size)
             }
-            .onChange(of: geoProxy.size, initial: false) { oldSize, newSize in
+            .onChange(of: geoProxy.size, initial: true) { oldSize, newSize in
                 viewModel.containerSizeChanged(newSize)
             }
             .onDisappear {
@@ -52,6 +52,18 @@ public struct DualCameraScreen: View {
             .overlay(alignment: .top) {
                 customOverlay(viewModel)
             }
+            .background(
+                GeometryReader { innerProxy in
+                    Color.clear
+                        .onAppear {
+                            let globalFrame = innerProxy.frame(in: .global)
+                            viewModel.containerFrameChanged(globalFrame)
+                        }
+                        .onChange(of: innerProxy.frame(in: .global)) { oldFrame, newFrame in
+                            viewModel.containerFrameChanged(newFrame)
+                        }
+                }
+            )
         }
     }
     
@@ -199,7 +211,6 @@ public struct DualCameraScreen: View {
 
 #Preview("Photo") {
     DualCameraScreen(viewModel: .init(
-        videoSaveStrategy: nil,
         showSettingsButton: false
     ))
 }

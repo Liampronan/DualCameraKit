@@ -9,29 +9,28 @@ final class DualCameraViewModelTests: XCTestCase {
     func test_init_withDefaultParams_setsDefaultValues() async {
         let mockController = MockDualCameraController()
         CurrentDualCameraEnvironment.dualCameraController = mockController
-        
+
         let viewModel = DualCameraViewModel()
-        
+
         XCTAssertEqual(viewModel.viewState, .loading)
-        XCTAssertEqual(viewModel.configuration.layout, .piP(miniCamera: .front, miniCameraPosition: .bottomTrailing))
-        XCTAssertEqual(viewModel.videoRecorderType, .cpuBased(.init(photoCaptureMode: .fullScreen)))
+        XCTAssertEqual(viewModel.cameraLayout, .piP(miniCamera: .front, miniCameraPosition: .bottomTrailing))
+        XCTAssertEqual(viewModel.selectedRecorderType, .cpuBased)
         XCTAssertIdentical(viewModel.controller as? MockDualCameraController, mockController)
     }
     
     func test_init_withCustomParams_setsCustomValues() {
         let mockController = MockDualCameraController()
         let customLayout: DualCameraLayout = .sideBySide
-        let customRecorderMode: DualCameraVideoRecordingMode = .replayKit()
+        let customRecorderType: DualCameraRecorderType = .replayKit
 
         let viewModel = DualCameraViewModel(
             dualCameraController: mockController,
             layout: customLayout,
-            videoRecorderMode: customRecorderMode
+            videoRecorderMode: customRecorderType
         )
 
-
-        XCTAssertEqual(viewModel.configuration.layout, customLayout)
-        XCTAssertEqual(viewModel.videoRecorderType, customRecorderMode)
+        XCTAssertEqual(viewModel.cameraLayout, customLayout)
+        XCTAssertEqual(viewModel.selectedRecorderType, customRecorderType)
     }
     
     // MARK: - Lifecycle Tests
@@ -46,7 +45,7 @@ final class DualCameraViewModelTests: XCTestCase {
         await Task.yield()
 
         XCTAssertTrue(mockController.sessionStarted)
-        XCTAssertEqual(viewModel.configuration.containerSize, CGSize(width: 390, height: 844))
+        XCTAssertEqual(viewModel.containerSize, CGSize(width: 390, height: 844))
         XCTAssertEqual(viewModel.viewState, .ready)
     }
 

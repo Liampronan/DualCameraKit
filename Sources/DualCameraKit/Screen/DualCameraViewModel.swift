@@ -13,12 +13,12 @@ public enum CaptureScope: Equatable {
         }
     }
     
-    func toPhotoCaptureMode(using size: CGSize) -> DualCameraPhotoCaptureMode {
+    func toPhotoCaptureMode(using frame: CGRect) -> DualCameraPhotoCaptureMode {
         switch self {
         case .fullScreen:
             return .fullScreen
         case .container:
-            return .containerSize(size)
+            return .containerFrame(frame)
         }
     }
 }
@@ -41,53 +41,66 @@ public final class DualCameraViewModel {
     public var isCameraViewStateCapturing: Bool { viewState.captureInProgress }
     var cameraLayout: DualCameraLayout = .piP(miniCamera: .front, miniCameraPosition: .bottomTrailing)
     
-    // Size tracking
+    // Size and position tracking
     var containerSize: CGSize = .zero
+    /// The frame of the DualCameraScreen view in global window coordinates.
+    /// Used for container-mode capture to crop the screenshot to the visible camera area.
+    var containerFrame: CGRect = .zero
     
     // Recording configuration
     private(set) var selectedRecorderType: DualCameraRecorderType
     private(set) var selectedCaptureScope: CaptureScope
     
-    // User artifacts
-    private(set) var capturedImage: UIImage? = nil
+    // User artifacts - exposed for consumers to observe
+    /// The most recently captured photo. Consumers should use `.onChange(of:)` to observe new captures.
+    public private(set) var capturedPhoto: UIImage? = nil
+    /// The most recently recorded video URL. Consumers should use `.onChange(of:)` to observe new recordings.
+    public private(set) var capturedVideo: URL? = nil
     var alert: AlertState? = nil
-    
+
     enum SheetType: String, Identifiable {
         var id: String { self.rawValue }
         case configSheet
     }
     var presentedSheet: SheetType?
-    
+
     let controller: DualCameraControlling
-    var isVideoButtonVisible: Bool { videoSaveStrategy != nil }
+    private let saveToLibrary: Bool
+    var isVideoButtonVisible: Bool { includeVideoRecording }
     var isSettingsButtonVisible: Bool
 
     private var recordingTimer: Timer?
-    private var videoSaveStrategy: DualCameraVideoSaveStrategy?
-    private var photoSaveStrategy: DualCameraPhotoSaveStrategy
+    private let includeVideoRecording: Bool
+    private let mediaLibraryService: MediaLibraryService
     
     public init(
         dualCameraController: DualCameraControlling = CurrentDualCameraEnvironment.dualCameraController,
         layout: DualCameraLayout = .piP(miniCamera: .front, miniCameraPosition: .bottomTrailing),
         captureScope: CaptureScope = .fullScreen,
         videoRecorderMode: DualCameraRecorderType = .cpuBased,
-        videoSaveStrategy: DualCameraVideoSaveStrategy? = .videoLibrary(service: CurrentDualCameraEnvironment.mediaLibraryService),
-        photoSaveStrategy: DualCameraPhotoSaveStrategy = .photoLibrary(service: CurrentDualCameraEnvironment.mediaLibraryService),
+        includeVideoRecording: Bool = true,
+        saveToLibrary: Bool = true,
+        mediaLibraryService: MediaLibraryService = CurrentDualCameraEnvironment.mediaLibraryService,
         showSettingsButton: Bool = false
     ) {
         self.controller = dualCameraController
         self.cameraLayout = layout
         self.selectedRecorderType = videoRecorderMode
         self.selectedCaptureScope = captureScope
+        self.includeVideoRecording = includeVideoRecording
+        self.saveToLibrary = saveToLibrary
+        self.mediaLibraryService = mediaLibraryService
         self.isSettingsButtonVisible = showSettingsButton
-        self.videoSaveStrategy = videoSaveStrategy
-        self.photoSaveStrategy = photoSaveStrategy
     }
     
     // MARK: - Lifecycle Management
     
     public func onAppear(containerSize: CGSize) {
         self.containerSize = containerSize
+        // Initialize frame with size at origin (will be updated by PreferenceKey with actual position)
+        if self.containerFrame == .zero {
+            self.containerFrame = CGRect(origin: .zero, size: containerSize)
+        }
         startSession()
     }
     
@@ -122,6 +135,20 @@ public final class DualCameraViewModel {
     
     public func containerSizeChanged(_ newSize: CGSize) {
         self.containerSize = newSize
+        // Update frame size while preserving origin (if already set)
+        if containerFrame != .zero {
+            self.containerFrame = CGRect(origin: containerFrame.origin, size: newSize)
+        } else {
+            self.containerFrame = CGRect(origin: .zero, size: newSize)
+        }
+    }
+
+    /// Updates the container frame when the view's position or size changes in the window.
+    /// This is automatically called by DualCameraScreen's GeometryReader.
+    /// - Parameter newFrame: The new frame in global window coordinates
+    public func containerFrameChanged(_ newFrame: CGRect) {
+        self.containerFrame = newFrame
+        self.containerSize = newFrame.size
     }
     
     func updateLayout(_ newLayout: DualCameraLayout) {
@@ -140,12 +167,20 @@ public final class DualCameraViewModel {
         Task {
             guard case .ready = viewState else { return }
             viewState = .capturing
-            
+
             do {
                 try await Task.sleep(for: .seconds(0.25))
-                let image = try await controller.captureCurrentScreen(mode: selectedCaptureScope.toPhotoCaptureMode(using: containerSize))
+                let image = try await controller.captureCurrentScreen(mode: selectedCaptureScope.toPhotoCaptureMode(using: containerFrame))
                 viewState = .ready
-                try await self.photoSaveStrategy.save(image)
+
+                // Expose captured photo for consumers to observe
+                self.capturedPhoto = image
+
+                // Optionally save to library
+                if saveToLibrary {
+                    try await mediaLibraryService.saveImage(image)
+                }
+
                 self.provideSaveSuccessHapticFeedback()
             } catch let error as DualCameraError {
                 viewState = .error(error)
@@ -215,16 +250,23 @@ public final class DualCameraViewModel {
         // Stop the timer
         recordingTimer?.invalidate()
         recordingTimer = nil
-        
+
         // Stop recording
         Task {
             do {
                 let videoRecordingOutputURL = try await controller.stopVideoRecording()
-                
+
                 // Reset recording state
                 viewState = .ready
 
-                try await self.videoSaveStrategy?.save(videoRecordingOutputURL)
+                // Expose captured video for consumers to observe
+                self.capturedVideo = videoRecordingOutputURL
+
+                // Optionally save to library
+                if saveToLibrary {
+                    try await mediaLibraryService.saveVideo(videoRecordingOutputURL)
+                }
+
                 self.provideSaveSuccessHapticFeedback()
             } catch let error as DualCameraError {
                 viewState = .error(error)
@@ -242,7 +284,7 @@ public final class DualCameraViewModel {
     private var effectiveRecorderMode: DualCameraVideoRecordingMode {
         switch selectedRecorderType {
         case .cpuBased:
-            return .cpuBased(.init(photoCaptureMode: selectedCaptureScope.toPhotoCaptureMode(using: containerSize)))
+            return .cpuBased(.init(photoCaptureMode: selectedCaptureScope.toPhotoCaptureMode(using: containerFrame)))
         case .replayKit:
             // ReplayKit always uses full screen regardless of selected scope
             return .replayKit()
@@ -253,7 +295,6 @@ public final class DualCameraViewModel {
     
     private func showError(_ error: Error, message: String) {
         let errorMessage = "\(message): \(error.localizedDescription)"
-        print(errorMessage)
         
         alert = .info(title: "Error", message: errorMessage)
     }
@@ -264,14 +305,14 @@ public final class DualCameraViewModel {
     }
 }
 
-// MARK: - Default init 
+// MARK: - Default init
 
 extension DualCameraViewModel {
     public static func `default`() -> DualCameraViewModel {
         return DualCameraViewModel(
             dualCameraController: CurrentDualCameraEnvironment.dualCameraController
         )
-    }    
+    }
 }
 
 // MARK: - UI State Helpers

@@ -180,8 +180,8 @@ public actor DualCameraCPUVideoRecorderManager: DualCameraVideoRecording {
                     height: bounds.height * scale
                 )
             }
-        case .containerSize(let size):
-            rawSize = size
+        case .containerFrame(let frame):
+            rawSize = frame.size
         }
                 
         // Apply resolution scaling to improve performance
