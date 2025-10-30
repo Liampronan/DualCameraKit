@@ -94,12 +94,7 @@ struct DualCameraConfigView: View {
     DualCameraConfigView(
         viewModel: DualCameraViewModel(
             dualCameraController: DualCameraMockController(),
-            videoSaveStrategy: .custom({ savedFile in
-                print("video recorded: \(savedFile)")
-            }),
-            photoSaveStrategy: .custom( {capturedImage in
-                print("photo captured: \(capturedImage)")
-            })
+            saveToLibrary: false
         )
     )
 }

@@ -11,8 +11,26 @@ enum Tab {
     case feed, camera, map
 }
 
-let photoSaveStrategy: DualCameraPhotoSaveStrategy = .custom { image in
-    print("captured", image)
+@Observable
+final class CaptureReviewState {
+    enum PreviewPhase: Equatable {
+        case hidden
+        case showing(UIImage)
+    }
+    var previewPhase = PreviewPhase.hidden
+    
+    func showPreview(_ image: UIImage) {
+        withAnimation {
+            previewPhase = .showing(image)
+        }
+    }
+    
+    func reset() {
+        withAnimation {
+            previewPhase = .hidden
+        }
+        
+    }
 }
 
 private struct AppTabView: View {
@@ -23,43 +41,70 @@ private struct AppTabView: View {
     )
     
     var body: some View {
-        VStack {
-            Group {
+        ZStack {
+            VStack {
                 switch selectedTab {
                 case .feed:
-                    VStack {
-                        Color.mint
-                    }
+                    feedMock
                 case .camera:
-                    ZStack {
-                        GeometryReader { proxy in
-                            DualCameraScreen(
-                                viewModel: vm
-                            )
-                            .onChange(of: proxy.size, initial: true) { _, newSize in
-                                vm.containerSizeChanged(newSize)
-                            }
-                        }
-                    }
+                    cameraCapture
                 case .map:
-                    VStack {
-                        Color.teal
-                    }
+                    mapMock
                 }
+                tabBar
+                .edgesIgnoringSafeArea(.all)
             }
-            tabBar
-            .edgesIgnoringSafeArea(.all)
+                
+            switch captureReviewState.previewPhase {
+            case .hidden:
+                EmptyView()
+            case .showing(let image):
+                CapturePreviewOverlay(
+                    image: image,
+                    onDismiss: {
+                        captureReviewState.reset()
+                    },
+                    onConfirm: {
+                        captureReviewState.reset()
+                    }
+                )
+                .transition(.scale.combined(with: .opacity))
+            }
+        }
+        .background(.primary)
+        .onChange(of: vm.capturedPhoto) { oldValue, newValue in
+            if let image = newValue {
+                captureReviewState.showPreview(image)
+            }
+        }
+    }
+    
+    private var cameraCapture: some View {
+        DualCameraScreen(
+            viewModel: vm
+        )
+    }
+    
+    private var feedMock: some View {
+        VStack {
+            Color(.systemMint)
+        }
+    }
+    
+    private var mapMock: some View {
+        VStack {
+            Color(.systemTeal)
         }
     }
     
     @ViewBuilder
     private var tabBar: some View {
         HStack {
-            tabBarButton(tab: .feed, image: "house.fill")
+            tabBarButton(tab: .map, image: "map.fill")
             Spacer()
-            tabBarButton(tab: .camera, image: "camera.fill", isCenter: true)
+            tabBarButton(tab: .camera, image: "house.fill", isCenter: true)
             Spacer()
-            tabBarButton(tab: .map, image: "bubble.left.and.bubble.right.fill")
+            tabBarButton(tab: .feed, image: "bubble.left.and.bubble.right.fill")
         }
         .padding(.horizontal, 30)
         .padding(.vertical, 10)
@@ -78,17 +123,17 @@ private struct AppTabView: View {
             if isCenter {
                 ZStack {
                     Circle()
-                        .fill(Color.white)
+                        .fill(Color(.systemBackground))
                         .frame(width: 60, height: 60)
                         .shadow(radius: 4)
                     Image(systemName: image)
                         .font(.system(size: 24))
-                        .foregroundColor(.black)
+                        .foregroundColor(Color(.label))
                 }
             } else {
                 Image(systemName: image)
                     .font(.system(size: 24))
-                    .foregroundColor(selectedTab == tab ? .blue : .gray)
+                    .foregroundColor(selectedTab == tab ? Color.accentColor : Color(.secondaryLabel))
             }
         }
     }
