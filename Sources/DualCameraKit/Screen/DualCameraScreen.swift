@@ -2,11 +2,14 @@ import SwiftUI
 
 public struct DualCameraScreen: View {
     @State private var viewModel: DualCameraViewModel
+    private let customOverlay: ((DualCameraViewModel) -> AnyView)
     
     public init(
-        viewModel: DualCameraViewModel = .default()
+        viewModel: DualCameraViewModel = .default(),
+        @ViewBuilder customOverlay: @escaping (DualCameraViewModel) -> some View = { _ in EmptyView() }
     ) {
         _viewModel = State(initialValue: viewModel)
+        self.customOverlay = { AnyView(customOverlay($0)) }
     }
     
     public var body: some View {
@@ -14,9 +17,10 @@ public struct DualCameraScreen: View {
             ZStack {
                 DualCameraDisplayView(
                     controller: viewModel.controller,
-                    layout: viewModel.configuration.layout
+                    layout: viewModel.cameraLayout
                 )
-                .overlay(settingsButton, alignment: .topLeading)
+                .ignoresSafeArea()
+                .overlay(viewModel.isSettingsButtonVisible ? settingsButton : nil, alignment: .topLeading)
                 .overlay(recordingIndicator, alignment: .top)
                 .overlay(controlButtons, alignment: .bottom)
                 
@@ -24,11 +28,11 @@ public struct DualCameraScreen: View {
                     errorOverlay(error)
                 }
             }
-            .onChange(of: geoProxy.size, initial: true) { oldSize, newSize in
-                viewModel.containerSizeChanged(newSize)
-            }
             .onAppear {
                 viewModel.onAppear(containerSize: geoProxy.size)
+            }
+            .onChange(of: geoProxy.size, initial: false) { oldSize, newSize in
+                viewModel.containerSizeChanged(newSize)
             }
             .onDisappear {
                 viewModel.onDisappear()
@@ -38,13 +42,15 @@ public struct DualCameraScreen: View {
                 switch sheetType {
                 case .configSheet: DualCameraConfigView(
                     viewModel: viewModel
-                )
-                }
+                )}
             })
             .alert(
                 item: $viewModel.alert
             ) { alert in
                 getAlert(for: alert)
+            }
+            .overlay(alignment: .top) {
+                customOverlay(viewModel)
             }
         }
     }
@@ -91,22 +97,24 @@ public struct DualCameraScreen: View {
                 }
                 .disabled(!viewModel.viewState.isPhotoButtonEnabled)
                 
-                // Video recording button
-                Button(action: viewModel.recordVideoButtonTapped) {
-                    Image(systemName: viewModel.viewState.videoButtonIcon)
-                        .font(.largeTitle)
-                        .foregroundColor(viewModel.viewState.videoButtonColor)
-                        .padding()
-                        .background(
-                            Circle()
-                                .fill(viewModel.viewState.videoButtonBackgroundColor)
-                        )
+                if viewModel.isVideoButtonVisible {
+                    // Video recording button
+                    Button(action: viewModel.recordVideoButtonTapped) {
+                        Image(systemName: viewModel.viewState.videoButtonIcon)
+                            .font(.largeTitle)
+                            .foregroundColor(viewModel.viewState.videoButtonColor)
+                            .padding()
+                            .background(
+                                Circle()
+                                    .fill(viewModel.viewState.videoButtonBackgroundColor)
+                            )
+                    }
+                    .disabled(!viewModel.viewState.isVideoButtonEnabled)
                 }
-                .disabled(!viewModel.viewState.isVideoButtonEnabled)
             }
         }
         .opacity(viewModel.viewState.captureInProgress ? 0 : 1) 
-        .padding(.bottom, 30)
+        //.padding(.bottom, 30)
     }
     
     @ViewBuilder
@@ -172,12 +180,27 @@ public struct DualCameraScreen: View {
                 .font(.title2)
         }
         .tint(.gray)
+        .opacity(viewModel.viewState.captureInProgress ? 0 : 1)
         .padding(.leading)
     }
 }
 
 // MARK: - Preview
 
-#Preview() {
+#Preview("Photo & Video") {
     DualCameraScreen()
 }
+
+#Preview("Photo & Video -  Show Settings Button") {
+    DualCameraScreen(viewModel: .init(
+        showSettingsButton: false
+    ))
+}
+
+#Preview("Photo") {
+    DualCameraScreen(viewModel: .init(
+        videoSaveStrategy: nil,
+        showSettingsButton: false
+    ))
+}
+

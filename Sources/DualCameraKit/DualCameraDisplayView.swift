@@ -27,7 +27,6 @@ public struct DualCameraDisplayView: View {
                             for: (miniCamera == .front ? .back : .front)
                         )
                     )
-                    .ignoresSafeArea(.all)
                     
                     // Mini camera in corner
                     DualCameraRendererView(renderer: controller.getRenderer(for: miniCamera))
@@ -42,23 +41,15 @@ public struct DualCameraDisplayView: View {
                     cameraView(for: .back, widthFraction: 0.5)
                     cameraView(for: .front, widthFraction: 0.5)
                 }
-                .ignoresSafeArea(.all)
                 
             case .stackedVertical:
                 VStack(spacing: 0) {
                     cameraView(for: .back, heightFraction: 0.5)
                     cameraView(for: .front, heightFraction: 0.5)
                 }
-                .ignoresSafeArea(.all)
             }
         }
-        .task {
-            do {
-                try await controller.startSession()
-            } catch {
-                print("Camera session error: \(error)")
-            }
-        }
+        
     }
     
     /// Renders a camera feed in partial or full size

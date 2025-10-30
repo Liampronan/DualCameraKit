@@ -171,7 +171,15 @@ public actor DualCameraCPUVideoRecorderManager: DualCameraVideoRecording {
         // Get base dimensions
         switch mode {
         case .fullScreen:
-            rawSize = await MainActor.run { UIScreen.main.bounds.size }
+            rawSize =  await MainActor.run {
+                let screen = UIScreen.main
+                let bounds = screen.bounds
+                let scale = screen.scale
+                return CGSize(
+                    width: bounds.width * scale,
+                    height: bounds.height * scale
+                )
+            }
         case .containerSize(let size):
             rawSize = size
         }
