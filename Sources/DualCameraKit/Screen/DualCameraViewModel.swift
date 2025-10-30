@@ -89,7 +89,6 @@ public final class DualCameraViewModel {
     public func onAppear(containerSize: CGSize) {
         self.containerSize = containerSize
         startSession()
-        print("~~ onAppear DCVM called")
     }
     
     private func startSession() {

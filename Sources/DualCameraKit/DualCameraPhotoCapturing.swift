@@ -89,14 +89,6 @@ public class DualCameraPhotoCapturer: DualCameraPhotoCapturing {
             let capturedImage = renderer.image { context in
                 let cgContext = context.cgContext
                 
-                // Calculate scaling
-//                let scaleX = size.width / fullScreenSize.width
-//                let scaleY = size.height / fullScreenSize.height
-//                let scale = min(scaleX, scaleY)
-//                
-//                // Apply scaling
-//                cgContext.scaleBy(x: scale, y: scale)
-                
                 keyWindow.drawHierarchy(
                     in: CGRect(origin: .zero, size: fullScreenSize),
                     afterScreenUpdates: afterScreenUpdates
