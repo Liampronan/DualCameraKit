@@ -2,11 +2,14 @@ import SwiftUI
 
 public struct DualCameraScreen: View {
     @State private var viewModel: DualCameraViewModel
+    private let customOverlay: ((DualCameraViewModel) -> AnyView)
     
     public init(
-        viewModel: DualCameraViewModel = .default()
+        viewModel: DualCameraViewModel = .default(),
+        @ViewBuilder customOverlay: @escaping (DualCameraViewModel) -> some View = { _ in EmptyView() }
     ) {
         _viewModel = State(initialValue: viewModel)
+        self.customOverlay = { AnyView(customOverlay($0)) }
     }
     
     public var body: some View {
@@ -26,14 +29,9 @@ public struct DualCameraScreen: View {
                 }
             }
             .onAppear {
-                print("initial size", geoProxy.size	)
                 viewModel.onAppear(containerSize: geoProxy.size)
             }
             .onChange(of: geoProxy.size, initial: false) { oldSize, newSize in
-                print("safeAreaInsets", geoProxy.safeAreaInsets, newSize)
-                print("frame (global):", geoProxy.frame(in: .global))
-                print("frame (local):", geoProxy.frame(in: .local))
-                print("frame (named parent):", geoProxy.frame(in: .named("parent")))
                 viewModel.containerSizeChanged(newSize)
             }
             .onDisappear {
@@ -51,7 +49,9 @@ public struct DualCameraScreen: View {
             ) { alert in
                 getAlert(for: alert)
             }
-            
+            .overlay(alignment: .top) {
+                customOverlay(viewModel)
+            }
         }
     }
     
@@ -114,7 +114,7 @@ public struct DualCameraScreen: View {
             }
         }
         .opacity(viewModel.viewState.captureInProgress ? 0 : 1) 
-        .padding(.bottom, 30)
+        //.padding(.bottom, 30)
     }
     
     @ViewBuilder

@@ -41,7 +41,6 @@ public class DualCameraPhotoCapturer: DualCameraPhotoCapturing {
     /// Returns an image that is a screenshot of the screen.
     public func captureCurrentScreen(mode: DualCameraPhotoCaptureMode = .fullScreen) async throws -> UIImage {
         let application = UIApplication.shared
-        print("mode is", mode)
         guard let keyWindow = application.connectedScenes
             .compactMap({ $0 as? UIWindowScene })
             .first(where: { $0.activationState == .foregroundActive })?

@@ -99,6 +99,8 @@ public final class DualCameraController: DualCameraControlling {
     public func stopSession() {
         streamSource.stopSession()
         cancelRendererTasks()
+        // Clear renderers so they're recreated with fresh stream connections on next startSession()
+        renderers.removeAll()
     }
     
     /// Creates a renderer (using MetalCameraRenderer by default).
@@ -199,6 +201,8 @@ public final class DualCameraMockController: DualCameraControlling {
     public func stopSession() {
         streamSource.stopSession()
         cancelRendererTasks()
+        // Clear renderers so they're recreated with fresh stream connections on next startSession()
+        renderers.removeAll()
     }
     
     public var photoCapturer: any DualCameraPhotoCapturing

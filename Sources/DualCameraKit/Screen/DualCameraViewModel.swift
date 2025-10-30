@@ -38,7 +38,7 @@ public final class DualCameraViewModel {
     
     // Core state
     private(set) var viewState: CameraViewState = .loading
-    
+    public var isCameraViewStateCapturing: Bool { viewState.captureInProgress }
     var cameraLayout: DualCameraLayout = .piP(miniCamera: .front, miniCameraPosition: .bottomTrailing)
     
     // Size tracking
@@ -89,6 +89,7 @@ public final class DualCameraViewModel {
     public func onAppear(containerSize: CGSize) {
         self.containerSize = containerSize
         startSession()
+        print("~~ onAppear DCVM called")
     }
     
     private func startSession() {
