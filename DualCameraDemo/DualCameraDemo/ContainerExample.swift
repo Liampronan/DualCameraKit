@@ -35,10 +35,16 @@ final class CaptureReviewState {
 
 private struct AppTabView: View {
     @State private var selectedTab: Tab = .camera
-    
-    let vm = DualCameraViewModel(
-        captureScope: .container
-    )
+    @State private var captureReviewState = CaptureReviewState()
+    private var vm: DualCameraViewModel
+
+    init() {
+        vm = DualCameraViewModel(
+            captureScope: .container,
+            includeVideoRecording: false,
+            saveToLibrary: false
+        )
+    }
     
     var body: some View {
         ZStack {

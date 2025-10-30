@@ -305,14 +305,14 @@ public final class DualCameraViewModel {
     }
 }
 
-// MARK: - Default init 
+// MARK: - Default init
 
 extension DualCameraViewModel {
     public static func `default`() -> DualCameraViewModel {
         return DualCameraViewModel(
             dualCameraController: CurrentDualCameraEnvironment.dualCameraController
         )
-    }    
+    }
 }
 
 // MARK: - UI State Helpers
