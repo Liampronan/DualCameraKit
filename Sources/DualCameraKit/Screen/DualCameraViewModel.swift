@@ -32,6 +32,21 @@ public enum DualCameraRecorderType: String, Equatable, CaseIterable, Identifiabl
     public var displayName: String { rawValue }
 }
 
+/// Flash/torch mode for photo capture and video recording.
+/// - `off`: Torch disabled
+/// - `on`: Torch always enabled (for photos: brief flash, for video: continuous torch)
+public enum CameraFlashMode: String, Equatable, CaseIterable {
+    case off
+    case on
+
+    var systemImageName: String {
+        switch self {
+        case .off: return "bolt.slash.circle.fill"
+        case .on: return "bolt.circle.fill"
+        }
+    }
+}
+
 @MainActor
 @Observable
 public final class DualCameraViewModel {
@@ -42,7 +57,7 @@ public final class DualCameraViewModel {
     var cameraLayout: DualCameraLayout = .piP(miniCamera: .front, miniCameraPosition: .bottomTrailing)
     
     // Size and position tracking
-    var containerSize: CGSize = .zero
+    var containerSize: CGSize = .zero // TODO: remove?
     /// The frame of the DualCameraScreen view in global window coordinates.
     /// Used for container-mode capture to crop the screenshot to the visible camera area.
     var containerFrame: CGRect = .zero
@@ -69,6 +84,10 @@ public final class DualCameraViewModel {
     var isVideoButtonVisible: Bool { includeVideoRecording }
     var isSettingsButtonVisible: Bool
 
+    /// Current flash/torch mode
+    private(set) var flashMode: CameraFlashMode = .off
+    var showCameraFlashButton: Bool
+
     private var recordingTimer: Timer?
     private let includeVideoRecording: Bool
     private let mediaLibraryService: MediaLibraryService
@@ -79,9 +98,10 @@ public final class DualCameraViewModel {
         captureScope: CaptureScope = .fullScreen,
         videoRecorderMode: DualCameraRecorderType = .cpuBased,
         includeVideoRecording: Bool = true,
-        saveToLibrary: Bool = true,
+        saveToLibrary: Bool = false,
         mediaLibraryService: MediaLibraryService = CurrentDualCameraEnvironment.mediaLibraryService,
-        showSettingsButton: Bool = false
+        showSettingsButton: Bool = false,
+        showCameraFlashButton: Bool = true,
     ) {
         self.controller = dualCameraController
         self.cameraLayout = layout
@@ -91,6 +111,7 @@ public final class DualCameraViewModel {
         self.saveToLibrary = saveToLibrary
         self.mediaLibraryService = mediaLibraryService
         self.isSettingsButtonVisible = showSettingsButton
+        self.showCameraFlashButton = showCameraFlashButton
     }
     
     // MARK: - Lifecycle Management
@@ -126,11 +147,17 @@ public final class DualCameraViewModel {
         if case .recording = viewState {
             stopRecording()
         }
+        // Ensure torch is off when leaving the screen
+        try? controller.setTorchMode(.off, for: .back)
         controller.stopSession()
         recordingTimer?.invalidate()
         recordingTimer = nil
     }
     
+    func toggleFlashButtonTapped() {
+        flashMode = flashMode == .on ? .off : .on
+    }
+
     // MARK: - Configuration Updates
     
     public func containerSizeChanged(_ newSize: CGSize) {
@@ -169,9 +196,19 @@ public final class DualCameraViewModel {
             viewState = .capturing
 
             do {
+                // Turn on torch if flash is enabled (back camera only has torch)
+                if flashMode == .on {
+                    try? controller.setTorchMode(.on, for: .back)
+                }
+
                 try await Task.sleep(for: .seconds(0.25))
                 let image = try await controller.captureCurrentScreen(mode: selectedCaptureScope.toPhotoCaptureMode(using: containerFrame))
                 viewState = .ready
+
+                // Turn off torch after capture
+                if flashMode == .on {
+                    try? controller.setTorchMode(.off, for: .back)
+                }
 
                 // Expose captured photo for consumers to observe
                 self.capturedPhoto = image
@@ -183,11 +220,15 @@ public final class DualCameraViewModel {
 
                 self.provideSaveSuccessHapticFeedback()
             } catch let error as DualCameraError {
+                // Ensure torch is off even on error
+                try? controller.setTorchMode(.off, for: .back)
                 viewState = .error(error)
                 showError(error, message: "Error capturing photo")
                 // Reset to ready state after error
                 viewState = .ready
             } catch {
+                // Ensure torch is off even on error
+                try? controller.setTorchMode(.off, for: .back)
                 let dualCameraError = DualCameraError.unknownError
                 viewState = .error(dualCameraError)
                 showError(error, message: "Error capturing photo")
@@ -219,10 +260,15 @@ public final class DualCameraViewModel {
         Task {
             viewState = .precapture
             do {
+                // Turn on torch if flash is enabled (continuous light for video)
+                if flashMode == .on {
+                    try? controller.setTorchMode(.on, for: .back)
+                }
+
                 try await controller.startVideoRecording(mode: effectiveRecorderMode)
-                
+
                 viewState = .recording(CameraViewState.RecordingState(duration: 0))
-                
+
                 // Start a timer to update recording duration
                 recordingTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
                     Task { @MainActor [weak self] in
@@ -232,12 +278,16 @@ public final class DualCameraViewModel {
                         }
                     }
                 }
-                
+
             } catch let error as DualCameraError {
+                // Turn off torch on error
+                try? controller.setTorchMode(.off, for: .back)
                 viewState = .error(error)
                 showError(error, message: "Failed to start recording")
                 viewState = .ready
             } catch {
+                // Turn off torch on error
+                try? controller.setTorchMode(.off, for: .back)
                 let dualCameraError = DualCameraError.unknownError
                 viewState = .error(dualCameraError)
                 showError(error, message: "Failed to start recording")
@@ -256,6 +306,11 @@ public final class DualCameraViewModel {
             do {
                 let videoRecordingOutputURL = try await controller.stopVideoRecording()
 
+                // Turn off torch after recording stops
+                if flashMode == .on {
+                    try? controller.setTorchMode(.off, for: .back)
+                }
+
                 // Reset recording state
                 viewState = .ready
 
@@ -269,10 +324,14 @@ public final class DualCameraViewModel {
 
                 self.provideSaveSuccessHapticFeedback()
             } catch let error as DualCameraError {
+                // Ensure torch is off even on error
+                try? controller.setTorchMode(.off, for: .back)
                 viewState = .error(error)
                 showError(error, message: "Failed to stop recording")
                 viewState = .ready
             } catch {
+                // Ensure torch is off even on error
+                try? controller.setTorchMode(.off, for: .back)
                 let dualCameraError = DualCameraError.unknownError
                 viewState = .error(dualCameraError)
                 showError(error, message: "Failed to stop recording")
