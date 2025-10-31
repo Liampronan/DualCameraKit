@@ -7,6 +7,7 @@ public protocol DualCameraCameraStreamSourcing {
     nonisolated func stopSession()
     nonisolated var frontCameraStream: AsyncStream<PixelBufferWrapper> { get }
     nonisolated var backCameraStream: AsyncStream<PixelBufferWrapper> { get }
+    func setTorchMode(_ mode: AVCaptureDevice.TorchMode, for camera: DualCameraSource) throws
 }
 
 /// Manages low-level camera access and stream production
@@ -98,7 +99,40 @@ public final class DualCameraCameraStreamSource: NSObject, DualCameraCameraStrea
     nonisolated public var backCameraStream: AsyncStream<PixelBufferWrapper> {
         backBroadcaster.subscribe()
     }
-    
+
+    /// Sets the torch (flashlight) mode for the specified camera.
+    /// - Parameters:
+    ///   - mode: The desired torch mode (.on, .off, or .auto)
+    ///   - camera: Which camera to control (front or back)
+    /// - Throws: DualCameraError if the device doesn't have a torch or configuration fails
+    @MainActor
+    public func setTorchMode(_ mode: AVCaptureDevice.TorchMode, for camera: DualCameraSource) throws {
+        let input: AVCaptureDeviceInput?
+        switch camera {
+        case .front:
+            input = frontCameraInput
+        case .back:
+            input = backCameraInput
+        }
+
+        guard let device = input?.device else {
+            throw DualCameraError.cameraUnavailable(position: camera == .front ? .front : .back)
+        }
+
+        guard device.hasTorch else {
+            // Front camera usually doesn't have torch, silently ignore
+            return
+        }
+
+        do {
+            try device.lockForConfiguration()
+            device.torchMode = mode
+            device.unlockForConfiguration()
+        } catch {
+            throw DualCameraError.configurationFailed
+        }
+    }
+
     // MARK: - Private Methods
     
     @MainActor
@@ -208,6 +242,10 @@ extension DualCameraCameraStreamSource: AVCaptureVideoDataOutputSampleBufferDele
 
 
 public final class DualCameraMockCameraStreamSource: DualCameraCameraStreamSourcing {
+    public func setTorchMode(_ mode: AVCaptureDevice.TorchMode, for camera: DualCameraSource) throws {
+        
+    }
+    
     private let frontBroadcaster = PixelBufferBroadcaster()
     private let backBroadcaster = PixelBufferBroadcaster()
     

@@ -23,6 +23,7 @@ public struct DualCameraScreen: View {
                 .overlay(viewModel.isSettingsButtonVisible ? settingsButton : nil, alignment: .topLeading)
                 .overlay(recordingIndicator, alignment: .top)
                 .overlay(controlButtons, alignment: .bottom)
+                .overlay(accessoryItems, alignment: .trailing)
 
                 if case .error(let error) = viewModel.viewState {
                     errorOverlay(error)
@@ -68,7 +69,6 @@ public struct DualCameraScreen: View {
     }
     
     // MARK: - View Components
-    
     @ViewBuilder
     private var recordingIndicator: some View {
         if case .recording(let state) = viewModel.viewState {
@@ -93,6 +93,23 @@ public struct DualCameraScreen: View {
                 viewModel.recordVideoButtonTapped()
             }
         }
+    }
+    
+    private var accessoryItems: some View {
+        VStack {
+            if viewModel.showCameraFlashButton {
+                Button {
+                    viewModel.toggleFlashButtonTapped()
+                } label: {
+                    Image(systemName: viewModel.flashMode.systemImageName)
+                }
+            }
+        }
+        .font(.largeTitle)
+        .tint(.primary)
+        .foregroundStyle(.white, .primary.opacity(0.5))
+        .padding(.horizontal)
+        .opacity(viewModel.viewState.captureInProgress ? 0 : 1.0)
     }
     
     @ViewBuilder
@@ -126,7 +143,6 @@ public struct DualCameraScreen: View {
             }
         }
         .opacity(viewModel.viewState.captureInProgress ? 0 : 1) 
-        //.padding(.bottom, 30)
     }
     
     @ViewBuilder
@@ -199,19 +215,20 @@ public struct DualCameraScreen: View {
 
 // MARK: - Preview
 
+#Preview("Photo") {
+    DualCameraScreen(viewModel: .init(
+        includeVideoRecording: false,
+    ))
+}
+
 #Preview("Photo & Video") {
     DualCameraScreen()
 }
 
 #Preview("Photo & Video -  Show Settings Button") {
     DualCameraScreen(viewModel: .init(
-        showSettingsButton: false
+        showSettingsButton: true
     ))
 }
 
-#Preview("Photo") {
-    DualCameraScreen(viewModel: .init(
-        showSettingsButton: false
-    ))
-}
 

@@ -9,7 +9,7 @@ public protocol DualCameraControlling {
     func getRenderer(for source: DualCameraSource) -> CameraRenderer
     func startSession() async throws
     func stopSession()
-    
+
     var photoCapturer: any DualCameraPhotoCapturing { get }
     func captureRawPhotos() async throws -> (front: UIImage, back: UIImage)
     func captureCurrentScreen(mode: DualCameraPhotoCaptureMode) async throws -> UIImage
@@ -20,6 +20,8 @@ public protocol DualCameraControlling {
     func setVideoRecorder(_ recorder: any DualCameraVideoRecording) async throws
     func startVideoRecording(mode: DualCameraVideoRecordingMode) async throws
     func stopVideoRecording() async throws -> URL
+
+    func setTorchMode(_ mode: AVCaptureDevice.TorchMode, for camera: DualCameraSource) throws
 }
 
 // default implementations for `DualCameraVideoRecorder` - proxy to implementation in `videoRecorder`
@@ -102,7 +104,11 @@ public final class DualCameraController: DualCameraControlling {
         // Clear renderers so they're recreated with fresh stream connections on next startSession()
         renderers.removeAll()
     }
-    
+
+    public func setTorchMode(_ mode: AVCaptureDevice.TorchMode, for camera: DualCameraSource) throws {
+        try streamSource.setTorchMode(mode, for: camera)
+    }
+
     /// Creates a renderer (using MetalCameraRenderer by default).
     public func createRenderer() -> CameraRenderer {
         return MetalCameraRenderer()
@@ -154,6 +160,10 @@ public final class DualCameraController: DualCameraControlling {
 /// via mocks. I think we'll evolve this here such that the DualCameraController can take mocked implementations
 /// and we can remove the need for this "fake" behavior, i.e., make things more consistent.
 public final class DualCameraMockController: DualCameraControlling {
+    public func setTorchMode(_ mode: AVCaptureDevice.TorchMode, for camera: DualCameraSource) throws {
+       
+    }
+    
     
     public init() {
         // for now, unmocked - we'll probably revisit this for testing.
