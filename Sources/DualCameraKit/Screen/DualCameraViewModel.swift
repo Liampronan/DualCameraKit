@@ -101,7 +101,7 @@ public final class DualCameraViewModel {
         saveToLibrary: Bool = false,
         mediaLibraryService: MediaLibraryService = CurrentDualCameraEnvironment.mediaLibraryService,
         showSettingsButton: Bool = false,
-        showCameraFlashButton: Bool = true,
+        showCameraFlashButton: Bool = true
     ) {
         self.controller = dualCameraController
         self.cameraLayout = layout
@@ -202,7 +202,22 @@ public final class DualCameraViewModel {
                 }
 
                 try await Task.sleep(for: .seconds(0.25))
-                let image = try await controller.captureCurrentScreen(mode: selectedCaptureScope.toPhotoCaptureMode(using: containerFrame))
+
+                // Use stream-based capture if controller supports it, otherwise fall back to screenshot
+                let image: UIImage
+                if let dualCameraController = controller as? DualCameraController, dualCameraController.useStreamCapture {
+                    // NEW: High-quality stream composition
+                    image = try await controller.captureComposedPhoto(
+                        layout: cameraLayout,
+                        mode: selectedCaptureScope.toPhotoCaptureMode(using: containerFrame)
+                    )
+                } else {
+                    // LEGACY: Screenshot-based capture
+                    image = try await controller.captureCurrentScreen(
+                        mode: selectedCaptureScope.toPhotoCaptureMode(using: containerFrame)
+                    )
+                }
+
                 viewState = .ready
 
                 // Turn off torch after capture

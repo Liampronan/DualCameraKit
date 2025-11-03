@@ -13,6 +13,10 @@ public protocol DualCameraControlling {
     var photoCapturer: any DualCameraPhotoCapturing { get }
     func captureRawPhotos() async throws -> (front: UIImage, back: UIImage)
     func captureCurrentScreen(mode: DualCameraPhotoCaptureMode) async throws -> UIImage
+
+    // NEW: Stream-based capture with layout composition
+    func captureComposedPhoto(layout: DualCameraLayout, mode: DualCameraPhotoCaptureMode) async throws -> UIImage
+
     // Ideally we could remove the need for `photoCapturer` and `videoRecorder` to be public.
     // We only are accessing them from inside this file - one videoRecorder type requires access to the `photoCapturer` which we do in the extension.
     // Probably more decoupling would help but not focused on that atm.
@@ -64,22 +68,32 @@ public final class DualCameraController: DualCameraControlling {
     // a) this controller may just be used to capture photos AND
     // b) this allows dynamic VideoRecorder creation at start of video capture (see startVideoRecording(recorderType:)
     public var videoRecorder: (any DualCameraVideoRecording)?
-    
+
     var renderers: [DualCameraSource: CameraRenderer] = [:]
-    
+
     private let streamSource = DualCameraCameraStreamSource()
-    
+
     // Internal storage for renderers and their stream tasks.
     private var streamTasks: [DualCameraSource: Task<Void, Never>] = [:]
-    
+
+    // MARK: - Stream-based Capture
+    private let streamPhotoCapturer: DualCameraStreamPhotoCapturer
+    public let useStreamCapture: Bool
+
     // MARK: - Video Recording Properties
-    
+
     private var assetWriter: AVAssetWriter?
     private var assetWriterVideoInput: AVAssetWriterInput?
     private var pixelBufferAdaptor: AVAssetWriterInputPixelBufferAdaptor?
-    
-    public init(photoCapturer: any DualCameraPhotoCapturing = DualCameraPhotoCapturer()) {
+
+    public init(
+        photoCapturer: any DualCameraPhotoCapturing = DualCameraPhotoCapturer(),
+        useStreamCapture: Bool = false, // Default to legacy for backward compatibility
+        photoStyle: DualCameraPhotoStyle = .dualCameraScreen // Match SwiftUI appearance by default
+    ) {
         self.photoCapturer = photoCapturer
+        self.useStreamCapture = useStreamCapture
+        self.streamPhotoCapturer = DualCameraStreamPhotoCapturer(style: photoStyle)
     }
     
     nonisolated public var frontCameraStream: AsyncStream<PixelBufferWrapper> {
@@ -107,6 +121,42 @@ public final class DualCameraController: DualCameraControlling {
 
     public func setTorchMode(_ mode: AVCaptureDevice.TorchMode, for camera: DualCameraSource) throws {
         try streamSource.setTorchMode(mode, for: camera)
+    }
+
+    /// Captures a composed photo using stream-based composition at native camera resolution
+    public func captureComposedPhoto(layout: DualCameraLayout, mode: DualCameraPhotoCaptureMode) async throws -> UIImage {
+        let frontRenderer = getRenderer(for: .front)
+        let backRenderer = getRenderer(for: .back)
+
+        // Calculate output size based on mode
+        let outputSize = calculateOutputSize(for: mode)
+
+        return try await streamPhotoCapturer.captureComposedPhoto(
+            frontRenderer: frontRenderer,
+            backRenderer: backRenderer,
+            layout: layout,
+            outputSize: outputSize
+        )
+    }
+
+    /// Helper to calculate output size from capture mode
+    private func calculateOutputSize(for mode: DualCameraPhotoCaptureMode) -> CGSize {
+        switch mode {
+        case .fullScreen:
+            // Use screen dimensions at native scale
+            let screen = UIScreen.main
+            return CGSize(
+                width: screen.bounds.width * screen.scale,
+                height: screen.bounds.height * screen.scale
+            )
+        case .containerFrame(let frame):
+            // Use container dimensions at native scale
+            let screen = UIScreen.main
+            return CGSize(
+                width: frame.width * screen.scale,
+                height: frame.height * screen.scale
+            )
+        }
     }
 
     /// Creates a renderer (using MetalCameraRenderer by default).
@@ -161,10 +211,28 @@ public final class DualCameraController: DualCameraControlling {
 /// and we can remove the need for this "fake" behavior, i.e., make things more consistent.
 public final class DualCameraMockController: DualCameraControlling {
     public func setTorchMode(_ mode: AVCaptureDevice.TorchMode, for camera: DualCameraSource) throws {
-       
+        // Mock implementation - no-op
     }
-    
-    
+
+    public func captureComposedPhoto(layout: DualCameraLayout, mode: DualCameraPhotoCaptureMode) async throws -> UIImage {
+        // Mock implementation - return a placeholder image
+        let size = CGSize(width: 1080, height: 1920)
+        let renderer = UIGraphicsImageRenderer(size: size)
+        return renderer.image { context in
+            // Draw purple for back camera, yellow for front camera in PiP
+            UIColor.purple.setFill()
+            context.fill(CGRect(origin: .zero, size: size))
+
+            // Add mini camera overlay for PiP layouts
+            if case .piP = layout {
+                UIColor.yellow.setFill()
+                let miniSize = CGSize(width: size.width * 0.25, height: size.height * 0.25)
+                context.fill(CGRect(origin: CGPoint(x: 20, y: 20), size: miniSize))
+            }
+        }
+    }
+
+
     public init() {
         // for now, unmocked - we'll probably revisit this for testing.
         // this works just fine for simulator purposes though.

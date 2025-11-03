@@ -7,9 +7,12 @@ import UIKit
 public protocol CameraRenderer: AnyObject {
     /// Update renderer with new camera frame.
     func update(with buffer: CVPixelBuffer)
-    
+
     /// Capture current frame as UIImage.
     func captureCurrentFrame() async throws -> UIImage
+
+    /// Capture current frame as raw pixel buffer (for high-quality composition).
+    func captureCurrentBuffer() async throws -> CVPixelBuffer
 }
 
 enum MetalRendererError: Error {
@@ -32,6 +35,10 @@ public final class MetalCameraRenderer: MTKView, CameraRenderer, MTKViewDelegate
     private var textureCache: CVMetalTextureCache?
     private var renderPipelineState: MTLRenderPipelineState?
     private var currentTexture: MTLTexture?
+
+    // MARK: - Buffer Storage
+    /// Stores the most recent pixel buffer for high-quality capture
+    private var currentBuffer: CVPixelBuffer?
     
     // MARK: - Initialization
     public required init(coder: NSCoder) {
@@ -160,6 +167,9 @@ public final class MetalCameraRenderer: MTKView, CameraRenderer, MTKViewDelegate
 extension MetalCameraRenderer {
     
     public func update(with buffer: CVPixelBuffer) {
+        // Store the buffer for high-quality capture
+        self.currentBuffer = buffer
+
         let bufferWrapper = PixelBufferWrapper(buffer: buffer)
         createAndUpdateTexture(from: bufferWrapper)
     }
@@ -247,11 +257,20 @@ extension MetalCameraRenderer {
         free(rawData)
         
         // Create and return the UIImage
-        // TODO: should this scale be dynamic? 
+        // TODO: should this scale be dynamic?
         return UIImage(cgImage: cgImage, scale: 1.0, orientation: .up)
     }
-    
-    
+
+    /// Captures the current frame as a raw pixel buffer at native camera resolution.
+    /// This is preferred over captureCurrentFrame() for high-quality photo/video composition.
+    public func captureCurrentBuffer() async throws -> CVPixelBuffer {
+        guard let buffer = self.currentBuffer else {
+            throw DualCameraError.captureFailure(.noFrameAvailable)
+        }
+        return buffer
+    }
+
+
     // MARK: - Private Helpers
     
     /// Creates a texture from the given buffer and updates the view.

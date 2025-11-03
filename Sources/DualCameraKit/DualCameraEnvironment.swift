@@ -16,7 +16,7 @@ public struct DualCameraEnvironment: Sendable {
 #if targetEnvironment(simulator)
         return DualCameraMockController()
 #else
-        return DualCameraController()
+        return DualCameraController(useStreamCapture: true)
 #endif
     }
 }
