@@ -16,11 +16,6 @@ public enum DualCameraPhotoCaptureMode: Sendable, Equatable {
     /// The frame's origin determines the top-left corner to start capturing from,
     /// and the size determines the dimensions of the captured area.
     case containerFrame(CGRect)
-
-    @available(*, deprecated, message: "Use containerFrame instead")
-    public static func containerSize(_ size: CGSize) -> DualCameraPhotoCaptureMode {
-        .containerFrame(CGRect(origin: .zero, size: size))
-    }
 }
 
 public class DualCameraPhotoCapturer: DualCameraPhotoCapturing {
