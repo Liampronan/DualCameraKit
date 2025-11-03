@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		4F4460DE2EB94A7C00685CD7 /* Zoomable in Frameworks */ = {isa = PBXBuildFile; productRef = 4F4460DD2EB94A7C00685CD7 /* Zoomable */; };
 		4F7E4C7F2D6D2B0A006F5609 /* DualCameraKit in Frameworks */ = {isa = PBXBuildFile; productRef = 4F7E4C7E2D6D2B0A006F5609 /* DualCameraKit */; };
 /* End PBXBuildFile section */
 
@@ -70,6 +71,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				4F7E4C7F2D6D2B0A006F5609 /* DualCameraKit in Frameworks */,
+				4F4460DE2EB94A7C00685CD7 /* Zoomable in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -132,6 +134,7 @@
 			name = DualCameraDemo;
 			packageProductDependencies = (
 				4F7E4C7E2D6D2B0A006F5609 /* DualCameraKit */,
+				4F4460DD2EB94A7C00685CD7 /* Zoomable */,
 			);
 			productName = DualCameraDemo;
 			productReference = 4F4D659B2D66D02C00F40490 /* DualCameraDemo.app */;
@@ -217,6 +220,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				4F7E4C7D2D6D2B0A006F5609 /* XCLocalSwiftPackageReference "../../DualCameraKit" */,
+				4F4460DC2EB94A7C00685CD7 /* XCRemoteSwiftPackageReference "Zoomable" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 4F4D659C2D66D02C00F40490 /* Products */;
@@ -620,7 +624,23 @@
 		};
 /* End XCLocalSwiftPackageReference section */
 
+/* Begin XCRemoteSwiftPackageReference section */
+		4F4460DC2EB94A7C00685CD7 /* XCRemoteSwiftPackageReference "Zoomable" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/ryohey/Zoomable";
+			requirement = {
+				branch = main;
+				kind = branch;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
 /* Begin XCSwiftPackageProductDependency section */
+		4F4460DD2EB94A7C00685CD7 /* Zoomable */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 4F4460DC2EB94A7C00685CD7 /* XCRemoteSwiftPackageReference "Zoomable" */;
+			productName = Zoomable;
+		};
 		4F7E4C7E2D6D2B0A006F5609 /* DualCameraKit */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = DualCameraKit;

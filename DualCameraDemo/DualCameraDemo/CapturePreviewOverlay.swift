@@ -1,9 +1,11 @@
 import SwiftUI
+import Zoomable
 
 struct CapturePreviewOverlay: View {
     let image: UIImage
     let onDismiss: () -> Void
     let onConfirm: () -> Void
+    @GestureState private var magnifyBy = 1.0
     
     var body: some View {
         ZStack {
@@ -16,6 +18,7 @@ struct CapturePreviewOverlay: View {
                         Image(systemName: "xmark.circle.fill")
                             .font(.system(size: 24))
                             .foregroundColor(.white)
+                        
                     }
                     
                     Spacer()
@@ -38,6 +41,7 @@ struct CapturePreviewOverlay: View {
                     .resizable()
                     .scaledToFit()
                     .cornerRadius(12)
+                    .zoomable()
                     .padding()
                 
                 Spacer()
@@ -45,4 +49,5 @@ struct CapturePreviewOverlay: View {
             .padding()
         }
     }
+    
 }
