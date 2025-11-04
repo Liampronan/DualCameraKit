@@ -76,7 +76,7 @@ public final class MetalCameraRenderer: MTKView, CameraRenderer, MTKViewDelegate
     /// Initializes Metal components and sets up the render pipeline.
     private func initializeMetal() throws {
         guard let device = self.device else {
-            DualCameraLogger.errors.error("❌ Metal not supported on this device")
+            DualCameraLogger.log("❌ Metal not supported on this device", category: .errors, level: .error)
             throw MetalRendererError.metalNotSupported
         }
         
@@ -84,7 +84,7 @@ public final class MetalCameraRenderer: MTKView, CameraRenderer, MTKViewDelegate
         
         let status = CVMetalTextureCacheCreate(kCFAllocatorDefault, nil, device, nil, &textureCache)
         if status != kCVReturnSuccess {
-            DualCameraLogger.errors.error("❌ Failed to create Metal texture cache")
+            DualCameraLogger.log("❌ Failed to create Metal texture cache", category: .errors, level: .error)
             throw MetalRendererError.textureCreationFailed
         }
         
@@ -106,7 +106,7 @@ public final class MetalCameraRenderer: MTKView, CameraRenderer, MTKViewDelegate
     /// Sets up the Metal render pipeline.
     private func setupRenderPipeline() throws {
         guard let device = device else {
-            DualCameraLogger.errors.error("❌ No metal device found")
+            DualCameraLogger.log("❌ No metal device found", category: .errors, level: .error)
             throw MetalRendererError.metalLibraryLoadFailed
         }
         
@@ -116,13 +116,13 @@ public final class MetalCameraRenderer: MTKView, CameraRenderer, MTKViewDelegate
         do {
             library = try device.makeDefaultLibrary(bundle: spmBundle)
         } catch {
-            DualCameraLogger.errors.error("❌ Failed to load Metal library: \(error.localizedDescription)")
+            DualCameraLogger.log("❌ Failed to load Metal library: \(error.localizedDescription)", category: .errors, level: .error)
             throw MetalRendererError.metalLibraryLoadFailed
         }
         
         guard let vertexFunction = library.makeFunction(name: MetalLibFunctionName.vertexShader),
               let fragmentFunction = library.makeFunction(name: MetalLibFunctionName.fragmentShader) else {
-            DualCameraLogger.errors.error("❌ Metal functions not found in library")
+            DualCameraLogger.log("❌ Metal functions not found in library", category: .errors, level: .error)
             throw MetalRendererError.metalFunctionNotFound
         }
         
@@ -133,9 +133,10 @@ public final class MetalCameraRenderer: MTKView, CameraRenderer, MTKViewDelegate
         
         do {
             renderPipelineState = try device.makeRenderPipelineState(descriptor: pipelineDescriptor)
-            DualCameraLogger.session.info("✅ Metal render pipeline initialized successfully")
+            DualCameraLogger.log("✅ Metal render pipeline initialized successfully", category: .session)
+            
         } catch {
-            DualCameraLogger.errors.error("❌ Failed to create render pipeline: \(error.localizedDescription)")
+            DualCameraLogger.log("❌ Failed to create render pipeline: \(error.localizedDescription)", category: .errors, level: .error)
             throw MetalRendererError.renderPipelineCreationFailed(error)
         }
     }

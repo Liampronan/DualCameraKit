@@ -44,7 +44,7 @@ public extension MediaLibraryService {
                 do {
                     try await removeItem(url)
                 } catch {
-                    DualCameraLogger.errors.error("Failed to remove video at path: \(url.absoluteString, privacy: .public). Error: \(error.localizedDescription, privacy: .public)")
+                    DualCameraLogger.log("Failed to remove video at path: \(url.absoluteString). Error: \(error.localizedDescription)", category: .errors, level: .error)
                 }
             }
         )

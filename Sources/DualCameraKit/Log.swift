@@ -1,10 +1,23 @@
 import os
 
-/// Centralized logging for DualCameraKit
-internal struct DualCameraLogger {
+public enum LogCategory: String {
+    case camera, session, errors, general
+}
+
+public struct DualCameraLogger {
     private static let subsystem = "DualCameraKit"
-    
-    static let camera = Logger(subsystem: subsystem, category: "Camera")
-    static let session = Logger(subsystem: subsystem, category: "Session")
-    static let errors = Logger(subsystem: subsystem, category: "Errors")
+
+    // Unified access
+    public static func log(
+        _ message: String,
+        category: LogCategory = .general,
+        level: OSLogType = .debug
+    ) {
+        let logger = Logger(subsystem: subsystem, category: category.rawValue)
+        #if targetEnvironment(simulator)
+        // Always echo to console for fast feedback in Simulator
+        print("[\(category.rawValue.uppercased())] \(message)")
+        #endif
+        logger.log(level: level, "\(message, privacy: .public)")
+    }
 }

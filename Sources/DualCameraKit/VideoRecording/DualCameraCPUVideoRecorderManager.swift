@@ -125,7 +125,7 @@ public actor DualCameraCPUVideoRecorderManager: DualCameraVideoRecording {
         setupDisplayLink(frameRate: frameRate)
         
         state = .active(outputURL: outputURL, quality: quality)
-        DualCameraLogger.session.debug("📹 Screen recording started with DualCameraCPUVideoRecorderManager")
+        DualCameraLogger.log("📹 Screen recording started with DualCameraCPUVideoRecorderManager", category: .session)
     }
     
     public func stopVideoRecording() async throws -> URL {
@@ -155,8 +155,7 @@ public actor DualCameraCPUVideoRecorderManager: DualCameraVideoRecording {
                 }
             }
         }
-        
-        DualCameraLogger.session.debug("Recording completed with \(self.frameCount) frames using DualCameraCPUVideoRecorderManager")
+        DualCameraLogger.log("Recording completed with \(self.frameCount) frames using DualCameraCPUVideoRecorderManager", category: .session)
         
         resetRecordingState()
         
@@ -250,7 +249,7 @@ public actor DualCameraCPUVideoRecorderManager: DualCameraVideoRecording {
         let runLoop = RunLoop.main
         self.displayLink?.add(to: runLoop, forMode: .common)
         self.displayLink?.add(to: runLoop, forMode: .tracking)
-        DualCameraLogger.session.info("Standard display link in use")
+        DualCameraLogger.log("Standard display link in use", category: .session)
     }
     
     /// Create an optimized pixel buffer pool for more efficient memory use and better performance
@@ -280,7 +279,7 @@ public actor DualCameraCPUVideoRecorderManager: DualCameraVideoRecording {
         
         // Check status and throw error if pool creation failed
         guard status == kCVReturnSuccess, let pool = pixelBufferPool else {
-            DualCameraLogger.errors.error("Failed to create pixel buffer pool: \(status)")
+            DualCameraLogger.log("Failed to create pixel buffer pool: \(status)", category: .errors, level: .error)
             throw DualCameraError.recordingFailed(.pixelBufferPoolCreationFailed)
         }
     }
