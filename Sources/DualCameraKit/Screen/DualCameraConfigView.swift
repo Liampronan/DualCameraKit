@@ -93,7 +93,7 @@ struct DualCameraConfigView: View {
 #Preview {
     DualCameraConfigView(
         viewModel: DualCameraViewModel(
-            dualCameraController: DualCameraMockController(),
+            dualCameraController: DualCameraEnvironment.getDefaultCameraController(),
             saveToLibrary: false
         )
     )

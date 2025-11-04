@@ -13,11 +13,16 @@ public struct DualCameraEnvironment: Sendable {
     
     @MainActor 
     static func getDefaultCameraController() -> DualCameraControlling {
+        var streamSource: DualCameraCameraStreamSourcing
 #if targetEnvironment(simulator)
-        return DualCameraMockController()
+        streamSource = DualCameraMockCameraStreamSource()
 #else
-        return DualCameraController(useStreamCapture: true)
-#endif
+        streamSource = DualCameraCameraStreamSource()
+#endif 
+        return DualCameraController(
+            useStreamCapture: true,
+            streamSource: streamSource
+        )
     }
 }
 

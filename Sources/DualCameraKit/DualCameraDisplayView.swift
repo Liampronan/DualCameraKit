@@ -73,42 +73,42 @@ public struct DualCameraDisplayView: View {
 
 #Preview("PiP - Bottom Trailing") {
     DualCameraDisplayView(
-        controller: DualCameraMockController(),
+        controller: DualCameraEnvironment.getDefaultCameraController(),
         layout: .piP(miniCamera: .front, miniCameraPosition: .bottomTrailing)
     )
 }
 
 #Preview("PiP - Bottom Leading") {
     DualCameraDisplayView(
-        controller: DualCameraMockController(),
+        controller: DualCameraEnvironment.getDefaultCameraController(),
         layout: .piP(miniCamera: .front, miniCameraPosition: .bottomLeading)
     )
 }
 
 #Preview("PiP - Top Trailing") {
     DualCameraDisplayView(
-        controller: DualCameraMockController(),
+        controller: DualCameraEnvironment.getDefaultCameraController(),
         layout: .piP(miniCamera: .front, miniCameraPosition: .topTrailing)
     )
 }
 
 #Preview("PiP - Top Leading") {
     DualCameraDisplayView(
-        controller: DualCameraMockController(),
+        controller: DualCameraEnvironment.getDefaultCameraController(),
         layout: .piP(miniCamera: .front, miniCameraPosition: .topLeading)
     )
 }
 
 #Preview("Stacked Vertical") {
     DualCameraDisplayView(
-        controller: DualCameraMockController(),
+        controller: DualCameraEnvironment.getDefaultCameraController(),
         layout: .stackedVertical
     )
 }
 
 #Preview("Side by Side") {
     DualCameraDisplayView(
-        controller: DualCameraMockController(),
+        controller: DualCameraEnvironment.getDefaultCameraController(),
         layout: .sideBySide
     )
 }

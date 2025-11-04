@@ -77,7 +77,7 @@ private struct AppTabView: View {
                 .transition(.scale.combined(with: .opacity))
             }
         }
-        .background(.primary)
+        .background(.black)
         .onChange(of: vm.capturedPhoto) { oldValue, newValue in
             if let image = newValue {
                 captureReviewState.showPreview(image)

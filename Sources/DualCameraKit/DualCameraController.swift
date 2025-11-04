@@ -71,8 +71,8 @@ public final class DualCameraController: DualCameraControlling {
 
     var renderers: [DualCameraSource: CameraRenderer] = [:]
 
-    private let streamSource = DualCameraCameraStreamSource()
-
+    private let streamSource: DualCameraCameraStreamSourcing
+    
     // Internal storage for renderers and their stream tasks.
     private var streamTasks: [DualCameraSource: Task<Void, Never>] = [:]
 
@@ -89,11 +89,13 @@ public final class DualCameraController: DualCameraControlling {
     public init(
         photoCapturer: any DualCameraPhotoCapturing = DualCameraPhotoCapturer(),
         useStreamCapture: Bool = false, // Default to legacy for backward compatibility
-        photoStyle: DualCameraPhotoStyle = .dualCameraScreen // Match SwiftUI appearance by default
+        photoStyle: DualCameraPhotoStyle = .dualCameraScreen,
+        streamSource: DualCameraCameraStreamSourcing
     ) {
         self.photoCapturer = photoCapturer
         self.useStreamCapture = useStreamCapture
         self.streamPhotoCapturer = DualCameraStreamPhotoCapturer(style: photoStyle)
+        self.streamSource = streamSource
     }
     
     nonisolated public var frontCameraStream: AsyncStream<PixelBufferWrapper> {
@@ -206,107 +208,4 @@ public final class DualCameraController: DualCameraControlling {
     }
 }
 
-/// currently, this mock controller is a "fake" DualCameraController and shadows some functionality
-/// via mocks. I think we'll evolve this here such that the DualCameraController can take mocked implementations
-/// and we can remove the need for this "fake" behavior, i.e., make things more consistent.
-public final class DualCameraMockController: DualCameraControlling {
-    public func setTorchMode(_ mode: AVCaptureDevice.TorchMode, for camera: DualCameraSource) throws {
-        // Mock implementation - no-op
-    }
 
-    public func captureComposedPhoto(layout: DualCameraLayout, mode: DualCameraPhotoCaptureMode) async throws -> UIImage {
-        // Mock implementation - return a placeholder image
-        let size = CGSize(width: 1080, height: 1920)
-        let renderer = UIGraphicsImageRenderer(size: size)
-        return renderer.image { context in
-            // Draw purple for back camera, yellow for front camera in PiP
-            UIColor.purple.setFill()
-            context.fill(CGRect(origin: .zero, size: size))
-
-            // Add mini camera overlay for PiP layouts
-            if case .piP = layout {
-                UIColor.yellow.setFill()
-                let miniSize = CGSize(width: size.width * 0.25, height: size.height * 0.25)
-                context.fill(CGRect(origin: CGPoint(x: 20, y: 20), size: miniSize))
-            }
-        }
-    }
-
-
-    public init() {
-        // for now, unmocked - we'll probably revisit this for testing.
-        // this works just fine for simulator purposes though.
-        self.photoCapturer = DualCameraPhotoCapturer()
-    }
-    
-    private var streamSource: DualCameraCameraStreamSourcing = DualCameraMockCameraStreamSource()
-    private var renderers: [DualCameraSource: CameraRenderer] = [:]
-    
-    public var frontCameraStream: AsyncStream<PixelBufferWrapper> {
-        streamSource.frontCameraStream
-    }
-    
-    public var backCameraStream: AsyncStream<PixelBufferWrapper> {
-        streamSource.backCameraStream
-    }
-    
-    /// Creates a renderer (using MetalCameraRenderer by default).
-    public func createRenderer() -> CameraRenderer {
-        return MetalCameraRenderer()
-    }
-    
-    /// Returns a renderer for the specified camera source.
-    /// If one does not exist yet, it is created and connected to its stream.
-    public func getRenderer(for source: DualCameraSource) -> CameraRenderer {
-        if let renderer = renderers[source] {
-            return renderer
-        }
-        
-        let newRenderer = createRenderer()
-        renderers[source] = newRenderer
-        connectStream(for: source, renderer: newRenderer)
-        return newRenderer
-    }
-    
-    public func startSession() async throws {
-        try await streamSource.startSession()
-        
-        // Auto-initialize renderers
-        _ = getRenderer(for: .front)
-        _ = getRenderer(for: .back)
-    }
-    
-    public func stopSession() {
-        streamSource.stopSession()
-        cancelRendererTasks()
-        // Clear renderers so they're recreated with fresh stream connections on next startSession()
-        renderers.removeAll()
-    }
-    
-    public var photoCapturer: any DualCameraPhotoCapturing
-    
-    public var videoRecorder: (any DualCameraVideoRecording)?
-    
-    public func setVideoRecorder(_ recorder: any DualCameraVideoRecording) async throws {}
-    
-    private func connectStream(for source: DualCameraSource, renderer: CameraRenderer) {
-        let stream: AsyncStream<PixelBufferWrapper> = source == .front ? frontCameraStream : backCameraStream
-        // Create a task that forwards frames from the stream to the renderer.
-        let task = Task {
-            for await buffer in stream {
-                if Task.isCancelled { break }
-                renderer.update(with: buffer.buffer)
-            }
-        }
-        streamTasks[source] = task
-    }
-    
-    private var streamTasks: [DualCameraSource: Task<Void, Never>] = [:]
-    
-    private func cancelRendererTasks() {
-        for task in streamTasks.values {
-            task.cancel()
-        }
-        streamTasks.removeAll()
-    }
-}
