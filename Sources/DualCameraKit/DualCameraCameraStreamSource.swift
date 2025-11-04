@@ -252,10 +252,11 @@ public final class DualCameraMockCameraStreamSource: DualCameraCameraStreamSourc
     public init() { }
     
     public func startSession() async throws {
-        let purpleBuffer: CVPixelBuffer = UIColor.purple.asImage().pixelBuffer()!
+        let mockSize = CGSize(width: 1080, height: 1920)
+        let purpleBuffer: CVPixelBuffer = UIColor.purple.asImage(mockSize).pixelBuffer()!
         let purpleBufferWrapper = PixelBufferWrapper(buffer: purpleBuffer)
         
-        let yellowBuffer = UIColor.yellow.asImage().pixelBuffer()!
+        let yellowBuffer = UIColor.yellow.asImage(mockSize).pixelBuffer()!
         let yellowBufferWrapper = PixelBufferWrapper(buffer: yellowBuffer)
         await frontBroadcaster.broadcast(yellowBufferWrapper)
         await backBroadcaster.broadcast(purpleBufferWrapper)
