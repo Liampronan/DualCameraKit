@@ -1,3 +1,4 @@
+import AVFoundation
 import DualCameraKit
 import Observation
 import SwiftUI
@@ -13,6 +14,13 @@ public enum CameraFlashMode: String, Equatable, CaseIterable {
         switch self {
         case .off: return "bolt.slash.circle.fill"
         case .on: return "bolt.circle.fill"
+        }
+    }
+
+    var torchMode: AVCaptureDevice.TorchMode {
+        switch self {
+        case .off: return .off
+        case .on: return .on
         }
     }
 }
@@ -63,11 +71,20 @@ public final class DualCameraViewModel {
 
     func onDisappear() {
         try? controller.setTorchMode(.off)
+        flashMode = .off
         controller.stopSession()
     }
 
     func toggleFlashButtonTapped() {
-        flashMode = flashMode == .on ? .off : .on
+        let nextMode: CameraFlashMode = flashMode == .on ? .off : .on
+
+        do {
+            try controller.setTorchMode(nextMode.torchMode)
+            flashMode = nextMode
+        } catch {
+            flashMode = .off
+            showError(error, message: "Failed to update flashlight")
+        }
     }
 
     public func containerSizeChanged(_ newSize: CGSize) {
@@ -84,42 +101,36 @@ public final class DualCameraViewModel {
         }
     }
 
-    func capturePhotoButtonTapped() {
+    @discardableResult
+    func capturePhotoButtonTapped() -> Task<Void, Never> {
         Task {
-            guard case .ready = viewState else { return }
-            viewState = .capturing
+            await capturePhoto()
+        }
+    }
 
-            do {
-                if flashMode == .on {
-                    try? controller.setTorchMode(.on)
-                    try await Task.sleep(for: .seconds(0.25))
-                }
+    private func capturePhoto() async {
+        guard case .ready = viewState else { return }
+        viewState = .capturing
 
-                let image = try await controller.capturePhoto(
-                    layout: cameraLayout,
-                    outputSize: containerSize
-                )
+        do {
+            let image = try await controller.capturePhoto(
+                layout: cameraLayout,
+                outputSize: containerSize
+            )
 
-                if flashMode == .on {
-                    try? controller.setTorchMode(.off)
-                }
-
-                capturedPhoto = image
-                try await photoSaveStrategy.save(image)
-                viewState = .ready
-                provideSaveSuccessHapticFeedback()
-            } catch let error as DualCameraError {
-                try? controller.setTorchMode(.off)
-                viewState = .error(error)
-                showError(error, message: "Error capturing photo")
-                viewState = .ready
-            } catch {
-                try? controller.setTorchMode(.off)
-                let dualCameraError = DualCameraError.unknownError
-                viewState = .error(dualCameraError)
-                showError(error, message: "Error capturing photo")
-                viewState = .ready
-            }
+            capturedPhoto = image
+            try await photoSaveStrategy.save(image)
+            viewState = .ready
+            provideSaveSuccessHapticFeedback()
+        } catch let error as DualCameraError {
+            viewState = .error(error)
+            showError(error, message: "Error capturing photo")
+            viewState = .ready
+        } catch {
+            let dualCameraError = DualCameraError.unknownError
+            viewState = .error(dualCameraError)
+            showError(error, message: "Error capturing photo")
+            viewState = .ready
         }
     }
 

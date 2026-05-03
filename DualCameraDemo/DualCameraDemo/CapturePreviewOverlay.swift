@@ -8,7 +8,6 @@ struct CapturePreviewOverlay: View {
     var body: some View {
         ZStack {
             Color.black
-                .opacity(0.94)
                 .ignoresSafeArea()
 
             GeometryReader { proxy in
@@ -69,6 +68,7 @@ struct CapturePreviewOverlay: View {
                 .shadow(color: .black.opacity(0.22), radius: 10, y: 4)
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(systemName == "xmark" ? "Close" : "Use Photo")
     }
 
     private func previewMaxHeight(for proxy: GeometryProxy) -> CGFloat {

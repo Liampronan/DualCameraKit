@@ -17,8 +17,14 @@ public protocol DualCameraControlling {
 
 @MainActor
 public final class DualCameraController: DualCameraControlling {
+    // SwiftUI can briefly overlap outgoing and incoming camera screens during
+    // animated navigation/demo handoffs. Keep the capture session alive across
+    // that small gap so transitions do not tear down and restart camera capture.
+    private static let navigationHandoffStopDelay: Duration = .milliseconds(450)
+
     private let photoCapturer: any DualCameraPhotoCapturing
     private let streamSource: DualCameraCameraStreamSourcing
+    private let sessionStopDelay: Duration
 
     private var renderers: [DualCameraSource: CameraRenderer] = [:]
     private var streamTasks: [DualCameraSource: Task<Void, Never>] = [:]
@@ -29,10 +35,12 @@ public final class DualCameraController: DualCameraControlling {
 
     public init(
         photoCapturer: (any DualCameraPhotoCapturing)? = nil,
-        streamSource: DualCameraCameraStreamSourcing? = nil
+        streamSource: DualCameraCameraStreamSourcing? = nil,
+        sessionStopDelay: Duration? = nil
     ) {
         self.photoCapturer = photoCapturer ?? DualCameraPhotoCapturer()
         self.streamSource = streamSource ?? DualCameraCameraStreamSource()
+        self.sessionStopDelay = sessionStopDelay ?? Self.navigationHandoffStopDelay
     }
 
     deinit {
@@ -57,11 +65,6 @@ public final class DualCameraController: DualCameraControlling {
             throw error
         }
 
-        guard sessionUseCount > 0 else {
-            stopSessionIfUnused()
-            return
-        }
-
         _ = getRenderer(for: .front)
         _ = getRenderer(for: .back)
     }
@@ -80,13 +83,12 @@ public final class DualCameraController: DualCameraControlling {
         guard sessionUseCount == 0 else { return }
         guard scheduledStopTask == nil else { return }
 
+        let sessionStopDelay = sessionStopDelay
         scheduledStopTask = Task { [weak self] in
-            try? await Task.sleep(for: .milliseconds(450))
+            try? await Task.sleep(for: sessionStopDelay)
             guard !Task.isCancelled else { return }
 
-            await MainActor.run {
-                self?.stopSessionNowIfUnused()
-            }
+            self?.stopSessionNowIfUnused()
         }
     }
 

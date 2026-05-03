@@ -75,7 +75,7 @@ public final class MetalCameraRenderer: MTKView, CameraRenderer, MTKViewDelegate
 
         framebufferOnly = false
         preferredFramesPerSecond = UIScreen.main.maximumFramesPerSecond
-        isPaused = false
+        isPaused = true
         enableSetNeedsDisplay = true
         self.colorPixelFormat = .bgra8Unorm
 

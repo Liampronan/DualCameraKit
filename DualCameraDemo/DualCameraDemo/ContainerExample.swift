@@ -72,7 +72,7 @@ private struct AppTabView: View {
                         captureReviewState.reset()
                     }
                 )
-                .ignoresSafeArea()
+                .presentationBackground(.black)
             }
         }
         .onChange(of: viewModel.capturedPhoto) { _, newValue in

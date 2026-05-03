@@ -81,7 +81,9 @@ public struct DualCameraScreen: View {
     private var controlButtons: some View {
         VStack(spacing: 16) {
             HStack(spacing: 32) {
-                Button(action: viewModel.capturePhotoButtonTapped) {
+                Button {
+                    viewModel.capturePhotoButtonTapped()
+                } label: {
                     Image(systemName: "camera.fill")
                         .font(.largeTitle)
                         .foregroundColor(.white)

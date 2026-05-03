@@ -60,6 +60,33 @@ final class DualCameraViewModelTests: XCTestCase {
 
         XCTAssertTrue(controller.sessionStopped)
         XCTAssertEqual(controller.torchModes, [.off])
+        XCTAssertEqual(viewModel.flashMode, .off)
+    }
+
+    func test_toggleFlashButtonTapped_setsTorchImmediately() {
+        let controller = MockDualCameraController()
+        let viewModel = DualCameraViewModel(dualCameraController: controller)
+
+        viewModel.toggleFlashButtonTapped()
+
+        XCTAssertEqual(viewModel.flashMode, .on)
+        XCTAssertEqual(controller.torchModes, [.on])
+
+        viewModel.toggleFlashButtonTapped()
+
+        XCTAssertEqual(viewModel.flashMode, .off)
+        XCTAssertEqual(controller.torchModes, [.on, .off])
+    }
+
+    func test_toggleFlashButtonTapped_whenTorchFailsShowsAlertAndKeepsFlashOff() {
+        let controller = MockDualCameraController()
+        controller.shouldFailSetTorchMode = true
+        let viewModel = DualCameraViewModel(dualCameraController: controller)
+
+        viewModel.toggleFlashButtonTapped()
+
+        XCTAssertEqual(viewModel.flashMode, .off)
+        XCTAssertNotNil(viewModel.alert)
     }
 
     func test_capturePhoto_savesImageAndPublishesCapture() async throws {
@@ -74,12 +101,13 @@ final class DualCameraViewModelTests: XCTestCase {
         viewModel.onAppear(containerSize: CGSize(width: 320, height: 480))
         await Task.yield()
 
-        viewModel.capturePhotoButtonTapped()
-        try await Task.sleep(for: .milliseconds(10))
+        let captureTask = viewModel.capturePhotoButtonTapped()
+        await captureTask.value
 
         XCTAssertEqual(controller.captureOutputSize, CGSize(width: 320, height: 480))
         XCTAssertNotNil(viewModel.capturedPhoto)
-        XCTAssertTrue(await savedImage.get() === controller.mockCapturedImage)
+        let savedCapturedImage = await savedImage.get()
+        XCTAssertTrue(savedCapturedImage === controller.mockCapturedImage)
         XCTAssertEqual(viewModel.viewState, .ready)
     }
 
@@ -90,12 +118,27 @@ final class DualCameraViewModelTests: XCTestCase {
         viewModel.onAppear(containerSize: CGSize(width: 320, height: 480))
         await Task.yield()
 
-        viewModel.capturePhotoButtonTapped()
-        try await Task.sleep(for: .milliseconds(10))
+        let captureTask = viewModel.capturePhotoButtonTapped()
+        await captureTask.value
 
         XCTAssertNil(viewModel.capturedPhoto)
         XCTAssertNotNil(viewModel.alert)
         XCTAssertEqual(viewModel.viewState, .ready)
+    }
+
+    func test_capturePhoto_whenFlashlightEnabledDoesNotToggleTorchDuringCapture() async throws {
+        let controller = MockDualCameraController()
+        let viewModel = DualCameraViewModel(dualCameraController: controller)
+        viewModel.onAppear(containerSize: CGSize(width: 320, height: 480))
+        await Task.yield()
+        viewModel.toggleFlashButtonTapped()
+
+        let captureTask = viewModel.capturePhotoButtonTapped()
+        await captureTask.value
+
+        XCTAssertEqual(controller.torchModes, [.on])
+        XCTAssertEqual(viewModel.flashMode, .on)
+        XCTAssertNotNil(viewModel.capturedPhoto)
     }
 }
 
@@ -105,6 +148,7 @@ final class MockDualCameraController: DualCameraControlling {
     var sessionStopped = false
     var shouldFailStartSession = false
     var shouldFailCapturePhoto = false
+    var shouldFailSetTorchMode = false
     var torchModes: [AVCaptureDevice.TorchMode] = []
     var captureOutputSize: CGSize?
     let mockCapturedImage = UIImage()
@@ -143,6 +187,9 @@ final class MockDualCameraController: DualCameraControlling {
     }
 
     func setTorchMode(_ mode: AVCaptureDevice.TorchMode) throws {
+        if shouldFailSetTorchMode {
+            throw DualCameraError.configurationFailed
+        }
         torchModes.append(mode)
     }
 }

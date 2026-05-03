@@ -49,7 +49,7 @@ struct CompositionalExample: View {
                         onDismiss: { self.capturedImage = nil },
                         onConfirm: { self.capturedImage = nil }
                     )
-                    .ignoresSafeArea()
+                    .presentationBackground(.black)
                 }
             }
             .alert("Capture Failed", isPresented: alertBinding) {

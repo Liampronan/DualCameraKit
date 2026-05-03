@@ -113,14 +113,23 @@ public final class DualCameraCameraStreamSource: NSObject, DualCameraCameraStrea
         }
 
         guard device.hasTorch else {
-            // Front camera usually doesn't have torch, silently ignore
+            // Some simulator or external-camera configurations have no torch.
+            return
+        }
+
+        guard device.isTorchModeSupported(mode) else {
             return
         }
 
         do {
             try device.lockForConfiguration()
-            device.torchMode = mode
-            device.unlockForConfiguration()
+            defer { device.unlockForConfiguration() }
+
+            if mode == .on {
+                try device.setTorchModeOn(level: AVCaptureDevice.maxAvailableTorchLevel)
+            } else {
+                device.torchMode = mode
+            }
         } catch {
             throw DualCameraError.configurationFailed
         }
