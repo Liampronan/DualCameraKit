@@ -16,8 +16,8 @@ final class DualCameraPhotoCapturerTests: XCTestCase {
             outputSize: CGSize(width: 20, height: 10)
         )
 
-        XCTAssertTrue(try image.isPixelNear(x: 5, y: 5, to: .blue))
-        XCTAssertTrue(try image.isPixelNear(x: 15, y: 5, to: .red))
+        XCTAssertTrue(try image.isPixelNear(pixelX: 5, pixelY: 5, to: .blue))
+        XCTAssertTrue(try image.isPixelNear(pixelX: 15, pixelY: 5, to: .red))
     }
 
     func test_rawPhotosReturnsBothCameraImages() async throws {
@@ -27,8 +27,8 @@ final class DualCameraPhotoCapturerTests: XCTestCase {
 
         let photos = try await capturer.captureRawPhotos(frontBuffer: front, backBuffer: back)
 
-        XCTAssertTrue(try photos.front.isPixelNear(x: 5, y: 5, to: .red))
-        XCTAssertTrue(try photos.back.isPixelNear(x: 5, y: 5, to: .blue))
+        XCTAssertTrue(try photos.front.isPixelNear(pixelX: 5, pixelY: 5, to: .red))
+        XCTAssertTrue(try photos.back.isPixelNear(pixelX: 5, pixelY: 5, to: .blue))
     }
 
     private func makePixelBuffer(color: UIColor) throws -> CVPixelBuffer {
@@ -40,13 +40,13 @@ final class DualCameraPhotoCapturerTests: XCTestCase {
 }
 
 private extension UIImage {
-    func isPixelNear(x: Int, y: Int, to expectedColor: UIColor, tolerance: Int = 8) throws -> Bool {
+    func isPixelNear(pixelX: Int, pixelY: Int, to expectedColor: UIColor, tolerance: Int = 8) throws -> Bool {
         guard let cgImage else {
             throw DualCameraError.captureFailure(.imageCreationFailed)
         }
 
-        let scaledX = min(Int(CGFloat(x) * scale), cgImage.width - 1)
-        let scaledY = min(Int(CGFloat(y) * scale), cgImage.height - 1)
+        let scaledX = min(Int(CGFloat(pixelX) * scale), cgImage.width - 1)
+        let scaledY = min(Int(CGFloat(pixelY) * scale), cgImage.height - 1)
         let bytesPerPixel = 4
         let bytesPerRow = bytesPerPixel
         var pixel = [UInt8](repeating: 0, count: bytesPerPixel)
@@ -77,4 +77,3 @@ private extension UIImage {
             abs(Int(pixel[2]) - Int(blue * 255)) <= tolerance
     }
 }
-

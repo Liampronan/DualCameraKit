@@ -1,8 +1,11 @@
 import UIKit
 
 @MainActor
-public protocol DualCameraPhotoCapturing: AnyObject, Sendable  {
-    func captureRawPhotos(frontBuffer: CVPixelBuffer, backBuffer: CVPixelBuffer) async throws -> (front: UIImage, back: UIImage)
+public protocol DualCameraPhotoCapturing: AnyObject, Sendable {
+    func captureRawPhotos(
+        frontBuffer: CVPixelBuffer,
+        backBuffer: CVPixelBuffer
+    ) async throws -> (front: UIImage, back: UIImage)
     func captureComposedPhoto(
         frontBuffer: CVPixelBuffer,
         backBuffer: CVPixelBuffer,
@@ -13,18 +16,21 @@ public protocol DualCameraPhotoCapturing: AnyObject, Sendable  {
 
 public class DualCameraPhotoCapturer: DualCameraPhotoCapturing {
     private let layoutResolver: DualCameraLayoutResolver
-    
+
     public init(layoutResolver: DualCameraLayoutResolver = DualCameraLayoutResolver()) {
         self.layoutResolver = layoutResolver
     }
-    
-    public func captureRawPhotos(frontBuffer: CVPixelBuffer, backBuffer: CVPixelBuffer) async throws -> (front: UIImage, back: UIImage) {
+
+    public func captureRawPhotos(
+        frontBuffer: CVPixelBuffer,
+        backBuffer: CVPixelBuffer
+    ) async throws -> (front: UIImage, back: UIImage) {
         return (
             front: try image(from: frontBuffer),
             back: try image(from: backBuffer)
         )
     }
-    
+
     public func captureComposedPhoto(
         frontBuffer: CVPixelBuffer,
         backBuffer: CVPixelBuffer,
@@ -49,7 +55,7 @@ public class DualCameraPhotoCapturer: DualCameraPhotoCapturing {
 
             for region in resolvedLayout.regionsInDrawingOrder {
                 let image = region.source == .front ? frontImage : backImage
-                draw(image, in: region.frame)
+                draw(image, in: region.frame, cornerRadius: cornerRadius(for: region, layout: layout))
             }
         }
     }
@@ -63,8 +69,24 @@ public class DualCameraPhotoCapturer: DualCameraPhotoCapturing {
         return UIImage(cgImage: cgImage, scale: UIScreen.main.scale, orientation: .up)
     }
 
-    private func draw(_ image: UIImage, in targetRect: CGRect) {
+    private func draw(_ image: UIImage, in targetRect: CGRect, cornerRadius: CGFloat) {
+        let context = UIGraphicsGetCurrentContext()
+        context?.saveGState()
+        defer { context?.restoreGState() }
+
+        if cornerRadius > 0 {
+            let clipPath = UIBezierPath(roundedRect: targetRect, cornerRadius: cornerRadius)
+            clipPath.addClip()
+        }
+
         image.draw(in: aspectFitRect(for: image.size, in: targetRect))
+    }
+
+    private func cornerRadius(for region: DualCameraResolvedLayout.CameraRegion, layout: DualCameraLayout) -> CGFloat {
+        guard case .piP(let miniCamera, _) = layout, region.source == miniCamera else {
+            return 0
+        }
+        return 10
     }
 
     private func aspectFitRect(for sourceSize: CGSize, in targetRect: CGRect) -> CGRect {

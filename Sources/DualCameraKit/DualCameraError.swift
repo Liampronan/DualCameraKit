@@ -10,7 +10,7 @@ public enum DualCameraError: Error, Equatable {
     case permissionDenied
     case sessionInterrupted(reason: AVCaptureSession.InterruptionReason)
     case unknownError
-    
+
     public enum CaptureFailureReason: Sendable {
         case commandBufferCreationFailed
         case contextCreationFailed

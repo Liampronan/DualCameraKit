@@ -5,7 +5,8 @@ import UIKit
 ///
 /// `saveToPhotoLibrary`  involves permission grant to write to user's photo library.
 ///
-///  `custom` opts-out of saving to user's photo library; useful for when you don't need to save to library or want to handle permission flow in a custom way.
+/// `custom` opts out of saving to user's photo library; useful when callers
+/// want to handle persistence and permission flow themselves.
 public enum DualCameraMediaSaveStrategy<Media: Sendable>: Sendable {
     case saveToMediaLibrary(@Sendable (Media) async throws -> Void)
     case custom(@Sendable (Media) async throws -> Void)

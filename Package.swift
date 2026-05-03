@@ -14,7 +14,7 @@ let package = Package(
         .library(
             name: "DualCameraKitUI",
             targets: ["DualCameraKitUI"]
-        ),
+        )
     ],
     targets: [
         .target(

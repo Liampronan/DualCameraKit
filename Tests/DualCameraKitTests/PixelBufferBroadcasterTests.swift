@@ -54,4 +54,3 @@ final class PixelBufferBroadcasterTests: XCTestCase {
         return PixelBufferWrapper(buffer: buffer)
     }
 }
-

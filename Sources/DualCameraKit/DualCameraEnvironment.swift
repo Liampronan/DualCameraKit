@@ -19,13 +19,13 @@ public struct DualCameraEnvironment {
 
     static func getDefaultCameraController() -> DualCameraControlling {
 #if targetEnvironment(simulator)
-        return DualCameraController(streamSource: DualCameraMockCameraStreamSource())
+        return DualCameraController(streamSource: DualCameraMockCameraStreamSource(animated: true))
 #else
         return DualCameraController()
 #endif
     }
 }
 
-// swiftlint:disable:next identifier_name
 @MainActor
+// swiftlint:disable:next identifier_name
 public var CurrentDualCameraEnvironment = DualCameraEnvironment()

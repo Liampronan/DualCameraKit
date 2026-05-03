@@ -7,7 +7,7 @@ enum CameraViewState: Equatable {
     case ready
     case capturing
     case error(DualCameraError)
-    
+
     var captureInProgress: Bool {
         self == .capturing
     }

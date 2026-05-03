@@ -9,23 +9,22 @@ on:
 jobs:
   swiftlint:
     name: SwiftLint
-    # use Linux for the SwiftLint action since this GH library requires it (so bot can post inline to PR) 
-    runs-on: ubuntu-latest  
+    # use Linux for the SwiftLint action since this GH library requires it (so bot can post inline to PR)
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: GitHub Action for SwiftLint
         uses: norio-nomura/action-swiftlint@3.2.1
         env:
-          WORKING_DIRECTORY: Source
-          
+          WORKING_DIRECTORY: .
   build:
     runs-on: macos-latest
     needs: swiftlint
     steps:
     - uses: actions/checkout@v4
 
-    - name: Select appropriate Xcode 
+    - name: Select appropriate Xcode
       run: sudo xcode-select -s /Applications/Xcode_16.2.app
 
     - name: List demo schemes
@@ -33,7 +32,7 @@ jobs:
 
     - name: List Devices
       run: xcrun simctl list devices
-      
+
     - name: Build demo for iOS simulator
       run: xcrun xcodebuild build -workspace DualCameraKit.xcworkspace -scheme DualCameraDemo -destination "generic/platform=iOS Simulator" -sdk iphonesimulator CODE_SIGNING_ALLOWED=NO
 

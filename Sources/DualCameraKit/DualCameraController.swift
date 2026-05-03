@@ -22,6 +22,10 @@ public final class DualCameraController: DualCameraControlling {
 
     private var renderers: [DualCameraSource: CameraRenderer] = [:]
     private var streamTasks: [DualCameraSource: Task<Void, Never>] = [:]
+    private var sessionUseCount = 0
+    private var isSessionStarted = false
+    private var startSessionTask: Task<Void, Error>?
+    private var scheduledStopTask: Task<Void, Never>?
 
     public init(
         photoCapturer: (any DualCameraPhotoCapturing)? = nil,
@@ -31,20 +35,74 @@ public final class DualCameraController: DualCameraControlling {
         self.streamSource = streamSource ?? DualCameraCameraStreamSource()
     }
 
+    deinit {
+        scheduledStopTask?.cancel()
+        for task in streamTasks.values {
+            task.cancel()
+        }
+    }
+
     public func subscribe(to source: DualCameraSource) -> AsyncStream<PixelBufferWrapper> {
         streamSource.subscribe(to: source)
     }
 
     public func startSession() async throws {
-        try await streamSource.startSession()
+        cancelScheduledStop()
+        sessionUseCount += 1
+
+        do {
+            try await ensureSessionStarted()
+        } catch {
+            sessionUseCount = max(0, sessionUseCount - 1)
+            throw error
+        }
+
+        guard sessionUseCount > 0 else {
+            stopSessionIfUnused()
+            return
+        }
+
         _ = getRenderer(for: .front)
         _ = getRenderer(for: .back)
     }
 
     public func stopSession() {
+        guard sessionUseCount > 0 else {
+            stopSessionIfUnused()
+            return
+        }
+
+        sessionUseCount -= 1
+        stopSessionIfUnused()
+    }
+
+    private func stopSessionIfUnused() {
+        guard sessionUseCount == 0 else { return }
+        guard scheduledStopTask == nil else { return }
+
+        scheduledStopTask = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(450))
+            guard !Task.isCancelled else { return }
+
+            await MainActor.run {
+                self?.stopSessionNowIfUnused()
+            }
+        }
+    }
+
+    private func cancelScheduledStop() {
+        scheduledStopTask?.cancel()
+        scheduledStopTask = nil
+    }
+
+    private func stopSessionNowIfUnused() {
+        scheduledStopTask = nil
+        guard sessionUseCount == 0 else { return }
+
         streamSource.stopSession()
-        cancelRendererTasks()
-        renderers.removeAll()
+        isSessionStarted = false
+        startSessionTask?.cancel()
+        startSessionTask = nil
     }
 
     public func setTorchMode(_ mode: AVCaptureDevice.TorchMode) throws {
@@ -103,10 +161,29 @@ public final class DualCameraController: DualCameraControlling {
         streamTasks[source] = task
     }
 
-    private func cancelRendererTasks() {
-        for task in streamTasks.values {
-            task.cancel()
+    private func ensureSessionStarted() async throws {
+        if isSessionStarted {
+            return
         }
-        streamTasks.removeAll()
+
+        if let startSessionTask {
+            try await startSessionTask.value
+            return
+        }
+
+        let task = Task { @MainActor in
+            try await streamSource.startSession()
+        }
+        startSessionTask = task
+
+        do {
+            try await task.value
+            isSessionStarted = true
+            startSessionTask = nil
+        } catch {
+            startSessionTask = nil
+            throw error
+        }
     }
+
 }

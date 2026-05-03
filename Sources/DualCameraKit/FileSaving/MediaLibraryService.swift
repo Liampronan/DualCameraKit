@@ -45,7 +45,13 @@ public extension MediaLibraryService {
     static var failing: Self {
         Self(
             saveImage: { _ in
-                throw MediaLibraryError.savingFailed(underlyingError: NSError(domain: "MediaLibraryService", code: 1, userInfo: [NSLocalizedDescriptionKey: "Unimplemented saveImage."]))
+                throw MediaLibraryError.savingFailed(
+                    underlyingError: NSError(
+                        domain: "MediaLibraryService",
+                        code: 1,
+                        userInfo: [NSLocalizedDescriptionKey: "Unimplemented saveImage."]
+                    )
+                )
             }
         )
     }

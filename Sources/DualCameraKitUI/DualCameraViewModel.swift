@@ -6,6 +6,7 @@ import UIKit
 /// Flash/torch mode for photo capture.
 public enum CameraFlashMode: String, Equatable, CaseIterable {
     case off
+    // swiftlint:disable:next identifier_name
     case on
 
     var systemImageName: String {

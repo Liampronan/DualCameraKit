@@ -23,8 +23,13 @@ public struct DualCameraResolvedLayout: Equatable, Sendable {
 public struct DualCameraLayoutResolver: Sendable {
     public init() {}
 
-    public func resolve(layout: DualCameraLayout, in size: CGSize) -> DualCameraResolvedLayout {
+    public func resolve(
+        layout: DualCameraLayout,
+        in size: CGSize,
+        overlayInsets: EdgeInsets = EdgeInsets()
+    ) -> DualCameraResolvedLayout {
         let bounds = CGRect(origin: .zero, size: size)
+        let overlayBounds = Self.inset(bounds, by: overlayInsets)
 
         switch layout {
         case .sideBySide:
@@ -38,7 +43,10 @@ public struct DualCameraLayoutResolver: Sendable {
             let halfHeight = size.height / 2
             return DualCameraResolvedLayout(
                 background: .init(source: .back, frame: CGRect(x: 0, y: 0, width: size.width, height: halfHeight)),
-                overlay: .init(source: .front, frame: CGRect(x: 0, y: halfHeight, width: size.width, height: halfHeight))
+                overlay: .init(
+                    source: .front,
+                    frame: CGRect(x: 0, y: halfHeight, width: size.width, height: halfHeight)
+                )
             )
 
         case .piP(let miniCamera, let position):
@@ -48,7 +56,7 @@ public struct DualCameraLayoutResolver: Sendable {
             let miniOrigin = Self.origin(
                 for: position,
                 miniSize: CGSize(width: miniWidth, height: miniHeight),
-                bounds: bounds,
+                bounds: overlayBounds,
                 padding: padding
             )
 
@@ -60,6 +68,18 @@ public struct DualCameraLayoutResolver: Sendable {
                 )
             )
         }
+    }
+
+    private static func inset(_ bounds: CGRect, by insets: EdgeInsets) -> CGRect {
+        let width = max(0, bounds.width - insets.leading - insets.trailing)
+        let height = max(0, bounds.height - insets.top - insets.bottom)
+
+        return CGRect(
+            x: bounds.minX + insets.leading,
+            y: bounds.minY + insets.top,
+            width: width,
+            height: height
+        )
     }
 
     private static func origin(
@@ -80,4 +100,3 @@ public struct DualCameraLayoutResolver: Sendable {
         }
     }
 }
-

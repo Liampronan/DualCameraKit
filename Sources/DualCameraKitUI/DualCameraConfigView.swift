@@ -3,18 +3,18 @@ import SwiftUI
 
 struct DualCameraConfigView: View {
     @Bindable private var viewModel: DualCameraViewModel
-    
+
     init(viewModel: DualCameraViewModel) {
         self.viewModel = viewModel
     }
-    
+
     var body: some View {
         VStack {
             layoutTypePicker
         }
         .sheetStyle(title: "Config")
     }
-    
+
     @ViewBuilder
     private var layoutTypePicker: some View {
         Menu {
@@ -39,10 +39,10 @@ struct DualCameraConfigView: View {
                 .foregroundColor(.white)
                 .padding()
                 .background(Circle().fill(Color.black.opacity(0.5)))
-            
+
         }
     }
-    
+
     private func createMenuEntry(title: String, layout: DualCameraLayout) -> some View {
         Group {
             Button {
