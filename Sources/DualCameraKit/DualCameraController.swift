@@ -132,7 +132,7 @@ public final class DualCameraController: DualCameraControlling {
 
         // Calculate output size based on mode
         let outputSize = calculateOutputSize(for: mode)
-
+        print("input outputsize is...", outputSize)
         return try await streamPhotoCapturer.captureComposedPhoto(
             frontRenderer: frontRenderer,
             backRenderer: backRenderer,

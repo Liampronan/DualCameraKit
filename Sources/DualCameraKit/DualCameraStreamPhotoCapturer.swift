@@ -138,33 +138,36 @@ public class DualCameraStreamPhotoCapturer {
         position: DualCameraLayout.MiniCameraPosition,
         outputSize: CGSize
     ) throws -> CIImage {
+        
         // Scale primary to fill output size (aspect fill)
         let primaryScaled = scaleImageToFill(primary, targetSize: outputSize)
         
-        // Scale mini to 1/4 size (25% of output)
-        let miniSize = CGSize(
-            width: outputSize.width * 0.25,
-            height: outputSize.height * 0.25
-        )
+        // Scale mini to match display view: 16:9 aspect ratio (landscape), ~25% of width
+        let miniWidth = 150.0 //outputSize.width * 0.25
+        let miniHeight = miniWidth * (16.0 / 9.0) // 16:9 aspect ratio (landscape)
+        let miniSize = CGSize(width: miniWidth, height: miniHeight)
+        print(miniWidth, miniHeight, miniSize)
         let miniScaled = scaleImageToFit(mini, targetSize: miniSize)
         
         // Apply styling effects to mini camera
         let miniStyled = applyMiniCameraEffects(to: miniScaled, size: miniSize)
         
         // Calculate position for mini camera
-        let padding: CGFloat = 16 * (outputSize.width / 390) // Scale padding with output size
+        let padding: CGFloat = 12 * (outputSize.width / 390) // Scale padding with output size
+        
         let miniPosition: CGPoint
         switch position {
         case .topLeading:
-            miniPosition = CGPoint(x: padding, y: outputSize.height - miniSize.height - padding)
+            miniPosition = CGPoint(x: padding, y: outputSize.height - miniScaled.extent.size.height - padding)
         case .topTrailing:
-            miniPosition = CGPoint(x: outputSize.width - miniSize.width - padding, y: outputSize.height - miniSize.height - padding)
+            miniPosition = CGPoint(x: outputSize.width - miniScaled.extent.size.width - padding, y: outputSize.height - miniScaled.extent.size.height - padding)
         case .bottomLeading:
             miniPosition = CGPoint(x: padding, y: padding)
         case .bottomTrailing:
-            miniPosition = CGPoint(x: outputSize.width - miniSize.width - padding, y: padding)
+            //miniPosition = CGPoint(x: outputSize.width - miniSize.width - padding, y: padding)
+            miniPosition = CGPoint(x: outputSize.width - miniScaled.extent.size.width - padding, y: padding)
         }
-        
+        print("miniPosition", miniPosition, "padding", padding, "miniSize", miniSize)
         // Position the styled mini image
         let miniPositioned = miniStyled.transformed(by: CGAffineTransform(translationX: miniPosition.x, y: miniPosition.y))
         
@@ -404,11 +407,51 @@ public class DualCameraStreamPhotoCapturer {
     private func scaleImageToFit(_ image: CIImage, targetSize: CGSize) -> CIImage {
         let imageSize = image.extent.size
         let scaleX = targetSize.width / imageSize.width
+        DualCameraLogger.log("imageSize is \(imageSize.width) \(imageSize.height)")
+        DualCameraLogger.log("targetSize is \(targetSize.width) \(targetSize.height)")
+        
         let scaleY = targetSize.height / imageSize.height
         let scale = min(scaleX, scaleY) // Use smaller scale to fit
+        print(scaleX, scaleY)
+        // hard-coded works
+        return image.transformed(by: CGAffineTransform(scaleX: 0.15, y: 0.125))
+//        return image.transformed(by: CGAffineTransform(scaleX: scaleX, y: scaleY))
         
-        return image.transformed(by: CGAffineTransform(scaleX: scale, y: scale))
+        
+        
+        // Center within the canvas
+//        let fs = image.extent.size
+//        let dx = (targetSize.width  - fs.width)  * 0.5
+//        let dy = (targetSize.height - fs.height) * 0.5
+//        let centered = image.transformed(by: CGAffineTransform(translationX: dx, y: dy))
+//        
+//        // Transparent canvas with exact `targetSize`
+//        let canvasRect = CGRect(origin: .zero, size: targetSize)
+//        let canvas = CIImage(color: .clear).cropped(to: canvasRect)
+//        return centered.composited(over: canvas)
     }
+    
+    /// Scales an image to fit a fixed target size (aspect fit), letterboxing as needed.
+    /// Output extent always equals `targetSize`, matching SwiftUI’s `.aspectRatio(..., .fit)` inside a fixed frame.
+//    private func scaleImageToFit(_ image: CIImage, targetSize: CGSize) -> CIImage {
+//        let imageSize = image.extent.size
+//        let scaleX = targetSize.width / imageSize.width
+//        let scaleY = targetSize.height / imageSize.height
+//        let scale = min(scaleX, scaleY)
+//
+//        let fitted = image.transformed(by: CGAffineTransform(scaleX: scale, y: scale))
+//        let fittedSize = fitted.extent.size
+//
+//        // Center within the canvas
+//        let dx = max(0, (targetSize.width  - fittedSize.width)  * 0.5)
+//        let dy = max(0, (targetSize.height - fittedSize.height) * 0.5)
+//        let translated = fitted.transformed(by: CGAffineTransform(translationX: dx, y: dy))
+//
+//        // Compose onto transparent canvas
+//        let canvasRect = CGRect(origin: .zero, size: targetSize)
+//        let canvas = CIImage(color: .clear).cropped(to: canvasRect)
+//        return translated.composited(over: canvas)
+//    }
     
     // MARK: - Image Conversion
     

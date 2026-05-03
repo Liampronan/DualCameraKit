@@ -207,7 +207,7 @@ For testing, you can use the mock implementations:
 
 ```swift
 let testViewModel = DualCameraViewModel(
-    dualCameraController: DualCameraMockController(),
+    dualCameraController: DualCameraEnvironment.getDefaultCameraController(),
     videoSaveStrategy: .custom { _ in },
     photoSaveStrategy: .custom { _ in }
 )

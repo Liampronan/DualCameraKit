@@ -29,6 +29,10 @@ public struct DualCameraDisplayView: View {
                     )
                     
                     // Mini camera in corner
+                    // START:
+                    // - [x] what is the correct aspect ratio here to match iphone
+                    // - [ ] ensure it flows thru to compositing
+                    // - [ ] figure out why mock not working here in DualCameraDisplayView vs. DualCameraScreen
                     DualCameraRendererView(renderer: controller.getRenderer(for: miniCamera))
                         .frame(width: 150)
                         .aspectRatio(16/9, contentMode: .fit)
