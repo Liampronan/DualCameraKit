@@ -5,14 +5,11 @@ import UIKit
 
 public struct MediaLibraryService: Sendable {
     public var saveImage: @Sendable (UIImage) async throws -> Void
-    public var saveVideo: @Sendable (URL) async throws -> Void
 
     public init(
-        saveImage: @escaping @Sendable (UIImage) async throws -> Void,
-        saveVideo: @escaping @Sendable (URL) async throws -> Void
+        saveImage: @escaping @Sendable (UIImage) async throws -> Void
     ) {
         self.saveImage = saveImage
-        self.saveVideo = saveVideo
     }
 }
 
@@ -23,44 +20,25 @@ public extension MediaLibraryService {
             try await PHPhotoLibrary.shared().performChanges {
                 PHAssetChangeRequest.creationRequestForAsset(from: image)
             }
-        },
-        saveVideoHandler: @escaping @Sendable (URL) async throws -> Void = { url in
-            try await PHPhotoLibrary.shared().performChanges {
-                PHAssetChangeRequest.creationRequestForAssetFromVideo(atFileURL: url)
-            }
-        },
-        removeItem: @escaping @Sendable (URL) async throws -> Void = {
-            try FileManager.default.removeItem(at: $0)
         }
     ) -> Self {
         Self(
             saveImage: { image in
                 try await permissionChecker()
                 try await saveImageHandler(image)
-            },
-            saveVideo: { url in
-                try await permissionChecker()
-                try await saveVideoHandler(url)
-                do {
-                    try await removeItem(url)
-                } catch {
-                    DualCameraLogger.errors.error("Failed to remove video at path: \(url.absoluteString, privacy: .public). Error: \(error.localizedDescription, privacy: .public)")
-                }
             }
         )
     }
 
     static func test(
-        saveImage: @escaping @Sendable (UIImage) async throws -> Void = { _ in },
-        saveVideo: @escaping @Sendable (URL) async throws -> Void = { _ in }
+        saveImage: @escaping @Sendable (UIImage) async throws -> Void = { _ in }
     ) -> Self {
-        Self(saveImage: saveImage, saveVideo: saveVideo)
+        Self(saveImage: saveImage)
     }
 
     static var noop: Self {
         Self(
-            saveImage: { _ in },
-            saveVideo: { _ in }
+            saveImage: { _ in }
         )
     }
 
@@ -68,9 +46,6 @@ public extension MediaLibraryService {
         Self(
             saveImage: { _ in
                 throw MediaLibraryError.savingFailed(underlyingError: NSError(domain: "MediaLibraryService", code: 1, userInfo: [NSLocalizedDescriptionKey: "Unimplemented saveImage."]))
-            },
-            saveVideo: { _ in
-                throw MediaLibraryError.savingFailed(underlyingError: NSError(domain: "MediaLibraryService", code: 2, userInfo: [NSLocalizedDescriptionKey: "Unimplemented saveVideo."]))
             }
         )
     }
@@ -102,9 +77,9 @@ public enum MediaLibraryError: Error, LocalizedError {
     public var errorDescription: String? {
         switch self {
         case .permissionDenied:
-            return "Photo library access is required to save media."
+            return "Photo library access is required to save photos."
         case .savingFailed(let error):
-            return "Failed to save media: \(error.localizedDescription)"
+            return "Failed to save photo: \(error.localizedDescription)"
         case .unknown:
             return "Unknown error occurred while saving media."
         }
@@ -113,7 +88,7 @@ public enum MediaLibraryError: Error, LocalizedError {
     public var recoverySuggestion: String? {
         switch self {
         case .permissionDenied:
-            return "Please grant photo library access in Settings to save photos and videos."
+            return "Please grant photo library access in Settings to save photos."
         case .savingFailed:
             return "Please try again. If the problem persists, check available storage."
         case .unknown:

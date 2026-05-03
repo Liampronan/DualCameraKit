@@ -1,9 +1,8 @@
 import AVFoundation 
 import UIKit
 
-// MARK: - UIImage Extension for Video Recording
 extension UIImage {
-    /// Converts UIImage to CVPixelBuffer for video recording with optimized performance
+    /// Converts UIImage to CVPixelBuffer.
     func pixelBuffer() -> CVPixelBuffer? {
         // First, try to get the CGImage for more direct conversion
         guard let cgImage = self.cgImage else {
@@ -14,7 +13,6 @@ extension UIImage {
         let width = cgImage.width
         let height = cgImage.height
         
-        // Create pixel buffer with optimized settings for video recording
         let attributes: [String: Any] = [
             kCVPixelBufferCGImageCompatibilityKey as String: true,
             kCVPixelBufferCGBitmapContextCompatibilityKey as String: true,
@@ -27,7 +25,7 @@ extension UIImage {
             kCFAllocatorDefault,
             width,
             height,
-            kCVPixelFormatType_32BGRA, // BGRA is more efficient for video encoding
+            kCVPixelFormatType_32BGRA,
             attributes as CFDictionary,
             &pixelBuffer
         )

@@ -9,13 +9,7 @@ public struct DualCameraRendererView: UIViewRepresentable {
     }
     
     public func makeUIView(context: Context) -> UIView {
-        if let metalRenderer = renderer as? MetalCameraRenderer {
-            return metalRenderer
-        }
-        
-        // Fallback for non-Metal renderers
-        let view = UIView()
-        return view
+        renderer.view
     }
     
     public func updateUIView(_ uiView: UIView, context: Context) {

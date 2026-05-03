@@ -1,4 +1,5 @@
 import DualCameraKit
+import DualCameraKitUI
 import SwiftUI
 
 struct ContainerExample: View {
@@ -40,9 +41,7 @@ private struct AppTabView: View {
 
     init() {
         vm = DualCameraViewModel(
-            captureScope: .container,
-            includeVideoRecording: false,
-            saveToLibrary: false
+            photoSaveStrategy: .custom { _ in }
         )
     }
     

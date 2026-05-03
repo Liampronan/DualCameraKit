@@ -5,9 +5,9 @@ import UIKit
 public protocol DualCameraCameraStreamSourcing {
     func startSession() async throws
     nonisolated func stopSession()
-    nonisolated var frontCameraStream: AsyncStream<PixelBufferWrapper> { get }
-    nonisolated var backCameraStream: AsyncStream<PixelBufferWrapper> { get }
-    func setTorchMode(_ mode: AVCaptureDevice.TorchMode, for camera: DualCameraSource) throws
+    nonisolated func subscribe(to source: DualCameraSource) -> AsyncStream<PixelBufferWrapper>
+    nonisolated func latestFrame(for source: DualCameraSource) -> PixelBufferWrapper?
+    func setTorchMode(_ mode: AVCaptureDevice.TorchMode) throws
 }
 
 /// Manages low-level camera access and stream production
@@ -15,7 +15,6 @@ public protocol DualCameraCameraStreamSourcing {
 public final class DualCameraCameraStreamSource: NSObject, DualCameraCameraStreamSourcing {
     // Session management
     private let session = AVCaptureMultiCamSession()
-    private let sessionQueue = DispatchQueue(label: "DualCameraKit.session")
     
     // Stream broadcasters
     private let frontBroadcaster = PixelBufferBroadcaster()
@@ -86,37 +85,31 @@ public final class DualCameraCameraStreamSource: NSObject, DualCameraCameraStrea
         }
     }
     
-    /// Get front camera stream
-    /// This property is thread-safe and can be accessed from any context
-    /// - Returns: AsyncStream of front camera frames
-    nonisolated public var frontCameraStream: AsyncStream<PixelBufferWrapper> {
-        frontBroadcaster.subscribe()
-    }
-        
-    /// Get back camera stream
-    /// This property is thread-safe and can be accessed from any context
-    /// - Returns: AsyncStream of back camera frames
-    nonisolated public var backCameraStream: AsyncStream<PixelBufferWrapper> {
-        backBroadcaster.subscribe()
-    }
-
-    /// Sets the torch (flashlight) mode for the specified camera.
-    /// - Parameters:
-    ///   - mode: The desired torch mode (.on, .off, or .auto)
-    ///   - camera: Which camera to control (front or back)
-    /// - Throws: DualCameraError if the device doesn't have a torch or configuration fails
-    @MainActor
-    public func setTorchMode(_ mode: AVCaptureDevice.TorchMode, for camera: DualCameraSource) throws {
-        let input: AVCaptureDeviceInput?
-        switch camera {
+    /// Creates an explicit subscription to a camera stream.
+    nonisolated public func subscribe(to source: DualCameraSource) -> AsyncStream<PixelBufferWrapper> {
+        switch source {
         case .front:
-            input = frontCameraInput
+            return frontBroadcaster.subscribe()
         case .back:
-            input = backCameraInput
+            return backBroadcaster.subscribe()
         }
+    }
 
-        guard let device = input?.device else {
-            throw DualCameraError.cameraUnavailable(position: camera == .front ? .front : .back)
+    /// Returns the newest frame delivered for a camera source.
+    nonisolated public func latestFrame(for source: DualCameraSource) -> PixelBufferWrapper? {
+        switch source {
+        case .front:
+            return frontBroadcaster.latestValue
+        case .back:
+            return backBroadcaster.latestValue
+        }
+    }
+
+    /// Sets the back-camera torch mode.
+    @MainActor
+    public func setTorchMode(_ mode: AVCaptureDevice.TorchMode) throws {
+        guard let device = backCameraInput?.device else {
+            throw DualCameraError.cameraUnavailable(position: .back)
         }
 
         guard device.hasTorch else {
@@ -211,9 +204,9 @@ extension DualCameraCameraStreamSource: AVCaptureVideoDataOutputSampleBufferDele
             return
         }
 
-        // Set orientation
-        if connection.isVideoOrientationSupported {
-            connection.videoOrientation = .portrait
+        // Set portrait orientation for the captured camera frames.
+        if connection.isVideoRotationAngleSupported(90) {
+            connection.videoRotationAngle = 90
         }
         
         // Broadcast to appropriate stream
@@ -222,29 +215,16 @@ extension DualCameraCameraStreamSource: AVCaptureVideoDataOutputSampleBufferDele
         
         
         if isFrontCamera {
-            Updater.updateBroadcast(wrappedBuffer: wrappedBuffer, broadcaster: frontBroadcaster)
+            frontBroadcaster.send(wrappedBuffer)
         } else {
-            Updater.updateBroadcast(wrappedBuffer: wrappedBuffer, broadcaster: backBroadcaster)
-        }
-    }
-    
-    /// Helper to safely bridge between capture threads and the async runtime
-    /// Uses @unchecked Sendable because it only contains static methods with
-    /// no mutable state, making it thread-safe
-    private struct Updater: @unchecked Sendable {
-        static func updateBroadcast(wrappedBuffer: PixelBufferWrapper, broadcaster: PixelBufferBroadcaster) {
-            Task {
-                await broadcaster.broadcast(wrappedBuffer)
-            }
+            backBroadcaster.send(wrappedBuffer)
         }
     }
 }
 
 
 public final class DualCameraMockCameraStreamSource: DualCameraCameraStreamSourcing {
-    public func setTorchMode(_ mode: AVCaptureDevice.TorchMode, for camera: DualCameraSource) throws {
-        
-    }
+    public private(set) var torchMode: AVCaptureDevice.TorchMode = .off
     
     private let frontBroadcaster = PixelBufferBroadcaster()
     private let backBroadcaster = PixelBufferBroadcaster()
@@ -252,24 +232,38 @@ public final class DualCameraMockCameraStreamSource: DualCameraCameraStreamSourc
     public init() { }
     
     public func startSession() async throws {
-        let purpleBuffer: CVPixelBuffer = UIColor.purple.asImage().pixelBuffer()!
+        let mockSize = CGSize(width: 1080, height: 1920)
+        let purpleBuffer: CVPixelBuffer = UIColor.purple.asImage(mockSize).pixelBuffer()!
         let purpleBufferWrapper = PixelBufferWrapper(buffer: purpleBuffer)
         
-        let yellowBuffer = UIColor.yellow.asImage().pixelBuffer()!
+        let yellowBuffer = UIColor.yellow.asImage(mockSize).pixelBuffer()!
         let yellowBufferWrapper = PixelBufferWrapper(buffer: yellowBuffer)
-        await frontBroadcaster.broadcast(yellowBufferWrapper)
-        await backBroadcaster.broadcast(purpleBufferWrapper)
+        frontBroadcaster.send(yellowBufferWrapper)
+        backBroadcaster.send(purpleBufferWrapper)
     }
     
     public func stopSession() {
-        print("mock stopped")
     }
     
-    nonisolated public var frontCameraStream: AsyncStream<PixelBufferWrapper> {
-        frontBroadcaster.subscribe()
+    nonisolated public func subscribe(to source: DualCameraSource) -> AsyncStream<PixelBufferWrapper> {
+        switch source {
+        case .front:
+            return frontBroadcaster.subscribe()
+        case .back:
+            return backBroadcaster.subscribe()
+        }
     }
-    
-    nonisolated public var backCameraStream: AsyncStream<PixelBufferWrapper> {
-        backBroadcaster.subscribe()
+
+    nonisolated public func latestFrame(for source: DualCameraSource) -> PixelBufferWrapper? {
+        switch source {
+        case .front:
+            return frontBroadcaster.latestValue
+        case .back:
+            return backBroadcaster.latestValue
+        }
+    }
+
+    public func setTorchMode(_ mode: AVCaptureDevice.TorchMode) throws {
+        torchMode = mode
     }
 }

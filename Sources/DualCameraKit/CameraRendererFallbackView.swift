@@ -14,7 +14,7 @@ final class CameraRendererFallbackView: UIView {
     
     private enum LocalizedStrings {
         static let defaultMessage = "Camera preview unavailable"
-        static let defaultIconName = "video.slash.fill"
+        static let defaultIconName = "camera.fill"
     }
     
     // MARK: - UI Components

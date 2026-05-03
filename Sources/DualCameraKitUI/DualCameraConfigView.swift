@@ -1,3 +1,4 @@
+import DualCameraKit
 import SwiftUI
 
 struct DualCameraConfigView: View {
@@ -10,7 +11,6 @@ struct DualCameraConfigView: View {
     var body: some View {
         VStack {
             layoutTypePicker
-            recorderTypePicker
         }
         .sheetStyle(title: "Config")
     }
@@ -57,44 +57,12 @@ struct DualCameraConfigView: View {
             }
         }
     }
-    
-    @ViewBuilder
-    private var recorderTypePicker: some View {
-        VStack {
-            Menu {
-                ForEach(DualCameraRecorderType.allCases) { recorderType in
-                    Button {
-                        viewModel.toggleRecorderType()
-                    } label: {
-                        HStack {
-                            Text(recorderType.displayName)
-                            if viewModel.selectedRecorderType == recorderType {
-                                Image(systemName: "checkmark")
-                            }
-                        }
-                    }
-                }
-            } label: {
-                HStack {
-                    Image(systemName: "video.fill")
-                    Text("Recorder: \(viewModel.selectedRecorderType.displayName)")
-                    Image(systemName: "chevron.up.chevron.down")
-                        .font(.caption)
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .background(Capsule().fill(Color.black.opacity(0.6)))
-                .foregroundColor(.white)
-            }
-        }
-    }
 }
 
 #Preview {
     DualCameraConfigView(
         viewModel: DualCameraViewModel(
-            dualCameraController: DualCameraMockController(),
-            saveToLibrary: false
+            dualCameraController: DualCameraController(streamSource: DualCameraMockCameraStreamSource())
         )
     )
 }

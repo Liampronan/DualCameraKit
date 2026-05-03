@@ -28,15 +28,14 @@ jobs:
     - name: Select appropriate Xcode 
       run: sudo xcode-select -s /Applications/Xcode_16.2.app
 
-    - name: List schemes
+    - name: List demo schemes
       run: xcodebuild -list -workspace DualCameraKit.xcworkspace
 
     - name: List Devices
       run: xcrun simctl list devices
       
-    - name: Build for iOS simulator
-      run: xcrun xcodebuild build -workspace DualCameraKit.xcworkspace -scheme DualCameraKit -destination "platform=iOS Simulator,name=iPhone 16,OS=18.2" -sdk iphonesimulator
+    - name: Build demo for iOS simulator
+      run: xcrun xcodebuild build -workspace DualCameraKit.xcworkspace -scheme DualCameraDemo -destination "generic/platform=iOS Simulator" -sdk iphonesimulator CODE_SIGNING_ALLOWED=NO
 
-# Tests not working in CI atm. run locally while we work on fix 
-    # - name: Run tests
-      # run: xcrun xcodebuild -workspace DualCameraKit.xcworkspace -scheme DualCameraKitTests -destination "platform=iOS Simulator,id=02A210DA-73F3-45AB-975A-9003C1E9B9D4" -sdk iphonesimulator test
+    - name: Run package tests on iOS simulator
+      run: xcrun xcodebuild test -scheme DualCameraKitUI -destination "platform=iOS Simulator,name=iPhone 16,OS=18.2" -sdk iphonesimulator

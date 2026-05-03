@@ -5,11 +5,11 @@ import UIKit
 /// Camera rendering capabilities.
 @MainActor
 public protocol CameraRenderer: AnyObject {
+    /// Backing UIKit view used by SwiftUI adapters.
+    var view: UIView { get }
+
     /// Update renderer with new camera frame.
     func update(with buffer: CVPixelBuffer)
-    
-    /// Capture current frame as UIImage.
-    func captureCurrentFrame() async throws -> UIImage
 }
 
 enum MetalRendererError: Error {
@@ -41,12 +41,8 @@ public final class MetalCameraRenderer: MTKView, CameraRenderer, MTKViewDelegate
         do {
             try initializeMetal()
         } catch {
-            #if DEBUG
-            fatalError("❌ Could not initialize Metal: \(error.localizedDescription)")
-            #else
-            DualCameraLogger.errors.error("❌ Could not initialize Metal (release mode)")
+            DualCameraLogger.errors.error("❌ Could not initialize Metal: \(error.localizedDescription)")
             setupFallbackView()
-            #endif
         }
     }
 
@@ -57,12 +53,8 @@ public final class MetalCameraRenderer: MTKView, CameraRenderer, MTKViewDelegate
         do {
             try initializeMetal()
         } catch {
-            #if DEBUG
-            fatalError("❌ Could not initialize Metal: \(error.localizedDescription)")
-            #else
-            DualCameraLogger.errors.error("❌ Could not initialize Metal (release mode)")
+            DualCameraLogger.errors.error("❌ Could not initialize Metal: \(error.localizedDescription)")
             setupFallbackView()
-            #endif
         }
     }
     
@@ -158,99 +150,12 @@ public final class MetalCameraRenderer: MTKView, CameraRenderer, MTKViewDelegate
 
 // MARK: - CameraRenderer Protocol Methods
 extension MetalCameraRenderer {
+    public var view: UIView { self }
     
     public func update(with buffer: CVPixelBuffer) {
         let bufferWrapper = PixelBufferWrapper(buffer: buffer)
         createAndUpdateTexture(from: bufferWrapper)
     }
-    
-    /// Captures the current frame by reading the drawable’s texture.
-    public func captureCurrentFrame() async throws -> UIImage {
-        // Ensure we have a valid texture to capture from
-        guard let currentTexture = self.currentTexture else {
-            throw DualCameraError.captureFailure(.noFrameAvailable)
-        }
-        
-        // Create a texture descriptor for the destination texture
-        let textureDescriptor = MTLTextureDescriptor.texture2DDescriptor(
-            pixelFormat: currentTexture.pixelFormat,
-            width: currentTexture.width,
-            height: currentTexture.height,
-            mipmapped: false
-        )
-        textureDescriptor.usage = [.renderTarget, .shaderRead]
-        
-        guard let device = self.device,
-              let destinationTexture = device.makeTexture(descriptor: textureDescriptor) else {
-            throw DualCameraError.captureFailure(.textureCreationFailed)
-        }
-        
-        // Create a command buffer and encoder to copy the texture
-        guard let commandBuffer = self.commandQueue?.makeCommandBuffer(),
-              let blitEncoder = commandBuffer.makeBlitCommandEncoder() else {
-            throw DualCameraError.captureFailure(.commandBufferCreationFailed)
-        }
-        
-        // Copy the texture
-        blitEncoder.copy(from: currentTexture,
-                        sourceSlice: 0,
-                        sourceLevel: 0,
-                        sourceOrigin: MTLOrigin(x: 0, y: 0, z: 0),
-                        sourceSize: MTLSize(width: currentTexture.width,
-                                            height: currentTexture.height,
-                                            depth: 1),
-                        to: destinationTexture,
-                        destinationSlice: 0,
-                        destinationLevel: 0,
-                        destinationOrigin: MTLOrigin(x: 0, y: 0, z: 0))
-        
-        blitEncoder.endEncoding()
-        commandBuffer.commit()
-        commandBuffer.waitUntilCompleted()
-        
-        // Convert the Metal texture to a CGImage
-        let bytesPerRow = 4 * currentTexture.width
-        let totalBytes = bytesPerRow * currentTexture.height
-        
-        let regionSize = MTLSizeMake(currentTexture.width, currentTexture.height, 1)
-        let region = MTLRegionMake2D(0, 0, currentTexture.width, currentTexture.height)
-        
-        // Create a bitmap context
-        guard let rawData = malloc(totalBytes) else {
-            throw DualCameraError.captureFailure(.memoryAllocationFailed)
-        }
-        
-        destinationTexture.getBytes(rawData, bytesPerRow: bytesPerRow, from: region, mipmapLevel: 0)
-        
-        // For BGRA texture format, we need to specify the correct bitmap info
-        // Metal uses BGRA format, so we need to tell CGContext that
-        let bitmapInfo = CGBitmapInfo(rawValue: CGBitmapInfo.byteOrder32Little.rawValue | CGImageAlphaInfo.premultipliedFirst.rawValue)
-        
-        guard let context = CGContext(data: rawData,
-                                     width: currentTexture.width,
-                                     height: currentTexture.height,
-                                     bitsPerComponent: 8,
-                                     bytesPerRow: bytesPerRow,
-                                     space: CGColorSpaceCreateDeviceRGB(),
-                                     bitmapInfo: bitmapInfo.rawValue) else {
-            free(rawData)
-            throw DualCameraError.captureFailure(.contextCreationFailed)
-        }
-        
-        // Create the CGImage
-        guard let cgImage = context.makeImage() else {
-            free(rawData)
-            throw DualCameraError.captureFailure(.imageCreationFailed)
-        }
-        
-        // Clean up
-        free(rawData)
-        
-        // Create and return the UIImage
-        // TODO: should this scale be dynamic? 
-        return UIImage(cgImage: cgImage, scale: 1.0, orientation: .up)
-    }
-    
     
     // MARK: - Private Helpers
     
@@ -335,4 +240,3 @@ extension MetalCameraRenderer {
             : SIMD2<Float>(1, viewAspect / textureAspect)
     }
 }
-

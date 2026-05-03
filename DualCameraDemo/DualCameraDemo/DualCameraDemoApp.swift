@@ -1,29 +1,39 @@
 import DualCameraKit
+import DualCameraKitUI
 import Observation
 import SwiftUI
 
 @main 
 struct DualCameraDemoApp: App {
-    enum DemoDisplayType {
-        case dualCameraScreen(isFullScreen: Bool)
-        case dualCameraDisplayView
-        case dualCameraLowLevelComponents
+    enum DemoDisplayType: String, CaseIterable, Identifiable {
+        case dropIn = "Drop-in"
+        case container = "Container"
+        case compositional = "Compositional"
+
+        var id: String { rawValue }
     }
     
-    @State private var demoType = DemoDisplayType.dualCameraScreen(isFullScreen: false)
+    @State private var demoType = DemoDisplayType.container
     
     var body: some Scene {
         WindowGroup {
-            switch demoType {
-            case .dualCameraScreen(let isFullScreen):
-                switch isFullScreen {
-                case true:
-                    DualCameraScreen()
-                case false:
-                    ContainerExample()
+            VStack(spacing: 0) {
+                Picker("Demo", selection: $demoType) {
+                    ForEach(DemoDisplayType.allCases) { demo in
+                        Text(demo.rawValue).tag(demo)
+                    }
                 }
-            case .dualCameraDisplayView, .dualCameraLowLevelComponents:
-                Text("Not Implemented Yet")
+                .pickerStyle(.segmented)
+                .padding()
+
+                switch demoType {
+                case .dropIn:
+                    DualCameraScreen()
+                case .container:
+                    ContainerExample()
+                case .compositional:
+                    CompositionalExample()
+                }
             }
         }
     }

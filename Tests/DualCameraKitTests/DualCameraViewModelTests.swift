@@ -1,102 +1,115 @@
+import AVFoundation
+import DualCameraKit
+@testable import DualCameraKitUI
+import UIKit
 import XCTest
-@testable import DualCameraKit
 
 @MainActor
 final class DualCameraViewModelTests: XCTestCase {
-    
-    // MARK: - Initialization Tests
-
-    func test_init_withDefaultParams_setsDefaultValues() async {
-        let mockController = MockDualCameraController()
-        CurrentDualCameraEnvironment.dualCameraController = mockController
-
-        let viewModel = DualCameraViewModel()
+    func test_init_withDefaultParams_setsDefaultValues() {
+        let viewModel = DualCameraViewModel(dualCameraController: MockDualCameraController())
 
         XCTAssertEqual(viewModel.viewState, .loading)
         XCTAssertEqual(viewModel.cameraLayout, .piP(miniCamera: .front, miniCameraPosition: .bottomTrailing))
-        XCTAssertEqual(viewModel.selectedRecorderType, .cpuBased)
-        XCTAssertIdentical(viewModel.controller as? MockDualCameraController, mockController)
     }
-    
+
     func test_init_withCustomParams_setsCustomValues() {
-        let mockController = MockDualCameraController()
+        let controller = MockDualCameraController()
         let customLayout: DualCameraLayout = .sideBySide
-        let customRecorderType: DualCameraRecorderType = .replayKit
 
         let viewModel = DualCameraViewModel(
-            dualCameraController: mockController,
-            layout: customLayout,
-            videoRecorderMode: customRecorderType
+            dualCameraController: controller,
+            layout: customLayout
         )
 
         XCTAssertEqual(viewModel.cameraLayout, customLayout)
-        XCTAssertEqual(viewModel.selectedRecorderType, customRecorderType)
+        XCTAssertIdentical(viewModel.controller as? MockDualCameraController, controller)
     }
-    
-    // MARK: - Lifecycle Tests
 
     func test_onAppear_startsSession() async {
-        let mockController = MockDualCameraController()
-        let viewModel = DualCameraViewModel(dualCameraController: mockController)
+        let controller = MockDualCameraController()
+        let viewModel = DualCameraViewModel(dualCameraController: controller)
 
         viewModel.onAppear(containerSize: CGSize(width: 390, height: 844))
-
-        // Need to wait for the async Task to complete
         await Task.yield()
 
-        XCTAssertTrue(mockController.sessionStarted)
+        XCTAssertTrue(controller.sessionStarted)
         XCTAssertEqual(viewModel.containerSize, CGSize(width: 390, height: 844))
         XCTAssertEqual(viewModel.viewState, .ready)
     }
 
     func test_onAppear_handlesError() async {
-        let mockController = MockDualCameraController()
-        mockController.shouldFailStartSession = true
-        let viewModel = DualCameraViewModel(dualCameraController: mockController)
+        let controller = MockDualCameraController()
+        controller.shouldFailStartSession = true
+        let viewModel = DualCameraViewModel(dualCameraController: controller)
 
         viewModel.onAppear(containerSize: CGSize(width: 390, height: 844))
-
-        // Need to wait for the async Task to complete
         await Task.yield()
 
         XCTAssertEqual(viewModel.viewState, .error(DualCameraError.unknownError))
         XCTAssertNotNil(viewModel.alert)
     }
 
-    func test_onDisappear_stopsSession() async {
-        let mockController = MockDualCameraController()
-        let viewModel = DualCameraViewModel(dualCameraController: mockController)
+    func test_onDisappear_stopsSessionAndTurnsOffTorch() async {
+        let controller = MockDualCameraController()
+        let viewModel = DualCameraViewModel(dualCameraController: controller)
 
         viewModel.onAppear(containerSize: CGSize(width: 390, height: 844))
         await Task.yield()
-
         viewModel.onDisappear()
 
-        XCTAssertTrue(mockController.sessionStopped)
+        XCTAssertTrue(controller.sessionStopped)
+        XCTAssertEqual(controller.torchModes, [.off])
     }
 
+    func test_capturePhoto_savesImageAndPublishesCapture() async throws {
+        let controller = MockDualCameraController()
+        let savedImage = TestBox<UIImage>()
+        let viewModel = DualCameraViewModel(
+            dualCameraController: controller,
+            photoSaveStrategy: .custom { image in
+                await savedImage.set(image)
+            }
+        )
+        viewModel.onAppear(containerSize: CGSize(width: 320, height: 480))
+        await Task.yield()
+
+        viewModel.capturePhotoButtonTapped()
+        try await Task.sleep(for: .milliseconds(10))
+
+        XCTAssertEqual(controller.captureOutputSize, CGSize(width: 320, height: 480))
+        XCTAssertNotNil(viewModel.capturedPhoto)
+        XCTAssertTrue(await savedImage.get() === controller.mockCapturedImage)
+        XCTAssertEqual(viewModel.viewState, .ready)
+    }
+
+    func test_capturePhoto_failureShowsAlertAndResetsReady() async throws {
+        let controller = MockDualCameraController()
+        controller.shouldFailCapturePhoto = true
+        let viewModel = DualCameraViewModel(dualCameraController: controller)
+        viewModel.onAppear(containerSize: CGSize(width: 320, height: 480))
+        await Task.yield()
+
+        viewModel.capturePhotoButtonTapped()
+        try await Task.sleep(for: .milliseconds(10))
+
+        XCTAssertNil(viewModel.capturedPhoto)
+        XCTAssertNotNil(viewModel.alert)
+        XCTAssertEqual(viewModel.viewState, .ready)
+    }
 }
 
-// MARK: - Test Helpers
-
-class MockDualCameraController: DualCameraControlling {
+@MainActor
+final class MockDualCameraController: DualCameraControlling {
     var sessionStarted = false
     var sessionStopped = false
-    var videoRecordingStarted = false
-    var videoRecordingStopped = false
     var shouldFailStartSession = false
-    var shouldFailCaptureScreen = false
+    var shouldFailCapturePhoto = false
+    var torchModes: [AVCaptureDevice.TorchMode] = []
+    var captureOutputSize: CGSize?
+    let mockCapturedImage = UIImage()
 
-    var mockCapturedImage = UIImage()
-    var mockVideoOutputURL = URL(string: "file:///tmp/test.mp4")!
-    
-    var frontCameraStream: AsyncStream<PixelBufferWrapper> {
-        AsyncStream { continuation in
-            continuation.finish()
-        }
-    }
-
-    var backCameraStream: AsyncStream<PixelBufferWrapper> {
+    func subscribe(to source: DualCameraSource) -> AsyncStream<PixelBufferWrapper> {
         AsyncStream { continuation in
             continuation.finish()
         }
@@ -116,73 +129,27 @@ class MockDualCameraController: DualCameraControlling {
     func stopSession() {
         sessionStopped = true
     }
-    
-    var photoCapturer: any DualCameraPhotoCapturing {
-        MockPhotoCapturer(mockImage: mockCapturedImage, shouldFail: shouldFailCaptureScreen)
-    }
-    
+
     func captureRawPhotos() async throws -> (front: UIImage, back: UIImage) {
-        if shouldFailCaptureScreen {
-            throw DualCameraError.captureFailure(.noFrameAvailable)
-        }
-        return (front: mockCapturedImage, back: mockCapturedImage)
+        (mockCapturedImage, mockCapturedImage)
     }
-    
-    func captureCurrentScreen(mode: DualCameraPhotoCaptureMode) async throws -> UIImage {
-        if shouldFailCaptureScreen {
+
+    func capturePhoto(layout: DualCameraLayout, outputSize: CGSize) async throws -> UIImage {
+        if shouldFailCapturePhoto {
             throw DualCameraError.captureFailure(.noFrameAvailable)
         }
+        captureOutputSize = outputSize
         return mockCapturedImage
     }
-    
-    var videoRecorder: (any DualCameraVideoRecording)?
-    
-    func setVideoRecorder(_ recorder: any DualCameraVideoRecording) async throws {
-        videoRecorder = recorder
-    }
-    
-    func startVideoRecording(mode: DualCameraVideoRecordingMode) async throws {
-        videoRecordingStarted = true
-    }
-    
-    func stopVideoRecording() async throws -> URL {
-        videoRecordingStopped = true
-        return mockVideoOutputURL
+
+    func setTorchMode(_ mode: AVCaptureDevice.TorchMode) throws {
+        torchModes.append(mode)
     }
 }
 
-class MockCameraRenderer: CameraRenderer {
-    func update(with buffer: CVPixelBuffer) {
-        // No-op for tests
-    }
-    
-    func captureCurrentFrame() async throws -> UIImage {
-        return UIImage()
-    }
-}
+@MainActor
+final class MockCameraRenderer: CameraRenderer {
+    let view = UIView()
 
-class MockPhotoCapturer: DualCameraPhotoCapturing {
-    private let mockImage: UIImage
-    private let shouldFail: Bool
-    
-    init(mockImage: UIImage, shouldFail: Bool = false) {
-        self.mockImage = mockImage
-        self.shouldFail = shouldFail
-    }
-    
-    func captureRawPhotos(
-        frontRenderer: CameraRenderer, backRenderer: CameraRenderer
-    ) async throws -> (front: UIImage, back: UIImage) {
-        if shouldFail {
-            throw DualCameraError.captureFailure(.noFrameAvailable)
-        }
-        return (front: mockImage, back: mockImage)
-    }
-    
-    func captureCurrentScreen(mode: DualCameraPhotoCaptureMode) async throws -> UIImage {
-        if shouldFail {
-            throw DualCameraError.captureFailure(.noFrameAvailable)
-        }
-        return mockImage
-    }
+    func update(with buffer: CVPixelBuffer) {}
 }

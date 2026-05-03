@@ -1,14 +1,18 @@
+import DualCameraKit
 import SwiftUI
+import UIKit
 
 public struct DualCameraScreen: View {
     @State private var viewModel: DualCameraViewModel
     private let customOverlay: ((DualCameraViewModel) -> AnyView)
     
+    @MainActor
     public init(
-        viewModel: DualCameraViewModel = .default(),
+        viewModel: DualCameraViewModel? = nil,
         @ViewBuilder customOverlay: @escaping (DualCameraViewModel) -> some View = { _ in EmptyView() }
     ) {
-        _viewModel = State(initialValue: viewModel)
+        let resolvedViewModel = viewModel ?? .default()
+        _viewModel = State(initialValue: resolvedViewModel)
         self.customOverlay = { AnyView(customOverlay($0)) }
     }
     
@@ -21,7 +25,6 @@ public struct DualCameraScreen: View {
                 )
                 .ignoresSafeArea()
                 .overlay(viewModel.isSettingsButtonVisible ? settingsButton : nil, alignment: .topLeading)
-                .overlay(recordingIndicator, alignment: .top)
                 .overlay(controlButtons, alignment: .bottom)
                 .overlay(accessoryItems, alignment: .trailing)
 
@@ -53,48 +56,10 @@ public struct DualCameraScreen: View {
             .overlay(alignment: .top) {
                 customOverlay(viewModel)
             }
-            .background(
-                GeometryReader { innerProxy in
-                    Color.clear
-                        .onAppear {
-                            let globalFrame = innerProxy.frame(in: .global)
-                            viewModel.containerFrameChanged(globalFrame)
-                        }
-                        .onChange(of: innerProxy.frame(in: .global)) { oldFrame, newFrame in
-                            viewModel.containerFrameChanged(newFrame)
-                        }
-                }
-            )
         }
     }
     
     // MARK: - View Components
-    @ViewBuilder
-    private var recordingIndicator: some View {
-        if case .recording(let state) = viewModel.viewState {
-            HStack {
-                Circle()
-                    .fill(Color.red)
-                    .frame(width: 10, height: 10)
-                    .opacity(0.8)
-                
-                Text(state.formattedDuration)
-                    .font(.system(size: 14, weight: .semibold, design: .monospaced))
-                    .foregroundColor(.white)
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 6)
-            .background(
-                Capsule()
-                    .fill(Color.black.opacity(0.6))
-            )
-            .padding(.top, 40)
-            .onTapGesture {
-                viewModel.recordVideoButtonTapped()
-            }
-        }
-    }
-    
     private var accessoryItems: some View {
         VStack {
             if viewModel.showCameraFlashButton {
@@ -116,7 +81,6 @@ public struct DualCameraScreen: View {
     private var controlButtons: some View {
         VStack(spacing: 16) {
             HStack(spacing: 32) {
-                // Photo capture button
                 Button(action: viewModel.capturePhotoButtonTapped) {
                     Image(systemName: "camera.fill")
                         .font(.largeTitle)
@@ -125,21 +89,6 @@ public struct DualCameraScreen: View {
                         .background(Circle().fill(Color.black.opacity(0.5)))
                 }
                 .disabled(!viewModel.viewState.isPhotoButtonEnabled)
-                
-                if viewModel.isVideoButtonVisible {
-                    // Video recording button
-                    Button(action: viewModel.recordVideoButtonTapped) {
-                        Image(systemName: viewModel.viewState.videoButtonIcon)
-                            .font(.largeTitle)
-                            .foregroundColor(viewModel.viewState.videoButtonColor)
-                            .padding()
-                            .background(
-                                Circle()
-                                    .fill(viewModel.viewState.videoButtonBackgroundColor)
-                            )
-                    }
-                    .disabled(!viewModel.viewState.isVideoButtonEnabled)
-                }
             }
         }
         .opacity(viewModel.viewState.captureInProgress ? 0 : 1) 
@@ -216,19 +165,11 @@ public struct DualCameraScreen: View {
 // MARK: - Preview
 
 #Preview("Photo") {
-    DualCameraScreen(viewModel: .init(
-        includeVideoRecording: false,
-    ))
-}
-
-#Preview("Photo & Video") {
     DualCameraScreen()
 }
 
-#Preview("Photo & Video -  Show Settings Button") {
+#Preview("Photo - Show Settings Button") {
     DualCameraScreen(viewModel: .init(
         showSettingsButton: true
     ))
 }
-
-
