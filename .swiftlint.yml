@@ -1,0 +1,4 @@
+excluded:
+  - .build
+  - DerivedData
+  - .swiftpm

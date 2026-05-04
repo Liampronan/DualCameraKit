@@ -4,227 +4,184 @@ import UIKit
 
 @MainActor
 public protocol DualCameraControlling {
-    var frontCameraStream: AsyncStream<PixelBufferWrapper> { get }
-    var backCameraStream: AsyncStream<PixelBufferWrapper> { get }
+    func subscribe(to source: DualCameraSource) -> AsyncStream<PixelBufferWrapper>
     func getRenderer(for source: DualCameraSource) -> CameraRenderer
     func startSession() async throws
     func stopSession()
 
-    var photoCapturer: any DualCameraPhotoCapturing { get }
-    func captureRawPhotos() async throws -> (front: UIImage, back: UIImage)
-    func captureCurrentScreen(mode: DualCameraPhotoCaptureMode) async throws -> UIImage
-    // Ideally we could remove the need for `photoCapturer` and `videoRecorder` to be public.
-    // We only are accessing them from inside this file - one videoRecorder type requires access to the `photoCapturer` which we do in the extension.
-    // Probably more decoupling would help but not focused on that atm.
-    var videoRecorder: (any DualCameraVideoRecording)? { get }
-    func setVideoRecorder(_ recorder: any DualCameraVideoRecording) async throws
-    func startVideoRecording(mode: DualCameraVideoRecordingMode) async throws
-    func stopVideoRecording() async throws -> URL
+    func captureRawPhotos(displayScale: CGFloat) async throws -> (front: UIImage, back: UIImage)
+    func capturePhoto(layout: DualCameraLayout, outputSize: CGSize, displayScale: CGFloat) async throws -> UIImage
 
-    func setTorchMode(_ mode: AVCaptureDevice.TorchMode, for camera: DualCameraSource) throws
+    func setTorchMode(_ mode: AVCaptureDevice.TorchMode) throws
 }
 
-// default implementations for `DualCameraVideoRecorder` - proxy to implementation in `videoRecorder`
-extension DualCameraControlling {
-    public func stopVideoRecording() async throws -> URL {
-        guard let videoRecorder else {
-            throw DualCameraError.recordingFailed(.noVideoRecorderSet)
-        }
-        return try await videoRecorder.stopVideoRecording()
-    }
-    
-    public func startVideoRecording(mode: DualCameraVideoRecordingMode) async throws {
-        let videoRecorder: any DualCameraVideoRecording = switch mode {
-        case .replayKit(let config): DualCameraReplayKitVideoRecorder(config: config)
-        case .cpuBased(let config): DualCameraCPUVideoRecorderManager(photoCapturer: photoCapturer, config: config)
-        }
-        try await setVideoRecorder(videoRecorder)
-
-        try await videoRecorder.startVideoRecording()
-    }
-}
-
-// default implementations for `DualCameraPhotoCapturing` - proxy to implementation in `photoCapturer`
 public extension DualCameraControlling {
-    func captureCurrentScreen(mode: DualCameraPhotoCaptureMode = .fullScreen) async throws -> UIImage {
-        try await photoCapturer.captureCurrentScreen(mode: mode)
-    }
-    
     func captureRawPhotos() async throws -> (front: UIImage, back: UIImage) {
-        let frontRenderer = getRenderer(for: .front)
-        let backRenderer = getRenderer(for: .back)
-        
-        return try await photoCapturer.captureRawPhotos(frontRenderer: frontRenderer, backRenderer: backRenderer)
+        try await captureRawPhotos(displayScale: 1)
+    }
+
+    func capturePhoto(layout: DualCameraLayout, outputSize: CGSize) async throws -> UIImage {
+        try await capturePhoto(layout: layout, outputSize: outputSize, displayScale: 1)
     }
 }
 
+@MainActor
 public final class DualCameraController: DualCameraControlling {
-    public var photoCapturer: any DualCameraPhotoCapturing
-    // `videoRecorder` is optionally because
-    // a) this controller may just be used to capture photos AND
-    // b) this allows dynamic VideoRecorder creation at start of video capture (see startVideoRecording(recorderType:)
-    public var videoRecorder: (any DualCameraVideoRecording)?
-    
-    var renderers: [DualCameraSource: CameraRenderer] = [:]
-    
-    private let streamSource = DualCameraCameraStreamSource()
-    
-    // Internal storage for renderers and their stream tasks.
-    private var streamTasks: [DualCameraSource: Task<Void, Never>] = [:]
-    
-    // MARK: - Video Recording Properties
-    
-    private var assetWriter: AVAssetWriter?
-    private var assetWriterVideoInput: AVAssetWriterInput?
-    private var pixelBufferAdaptor: AVAssetWriterInputPixelBufferAdaptor?
-    
-    public init(photoCapturer: any DualCameraPhotoCapturing = DualCameraPhotoCapturer()) {
-        self.photoCapturer = photoCapturer
-    }
-    
-    nonisolated public var frontCameraStream: AsyncStream<PixelBufferWrapper> {
-        streamSource.frontCameraStream
-    }
-    
-    nonisolated public var backCameraStream: AsyncStream<PixelBufferWrapper> {
-        streamSource.backCameraStream
-    }
-    
-    public func startSession() async throws {
-        try await streamSource.startSession()
-        
-        // Auto-initialize renderers
-        _ = getRenderer(for: .front)
-        _ = getRenderer(for: .back)
-    }
-    
-    public func stopSession() {
-        streamSource.stopSession()
-        cancelRendererTasks()
-        // Clear renderers so they're recreated with fresh stream connections on next startSession()
-        renderers.removeAll()
-    }
+    // SwiftUI can briefly overlap outgoing and incoming camera screens during
+    // animated navigation/demo handoffs. Keep the capture session alive across
+    // that small gap so transitions do not tear down and restart camera capture.
+    private static let navigationHandoffStopDelay: Duration = .milliseconds(450)
 
-    public func setTorchMode(_ mode: AVCaptureDevice.TorchMode, for camera: DualCameraSource) throws {
-        try streamSource.setTorchMode(mode, for: camera)
-    }
+    private let photoCapturer: any DualCameraPhotoCapturing
+    private let streamSource: DualCameraCameraStreamSourcing
+    private let sessionStopDelay: Duration
+    private let sleepBeforeSessionStop: @MainActor @Sendable (Duration) async -> Void
 
-    /// Creates a renderer (using MetalCameraRenderer by default).
-    public func createRenderer() -> CameraRenderer {
-        return MetalCameraRenderer()
-    }
-    
-    /// Returns a renderer for the specified camera source.
-    /// If one does not exist yet, it is created and connected to its stream.
-    public func getRenderer(for source: DualCameraSource) -> CameraRenderer {
-        if let renderer = renderers[source] {
-            return renderer
-        }
-        
-        let newRenderer = createRenderer()
-        renderers[source] = newRenderer
-        connectStream(for: source, renderer: newRenderer)
-        return newRenderer
-    }
-    
-    public func setVideoRecorder(_ recorder: any DualCameraVideoRecording) async throws {
-        if let videoRecorder, await videoRecorder.isCurrentlyRecording {
-            throw DualCameraError.recordingInProgress
-        }
-        self.videoRecorder = recorder
-    }
-    
-    /// Connects the appropriate camera stream to the given renderer.
-    private func connectStream(for source: DualCameraSource, renderer: CameraRenderer) {
-        let stream: AsyncStream<PixelBufferWrapper> = source == .front ? frontCameraStream : backCameraStream
-        // Create a task that forwards frames from the stream to the renderer.
-        let task = Task {
-            for await buffer in stream {
-                if Task.isCancelled { break }
-                renderer.update(with: buffer.buffer)
-            }
-        }
-        streamTasks[source] = task
-    }
-    
-    /// Cancels all active stream tasks.
-    private func cancelRendererTasks() {
-        for task in streamTasks.values {
-            task.cancel()
-        }
-        streamTasks.removeAll()
-    }
-}
-
-/// currently, this mock controller is a "fake" DualCameraController and shadows some functionality
-/// via mocks. I think we'll evolve this here such that the DualCameraController can take mocked implementations
-/// and we can remove the need for this "fake" behavior, i.e., make things more consistent.
-public final class DualCameraMockController: DualCameraControlling {
-    public func setTorchMode(_ mode: AVCaptureDevice.TorchMode, for camera: DualCameraSource) throws {
-       
-    }
-    
-    
-    public init() {
-        // for now, unmocked - we'll probably revisit this for testing.
-        // this works just fine for simulator purposes though.
-        self.photoCapturer = DualCameraPhotoCapturer()
-    }
-    
-    private var streamSource: DualCameraCameraStreamSourcing = DualCameraMockCameraStreamSource()
     private var renderers: [DualCameraSource: CameraRenderer] = [:]
-    
-    public var frontCameraStream: AsyncStream<PixelBufferWrapper> {
-        streamSource.frontCameraStream
+    private var streamTasks: [DualCameraSource: Task<Void, Never>] = [:]
+    private var sessionUseCount = 0
+    private var isSessionStarted = false
+    private var startSessionTask: Task<Void, Error>?
+    private var scheduledStopTask: Task<Void, Never>?
+
+    public init(
+        photoCapturer: (any DualCameraPhotoCapturing)? = nil,
+        streamSource: DualCameraCameraStreamSourcing? = nil,
+        sessionStopDelay: Duration? = nil,
+        sessionStopSleeper: (@MainActor @Sendable (Duration) async -> Void)? = nil
+    ) {
+        self.photoCapturer = photoCapturer ?? DualCameraPhotoCapturer()
+        self.streamSource = streamSource ?? DualCameraCameraStreamSource()
+        self.sessionStopDelay = sessionStopDelay ?? Self.navigationHandoffStopDelay
+        self.sleepBeforeSessionStop = sessionStopSleeper ?? { duration in
+            do {
+                try await Task.sleep(for: duration)
+            } catch {}
+        }
     }
-    
-    public var backCameraStream: AsyncStream<PixelBufferWrapper> {
-        streamSource.backCameraStream
+
+    deinit {
+        scheduledStopTask?.cancel()
+        for task in streamTasks.values {
+            task.cancel()
+        }
     }
-    
-    /// Creates a renderer (using MetalCameraRenderer by default).
+
+    public func subscribe(to source: DualCameraSource) -> AsyncStream<PixelBufferWrapper> {
+        streamSource.subscribe(to: source)
+    }
+
+    public func startSession() async throws {
+        cancelScheduledStop()
+        sessionUseCount += 1
+
+        do {
+            try await ensureSessionStarted()
+        } catch {
+            sessionUseCount = max(0, sessionUseCount - 1)
+            throw error
+        }
+
+        _ = getRenderer(for: .front)
+        _ = getRenderer(for: .back)
+    }
+
+    public func stopSession() {
+        guard sessionUseCount > 0 else {
+            stopSessionIfUnused()
+            return
+        }
+
+        sessionUseCount -= 1
+        stopSessionIfUnused()
+    }
+
+    private func stopSessionIfUnused() {
+        guard sessionUseCount == 0 else { return }
+        guard scheduledStopTask == nil else { return }
+
+        let sessionStopDelay = sessionStopDelay
+        let sleepBeforeSessionStop = sleepBeforeSessionStop
+        scheduledStopTask = Task { [weak self] in
+            await sleepBeforeSessionStop(sessionStopDelay)
+            guard !Task.isCancelled else { return }
+
+            self?.stopSessionNowIfUnused()
+        }
+    }
+
+    private func cancelScheduledStop() {
+        scheduledStopTask?.cancel()
+        scheduledStopTask = nil
+    }
+
+    private func stopSessionNowIfUnused() {
+        scheduledStopTask = nil
+        guard sessionUseCount == 0 else { return }
+
+        streamSource.stopSession()
+        isSessionStarted = false
+        // If the only user disappears before the initial start finishes,
+        // cancel the in-flight start so the hardware request does not outlive
+        // the screen that needed it.
+        startSessionTask?.cancel()
+        startSessionTask = nil
+    }
+
+    public func setTorchMode(_ mode: AVCaptureDevice.TorchMode) throws {
+        try streamSource.setTorchMode(mode)
+    }
+
+    public func captureRawPhotos(displayScale: CGFloat) async throws -> (front: UIImage, back: UIImage) {
+        let buffers = try latestBuffers()
+        return try await photoCapturer.captureRawPhotos(
+            frontBuffer: buffers.front.buffer,
+            backBuffer: buffers.back.buffer,
+            displayScale: displayScale
+        )
+    }
+
+    public func capturePhoto(
+        layout: DualCameraLayout,
+        outputSize: CGSize,
+        displayScale: CGFloat
+    ) async throws -> UIImage {
+        let buffers = try latestBuffers()
+        return try await photoCapturer.captureComposedPhoto(
+            frontBuffer: buffers.front.buffer,
+            backBuffer: buffers.back.buffer,
+            layout: layout,
+            outputSize: outputSize,
+            displayScale: displayScale
+        )
+    }
+
     public func createRenderer() -> CameraRenderer {
-        return MetalCameraRenderer()
+        MetalCameraRenderer()
     }
-    
-    /// Returns a renderer for the specified camera source.
-    /// If one does not exist yet, it is created and connected to its stream.
+
     public func getRenderer(for source: DualCameraSource) -> CameraRenderer {
         if let renderer = renderers[source] {
             return renderer
         }
-        
-        let newRenderer = createRenderer()
-        renderers[source] = newRenderer
-        connectStream(for: source, renderer: newRenderer)
-        return newRenderer
+
+        let renderer = createRenderer()
+        renderers[source] = renderer
+        connectStream(for: source, renderer: renderer)
+        return renderer
     }
-    
-    public func startSession() async throws {
-        try await streamSource.startSession()
-        
-        // Auto-initialize renderers
-        _ = getRenderer(for: .front)
-        _ = getRenderer(for: .back)
+
+    private func latestBuffers() throws -> (front: PixelBufferWrapper, back: PixelBufferWrapper) {
+        guard let front = streamSource.latestFrame(for: .front),
+              let back = streamSource.latestFrame(for: .back) else {
+            throw DualCameraError.captureFailure(.noFrameAvailable)
+        }
+        return (front, back)
     }
-    
-    public func stopSession() {
-        streamSource.stopSession()
-        cancelRendererTasks()
-        // Clear renderers so they're recreated with fresh stream connections on next startSession()
-        renderers.removeAll()
-    }
-    
-    public var photoCapturer: any DualCameraPhotoCapturing
-    
-    public var videoRecorder: (any DualCameraVideoRecording)?
-    
-    public func setVideoRecorder(_ recorder: any DualCameraVideoRecording) async throws {}
-    
+
     private func connectStream(for source: DualCameraSource, renderer: CameraRenderer) {
-        let stream: AsyncStream<PixelBufferWrapper> = source == .front ? frontCameraStream : backCameraStream
-        // Create a task that forwards frames from the stream to the renderer.
-        let task = Task {
+        let stream = subscribe(to: source)
+        let task = Task { @MainActor in
             for await buffer in stream {
                 if Task.isCancelled { break }
                 renderer.update(with: buffer.buffer)
@@ -232,13 +189,30 @@ public final class DualCameraMockController: DualCameraControlling {
         }
         streamTasks[source] = task
     }
-    
-    private var streamTasks: [DualCameraSource: Task<Void, Never>] = [:]
-    
-    private func cancelRendererTasks() {
-        for task in streamTasks.values {
-            task.cancel()
+
+    private func ensureSessionStarted() async throws {
+        if isSessionStarted {
+            return
         }
-        streamTasks.removeAll()
+
+        if let startSessionTask {
+            try await startSessionTask.value
+            return
+        }
+
+        let task = Task { @MainActor in
+            try await streamSource.startSession()
+        }
+        startSessionTask = task
+
+        do {
+            try await task.value
+            isSessionStarted = true
+            startSessionTask = nil
+        } catch {
+            startSessionTask = nil
+            throw error
+        }
     }
+
 }

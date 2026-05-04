@@ -1,17 +1,22 @@
+import DualCameraKit
 import SwiftUI
+import UIKit
 
 public struct DualCameraScreen: View {
+    @Environment(\.displayScale) private var displayScale
     @State private var viewModel: DualCameraViewModel
     private let customOverlay: ((DualCameraViewModel) -> AnyView)
-    
+
+    @MainActor
     public init(
-        viewModel: DualCameraViewModel = .default(),
+        viewModel: DualCameraViewModel? = nil,
         @ViewBuilder customOverlay: @escaping (DualCameraViewModel) -> some View = { _ in EmptyView() }
     ) {
-        _viewModel = State(initialValue: viewModel)
+        let resolvedViewModel = viewModel ?? .default()
+        _viewModel = State(initialValue: resolvedViewModel)
         self.customOverlay = { AnyView(customOverlay($0)) }
     }
-    
+
     public var body: some View {
         GeometryReader { geoProxy in
             ZStack {
@@ -21,7 +26,6 @@ public struct DualCameraScreen: View {
                 )
                 .ignoresSafeArea()
                 .overlay(viewModel.isSettingsButtonVisible ? settingsButton : nil, alignment: .topLeading)
-                .overlay(recordingIndicator, alignment: .top)
                 .overlay(controlButtons, alignment: .bottom)
                 .overlay(accessoryItems, alignment: .trailing)
 
@@ -30,10 +34,13 @@ public struct DualCameraScreen: View {
                 }
             }
             .onAppear {
-                viewModel.onAppear(containerSize: geoProxy.size)
+                viewModel.onAppear(containerSize: geoProxy.size, displayScale: displayScale)
             }
-            .onChange(of: geoProxy.size, initial: true) { oldSize, newSize in
+            .onChange(of: geoProxy.size, initial: true) { _, newSize in
                 viewModel.containerSizeChanged(newSize)
+            }
+            .onChange(of: displayScale, initial: true) { _, newScale in
+                viewModel.displayScaleChanged(newScale)
             }
             .onDisappear {
                 viewModel.onDisappear()
@@ -41,9 +48,9 @@ public struct DualCameraScreen: View {
             .animation(.easeInOut(duration: 0.2), value: viewModel.viewState)
             .sheet(item: $viewModel.presentedSheet, content: { sheetType in
                 switch sheetType {
-                case .configSheet: DualCameraConfigView(
-                    viewModel: viewModel
-                )}
+                case .configSheet:
+                    DualCameraConfigView(viewModel: viewModel)
+                }
             })
             .alert(
                 item: $viewModel.alert
@@ -53,48 +60,10 @@ public struct DualCameraScreen: View {
             .overlay(alignment: .top) {
                 customOverlay(viewModel)
             }
-            .background(
-                GeometryReader { innerProxy in
-                    Color.clear
-                        .onAppear {
-                            let globalFrame = innerProxy.frame(in: .global)
-                            viewModel.containerFrameChanged(globalFrame)
-                        }
-                        .onChange(of: innerProxy.frame(in: .global)) { oldFrame, newFrame in
-                            viewModel.containerFrameChanged(newFrame)
-                        }
-                }
-            )
         }
     }
-    
+
     // MARK: - View Components
-    @ViewBuilder
-    private var recordingIndicator: some View {
-        if case .recording(let state) = viewModel.viewState {
-            HStack {
-                Circle()
-                    .fill(Color.red)
-                    .frame(width: 10, height: 10)
-                    .opacity(0.8)
-                
-                Text(state.formattedDuration)
-                    .font(.system(size: 14, weight: .semibold, design: .monospaced))
-                    .foregroundColor(.white)
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 6)
-            .background(
-                Capsule()
-                    .fill(Color.black.opacity(0.6))
-            )
-            .padding(.top, 40)
-            .onTapGesture {
-                viewModel.recordVideoButtonTapped()
-            }
-        }
-    }
-    
     private var accessoryItems: some View {
         VStack {
             if viewModel.showCameraFlashButton {
@@ -111,13 +80,14 @@ public struct DualCameraScreen: View {
         .padding(.horizontal)
         .opacity(viewModel.viewState.captureInProgress ? 0 : 1.0)
     }
-    
+
     @ViewBuilder
     private var controlButtons: some View {
         VStack(spacing: 16) {
             HStack(spacing: 32) {
-                // Photo capture button
-                Button(action: viewModel.capturePhotoButtonTapped) {
+                Button {
+                    viewModel.capturePhotoButtonTapped()
+                } label: {
                     Image(systemName: "camera.fill")
                         .font(.largeTitle)
                         .foregroundColor(.white)
@@ -125,47 +95,32 @@ public struct DualCameraScreen: View {
                         .background(Circle().fill(Color.black.opacity(0.5)))
                 }
                 .disabled(!viewModel.viewState.isPhotoButtonEnabled)
-                
-                if viewModel.isVideoButtonVisible {
-                    // Video recording button
-                    Button(action: viewModel.recordVideoButtonTapped) {
-                        Image(systemName: viewModel.viewState.videoButtonIcon)
-                            .font(.largeTitle)
-                            .foregroundColor(viewModel.viewState.videoButtonColor)
-                            .padding()
-                            .background(
-                                Circle()
-                                    .fill(viewModel.viewState.videoButtonBackgroundColor)
-                            )
-                    }
-                    .disabled(!viewModel.viewState.isVideoButtonEnabled)
-                }
             }
         }
-        .opacity(viewModel.viewState.captureInProgress ? 0 : 1) 
+        .opacity(viewModel.viewState.captureInProgress ? 0 : 1)
     }
-    
+
     @ViewBuilder
     private func errorOverlay(_ error: DualCameraError) -> some View {
         ZStack {
             Color.black.opacity(0.85)
                 .ignoresSafeArea()
-            
+
             VStack(spacing: 24) {
                 Image(systemName: "exclamationmark.triangle.fill")
                     .font(.system(size: 48))
                     .foregroundColor(.yellow)
-                
+
                 Text("Camera Error")
                     .font(.title)
                     .foregroundColor(.white)
-                
+
                 Text(error.localizedDescription)
                     .font(.body)
                     .foregroundColor(.white)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal)
-                
+
                 // Show specific hint based on error type
                 if case .permissionDenied = error {
                     Button("Open Settings") {
@@ -182,7 +137,7 @@ public struct DualCameraScreen: View {
             .padding(30)
         }
     }
-    
+
     private func getAlert(for alertState: AlertState) -> Alert {
         if let secondaryButton = alertState.secondaryButton {
             return Alert(
@@ -199,7 +154,7 @@ public struct DualCameraScreen: View {
             )
         }
     }
-    
+
     private var settingsButton: some View {
         Button {
             viewModel.didTapConfigurationButton()
@@ -216,19 +171,11 @@ public struct DualCameraScreen: View {
 // MARK: - Preview
 
 #Preview("Photo") {
-    DualCameraScreen(viewModel: .init(
-        includeVideoRecording: false,
-    ))
-}
-
-#Preview("Photo & Video") {
     DualCameraScreen()
 }
 
-#Preview("Photo & Video -  Show Settings Button") {
+#Preview("Photo - Show Settings Button") {
     DualCameraScreen(viewModel: .init(
         showSettingsButton: true
     ))
 }
-
-

@@ -1,20 +1,20 @@
+import DualCameraKit
 import SwiftUI
 
 struct DualCameraConfigView: View {
     @Bindable private var viewModel: DualCameraViewModel
-    
+
     init(viewModel: DualCameraViewModel) {
         self.viewModel = viewModel
     }
-    
+
     var body: some View {
         VStack {
             layoutTypePicker
-            recorderTypePicker
         }
         .sheetStyle(title: "Config")
     }
-    
+
     @ViewBuilder
     private var layoutTypePicker: some View {
         Menu {
@@ -39,10 +39,10 @@ struct DualCameraConfigView: View {
                 .foregroundColor(.white)
                 .padding()
                 .background(Circle().fill(Color.black.opacity(0.5)))
-            
+
         }
     }
-    
+
     private func createMenuEntry(title: String, layout: DualCameraLayout) -> some View {
         Group {
             Button {
@@ -57,44 +57,12 @@ struct DualCameraConfigView: View {
             }
         }
     }
-    
-    @ViewBuilder
-    private var recorderTypePicker: some View {
-        VStack {
-            Menu {
-                ForEach(DualCameraRecorderType.allCases) { recorderType in
-                    Button {
-                        viewModel.toggleRecorderType()
-                    } label: {
-                        HStack {
-                            Text(recorderType.displayName)
-                            if viewModel.selectedRecorderType == recorderType {
-                                Image(systemName: "checkmark")
-                            }
-                        }
-                    }
-                }
-            } label: {
-                HStack {
-                    Image(systemName: "video.fill")
-                    Text("Recorder: \(viewModel.selectedRecorderType.displayName)")
-                    Image(systemName: "chevron.up.chevron.down")
-                        .font(.caption)
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .background(Capsule().fill(Color.black.opacity(0.6)))
-                .foregroundColor(.white)
-            }
-        }
-    }
 }
 
 #Preview {
     DualCameraConfigView(
         viewModel: DualCameraViewModel(
-            dualCameraController: DualCameraMockController(),
-            saveToLibrary: false
+            dualCameraController: DualCameraController(streamSource: DualCameraMockCameraStreamSource())
         )
     )
 }

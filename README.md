@@ -3,152 +3,86 @@
 ![Swift](https://img.shields.io/badge/Swift-5.9-orange?logo=swift)
 ![SPM Compatible](https://img.shields.io/badge/SPM-Compatible-brightgreen)
 ![iOS](https://img.shields.io/badge/iOS-17+-lightgrey?logo=apple)
-![WIP](https://img.shields.io/badge/status-WIP-yellow)
+![Status](https://img.shields.io/badge/status-v0.5_photo_first-yellow)
 ![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)
 
-Simultaneous front & back iOS camera capture made simple.
+Photo-first simultaneous front and back camera capture for iOS.
+
+`DualCameraKit` uses `AVCaptureMultiCamSession` to run front and back cameras at the same time, renders them with Metal, and captures composed still images from the latest camera frames.
+
+v0.5 intentionally ships a tight photo-only surface; video recording is not part of this release, with a dedicated video prototype planned next.
 
 <table>
 <tr>
-  <td align="center"><img src="./DocumentationAssets/Photo_Capture.png" width="250"/><br><b>Photo Capture</b></td>
-  <td align="center"><img src="./DocumentationAssets/Video_Recording_ReplayKit.gif" width="250"/><br><b>Video Capture</b></td>
+  <td align="center" width="33%">
+    <img src="./DocumentationAssets/Photo_Capture.png" width="220"/><br>
+    <b>Photo Capture</b>
+  </td>
+  <td align="center" width="34%">
+    <img src="./DocumentationAssets/Layout_PiP_Top_Leading.png" width="86"/>
+    <img src="./DocumentationAssets/Layout_PiP_Top_Trailing.png" width="86"/>
+    <img src="./DocumentationAssets/Layout_PiP_Bottom_Leading.png" width="86"/><br>
+    <img src="./DocumentationAssets/Layout_PiP_Bottom_Trailing.png" width="86"/>
+    <img src="./DocumentationAssets/Layout_Side_by_Side.png" width="86"/>
+    <img src="./DocumentationAssets/Layout_Stacked_Vertical.png" width="86"/><br>
+    <b>Composable Layouts</b>
+  </td>
+  <td align="center" width="33%">
+    <img src="./DocumentationAssets/Video_Recording_ReplayKit.gif" width="180"/><br>
+    <b>Video Prototype</b><br>
+    <sub>Coming soon</sub>
+  </td>
 </tr>
 </table>
 
-# Status Overview
+## Status
 
-**Current Status**: Alpha release working towards 1.0
+| Category | Status | Description |
+| --- | :---: | --- |
+| Camera streams | ✅ | Separate front and back `AVCaptureVideoDataOutput` streams over bounded latest-frame subscriptions. |
+| Display | ✅ | SwiftUI dual-camera display with PiP, side-by-side, and vertical layouts. |
+| Photo capture | ✅ | Composes the latest front/back camera frames using the same layout resolver as display. |
+| Drop-in UI | ✅ | `DualCameraScreen` provides a ready-to-use photo capture screen. |
+| Video capture | Prototype coming soon | Removed from v0.5 to keep the production API focused; a future release can add a dedicated video product. |
 
-**Pre-release available**: [v0.3.0-alpha](https://github.com/Liampronan/DualCameraKit/releases/tag/v0.3.0-alpha).
+## Installation
 
-**Legend**: ✅ = Implemented | 🚧 = In Progress
+Add the package URL in Xcode with **File > Add Packages...**, then choose the product you need:
 
-| Category                | Status | Description                                                                                                                                      |
-| ----------------------- | :----: | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 📱 **UI Components**    |   ✅   | Rendering dual cameras in SwiftUI with various layout options:<br>• Picture-in-picture<br>• Split vertical<br>• Split horizontal                 |
-| 📸 **Photo Capture**    |   ✅   | Implemented via screen capture                                                                                                                   |
-| 🎬 **Video Capture**    | v1 ✅  | **ReplayKit Mode**: High-def output (requires permission each time)<br>**CPU-based Mode**: Medium-def output (one-time permission only)          |
-| 🧩 **Architecture**     |   🚧   | In progress: De-coupling components to offer 3 layers of customizability:<br>• Drop-in screen<br>• Compositional views<br>• Low-level components |
-| 🔥 **GPU Acceleration** |   🚧   | Up Next: Adding GPU video capture for high-def recording without<br>recurrent permission requests                                                |
-| 🎤 **Audio**            |   🚧   | Future: Adding audio capture support for video recording.                                                                                        |
+- `DualCameraKit` for the core controller, display view, renderer, layout, photo capture, and save strategy APIs.
+- `DualCameraKitUI` for the drop-in `DualCameraScreen` and bundled controls.
 
-# Table of Contents
-
-- [What It Does](#what-it-does)
-- [Requirements](#osrequirements)
-- [Installing](#installing)
-  - [In Xcode](#in-xcode)
-  - [In Package.swift](#in-packageswift)
-- [Running the Demo App](#running-the-demo-app-local-code-signing-setup)
-- [Basic Usage](#basic-usage)
-- [Customization](#customization)
-  - [Camera Layout Types](#camera-layout-types)
-  - [Video Recording Modes](#video-recording-modes)
-- [Troubleshooting](#troubleshooting)
-- [Deep Dives](#deep-dives)
-- [Limitations](#limitations)
-- [API Reference](#api-reference)
-- [References](#references)
-- [License](#license)
-
-# What It Does
-
-`DualCameraKit` is an iOS library that makes simultaneous front & back camera capture simple – combining the view and the viewer in a single shot, as seen in apps like Snapchat and BeReal.
-
-For simple, drop-in functionality, you can use `DualCameraScreen`, a SwiftUI View with buttons for photo capture, video recording, and toggling through the different dual-camera layouts and recording modes.
-
-For deeper customizability, you can access the lower-level components that `DualCameraScreen` is built on
-
-# Installing
-
-Since `DualCameraKit` is published using Swift Package Manager, you can install it by following these steps:
-
-## In Xcode:
-
-1. Go to **File > Add Packages...**
-2. In the search bar, paste this [repository URL](https://github.com/Liampronan/DualCameraKit).
-3. Select the version rule (e.g., "Up to Next Major" is recommended for most cases)
-4. Click **Add Package**
-5. Select the `DualCameraKit` library product
-6. Click **Add Package** to complete the installation
-
-## In Package.swift:
-
-If you're developing a Swift package that depends on `DualCameraKit`, add it to your package dependencies:
+Or add it from `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://url-to-dualcamerakit-repo.git", from: $VERSION_STRING_HERE$)
+    .package(url: "https://github.com/Liampronan/DualCameraKit.git", from: "0.5.0")
 ],
 targets: [
     .target(
         name: "YourTarget",
-        dependencies: ["DualCameraKit"]
+        dependencies: ["DualCameraKit", "DualCameraKitUI"]
     )
 ]
 ```
 
-## OS/Requirements:
+## Requirements
 
-### Permissions
+- iOS 17+
+- A physical device for live dual-camera capture
+- `NSCameraUsageDescription` in your app's `Info.plist`
+- `NSPhotoLibraryAddUsageDescription` only if you use `.photoLibrary(service:)`
 
-- [Required] Add camera permissions to your app's `Info.plist` - `Privacy - Camera Usage Description`
-  <img src="./DocumentationAssets/Setup_Permissions_Camera_Usage.png" width=550 />
-  - This camera permission is required because this library needs to access cameras in order to be useful.
-- [Optional] Add photo library permissions to your app's `Info.plist` - `Privacy - Photo Library Additions Usage Description`
-  <img src="./DocumentationAssets/Setup_Permissions_Photo_Library_Additions.png" width=550 />
-  - This photo library addition permission is optional because you don't need to save to the user's media library after capture.
-  - See `videoSaveStrategy` and `photoSaveStrategy` for customizing this behavior.
+The simulator uses a mock stream source so previews and UI integration can run without camera hardware.
 
-### Device
+## Usage
 
-- Live, nonsimulator device, iOS 17+ for camera usage.
-- The simulator uses a mocked camera.
-
-## Importing DualCameraKit
-
-After installation, you can import the library in your Swift files:
+### Drop-in Screen
 
 ```swift
-import DualCameraKit
-```
+import DualCameraKitUI
+import SwiftUI
 
-# Running the Demo App: Local Code Signing Setup
-
-To get the demo app running, you'll need to:
-
-1. set code signing to automatic,
-2. select your development team - this dropdown appears after setting code signing to automatic
-
-Since this library currently requires a real device, you cannot run it on a simulator.
-<img src="https://github.com/user-attachments/assets/501070af-1466-4149-b1f1-5976fb84f37d" width="70%" />
-
-# Overview: the three ways to use this library
-
-Three are three different sets of components this library exposes, ranging from higher-level (drop-in, less customizable) to lower-level (more customizable). Each is built on top of the next lower level.
-
-1. ✅ `DualCameraScreen`
-
-- drop-in, least customizable.
-- a full-screen SwiftUI view which includes buttons for photo capture, video recording, and toggling through the different dual-camera layouts and recording modes.
-
-2. 🚧 `DualCameraDisplayView` and `DualCameraController`
-
-- medium customization - useful for using pre-configured dual camera layouts while customizing the control UI and post-capture behavior.
-- the `DualCameraDisplayView` renders streams managed by the `DualCameraController`
-- you're responsible for wiring up UI for photo capture, video recording management, and layout config.
-
-3. 🚧 Raw Components
-
-- full customization - useful for uncharted territory e.g., you need to manipulate camera streams before they are rendered.
-
-# Basic Usage
-
-## `DualCameraScreen` - drop-in, full-screen component
-
-The simplest way to use DualCameraKit is with the default configuration:
-
-```swift
 struct ContentView: View {
     var body: some View {
         DualCameraScreen()
@@ -156,66 +90,66 @@ struct ContentView: View {
 }
 ```
 
-## `DualCameraScreen` - Customization
-
-You can customize the screen by providing your own `DualCameraViewModel`
+Customize the screen by passing a view model:
 
 ```swift
-// Custom initialization with specific layout
-let customViewModel = DualCameraViewModel(
-    dualCameraController: DualCameraController(),
+import DualCameraKit
+import DualCameraKitUI
+
+let viewModel = DualCameraViewModel(
     layout: .sideBySide,
-    videoRecorderMode: .replayKit(),
-    videoSaveStrategy: .custom { url in
-        // Custom video handling
-        print("Video saved to: \(url)")
-    },
     photoSaveStrategy: .custom { image in
-        // Custom photo handling
-        saveToCloudService(image)
-    }
+        upload(image)
+    },
+    showSettingsButton: true
 )
 
 struct ContentView: View {
     var body: some View {
-        DualCameraScreen(viewModel: customViewModel)
+        DualCameraScreen(viewModel: viewModel)
     }
 }
 ```
 
-## `DualCameraScreen` - Parameters
+### Compositional Display
 
-| Parameter   | Type                  | Default      | Description                                                                                                                   |
-| ----------- | --------------------- | ------------ | ----------------------------------------------------------------------------------------------------------------------------- |
-| `viewModel` | `DualCameraViewModel` | `.default()` | Provides complete configuration for the camera screen including layout, video recording options, and media saving strategies. |
-
-## `DualCameraViewModel` Configuration
-
-| Parameter              | Type                           | Default                                                                    | Description                                                                                                |
-| ---------------------- | ------------------------------ | -------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| `dualCameraController` | `DualCameraControlling`        | Device-specific controller                                                 | Core camera controller. Uses `DualCameraMockController` on simulator and `DualCameraController` on device. |
-| `layout`               | `DualCameraLayout`             | `.piP(miniCamera: .front, miniCameraPosition: .bottomTrailing)`            | Determines how cameras are displayed (picture-in-picture, side-by-side, or stacked).                       |
-| `videoRecorderMode`    | `DualCameraVideoRecordingMode` | `.cpuBased(.init(photoCaptureMode: .fullScreen))`                          | Configures video recording strategy and quality.                                                           |
-| `videoSaveStrategy`    | `VideoSaveStrategy`            | `.videoLibrary(service: CurrentDualCameraEnvironment.mediaLibraryService)` | Strategy for saving recorded videos.                                                                       |
-| `photoSaveStrategy`    | `PhotoSaveStrategy`            | `.photoLibrary(service: CurrentDualCameraEnvironment.mediaLibraryService)` | Strategy for saving captured photos.                                                                       |
-
-> Note on Default Media Handling: By default, all photos and videos are saved to the device's photo library. This requires the user to grant permission when first capturing media. The default implementation handles permission requests, file cleanup, and provides success feedback. When using custom strategies, you'll need to implement these aspects yourself if needed.
-
-## Testing Support
-
-For testing, you can use the mock implementations:
+Use `DualCameraDisplayView` and `DualCameraController` when you want your own controls:
 
 ```swift
-let testViewModel = DualCameraViewModel(
-    dualCameraController: DualCameraMockController(),
-    videoSaveStrategy: .custom { _ in },
-    photoSaveStrategy: .custom { _ in }
-)
+import DualCameraKit
+import SwiftUI
+
+struct CameraComposer: View {
+    @State private var controller = DualCameraController()
+    @State private var capturedImage: UIImage?
+    let layout: DualCameraLayout = .piP(miniCamera: .front, miniCameraPosition: .bottomTrailing)
+
+    var body: some View {
+        GeometryReader { proxy in
+            ZStack(alignment: .bottom) {
+                DualCameraDisplayView(controller: controller, layout: layout)
+
+                Button("Capture") {
+                    Task {
+                        capturedImage = try await controller.capturePhoto(
+                            layout: layout,
+                            outputSize: proxy.size
+                        )
+                    }
+                }
+            }
+            .task {
+                try? await controller.startSession()
+            }
+            .onDisappear {
+                controller.stopSession()
+            }
+        }
+    }
+}
 ```
 
-# Customization
-
-## Camera Layout Types
+## Layouts
 
 ```swift
 public enum DualCameraLayout {
@@ -225,58 +159,29 @@ public enum DualCameraLayout {
 }
 ```
 
-> Note: these screenshots are using colors to mock the front (purple) and back (yellow) cameras – this is how we're mocking things in the simulator because it doesn't have a hardware camera.
+The same `DualCameraLayoutResolver` drives display placement and captured photo composition.
 
-### `.piP(miniCamera:, miniCameraPosition:)`
+## Demo App
 
-|                                                                                                       |                                                                                                         |
-| :---------------------------------------------------------------------------------------------------: | :-----------------------------------------------------------------------------------------------------: |
-|    <img src="./DocumentationAssets/Layout_PiP_Top_Leading.png" width="250" /><br>**`.topLeading`**    |    <img src="./DocumentationAssets/Layout_PiP_Top_Trailing.png" width="250" /><br>**`.topTrailing`**    |
-| <img src="./DocumentationAssets/Layout_PiP_Bottom_Leading.png" width="250" /><br>**`.bottomLeading`** | <img src="./DocumentationAssets/Layout_PiP_Bottom_Trailing.png" width="250" /><br>**`.bottomTrailing`** |
+The demo app lives in this repository on purpose. It exercises the local package and includes three focused examples:
 
-### `.stackedVertical`
+- Drop-in full-screen photo capture
+- Container photo capture with review overlay
+- Custom compositional UI using `DualCameraDisplayView` + `DualCameraController`
 
-<img src="./DocumentationAssets/Layout_Stacked_Vertical.png" width=250 />
+To run it, open `DualCameraKit.xcworkspace`, select the `DualCameraDemo` scheme, set your development team, and run on a device for real camera capture.
 
-### `.sideBySide`
+## Limitations
 
-<img src="./DocumentationAssets/Layout_Side_by_Side.png" width=250 />
+- v0.5 is photo-only.
+- Live capture requires a physical device that supports multi-cam.
+- Simulator support is mock-driven and intended for UI iteration.
+- iPad and audio/video capture are future work.
 
-## Video Recording Modes
+## References
 
-- This library offers several implementations of `DualCameraVideoRecorderType` that offer various methods of recording video.
-- You can choose which type you'd like by invoking `DualCameraControlling.startVideoRecording(recorderType:)`
+Part of this project was adapted from Apple's [`AVMultiCamPiP: Capturing from Multiple Cameras`](https://developer.apple.com/documentation/avfoundation/avmulticampip-capturing-from-multiple-cameras). This package keeps front and back camera frames as separate streams so layout and capture can be controlled by the library.
 
-| Type                    | Implementation Status | Quality |                   Description                   |      Core Technology       |          Permissions Required           |                       Layout Dependence                       |
-| ----------------------- | :-------------------: | :-----: | :---------------------------------------------: | :------------------------: | :-------------------------------------: | :-----------------------------------------------------------: |
-| `.cpuBased`             |          ✅           | Medium  |          Takes continuous screenshots           | `DualCameraPhotoCapturing` |            Camera (one-time)            |                 Captures screen layout as-is                  |
-| `.replayKit`            |          ✅           |  High   |           System screen recording API           |         ReplayKit          | Camera (one-time) + ReplayKit (per-use) |                 Captures screen layout as-is                  |
-| `.gpuBasedUncomposited` |          🚧           |  High   |              Direct Metal capture               |   Metal/GPU acceleration   |            Camera (one-time)            |  Produces separate video streams (manual composition needed)  |
-| `.gpuBasedComposited`   |          🚧           |  High   | Direct Metal capture with automatic composition |   Metal/GPU acceleration   |            Camera (one-time)            | Automatically composes videos according to `DualCameraLayout` |
-
-# Troubleshooting
-
-# Deep Dives
-
-- 🚧 Explain our different approaches (dual streams) vs. `PiPVideoMixer` (single stream) vs `ReplayKit` (screen capture, requires user permission each time)
-- 🚧 Add some diagrams
-
-# Limitations
-
-- The library works fully on-device only! Limited, non-camera use in simulator (including previews).
-  - Why? Because the simulator doesn't have access to camera.
-  - It runs in simulator & previews using mocked implementations for the cameras. The goal here is to allow you to integrate as much as possible using previews, for example, iterating on layouts.
-  - You should still test on-device as part of your full testing flow to ensure things work as you expect.
-- iOS only. iPad support is a future enhancement. Other platforms only have one camera
-
-# API Reference
-
-🚧
-
-# References
-
-Part of this project was adapted from Apple's code in [`AVMultiCamPiP: Capturing from Multiple Cameras`](https://developer.apple.com/documentation/avfoundation/avmulticampip-capturing-from-multiple-cameras). Some significant updates here: this library ports the functionality to SwiftUI, including using a dual-stream approach with multiple types of video recorders vs. Apple's approach of mixing together both streams into a single CVPixelBuffer containing both camera sources.
-
-# License
+## License
 
 This project is available under the [MIT License](LICENSE.md).

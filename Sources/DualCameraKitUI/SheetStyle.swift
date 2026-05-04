@@ -3,7 +3,7 @@ import SwiftUI
 struct SheetStyle: ViewModifier {
     let title: String
     @Environment(\.dismiss) private var dismiss
-    
+
     func body(content: Content) -> some View {
         VStack(spacing: 0) {
             HStack {
@@ -11,9 +11,9 @@ struct SheetStyle: ViewModifier {
                     .font(.largeTitle)
                     .fontWeight(.bold)
                     .padding(.leading)
-                
+
                 Spacer()
-                
+
                 Button("Done") {
                     dismiss()
                 }
@@ -21,7 +21,7 @@ struct SheetStyle: ViewModifier {
             }
             .padding(.top)
             .background(Color(.systemBackground))
-            
+
             content
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .padding()

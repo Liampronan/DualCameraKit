@@ -1,4 +1,5 @@
 import DualCameraKit
+import DualCameraKitUI
 import SwiftUI
 
 struct ContainerExample: View {
@@ -18,34 +19,32 @@ final class CaptureReviewState {
         case showing(UIImage)
     }
     var previewPhase = PreviewPhase.hidden
-    
+
     func showPreview(_ image: UIImage) {
         withAnimation {
             previewPhase = .showing(image)
         }
     }
-    
+
     func reset() {
         withAnimation {
             previewPhase = .hidden
         }
-        
+
     }
 }
 
 private struct AppTabView: View {
     @State private var selectedTab: Tab = .camera
     @State private var captureReviewState = CaptureReviewState()
-    private var vm: DualCameraViewModel
+    private var viewModel: DualCameraViewModel
 
     init() {
-        vm = DualCameraViewModel(
-            captureScope: .container,
-            includeVideoRecording: false,
-            saveToLibrary: false
+        viewModel = DualCameraViewModel(
+            photoSaveStrategy: .custom { _ in }
         )
     }
-    
+
     var body: some View {
         ZStack {
             VStack {
@@ -60,13 +59,12 @@ private struct AppTabView: View {
                 tabBar
                 .edgesIgnoringSafeArea(.all)
             }
-                
-            switch captureReviewState.previewPhase {
-            case .hidden:
-                EmptyView()
-            case .showing(let image):
+        }
+        .background(.primary)
+        .fullScreenCover(isPresented: reviewBinding) {
+            if let reviewImage {
                 CapturePreviewOverlay(
-                    image: image,
+                    image: reviewImage,
                     onDismiss: {
                         captureReviewState.reset()
                     },
@@ -74,35 +72,49 @@ private struct AppTabView: View {
                         captureReviewState.reset()
                     }
                 )
-                .transition(.scale.combined(with: .opacity))
+                .presentationBackground(.black)
             }
         }
-        .background(.primary)
-        .onChange(of: vm.capturedPhoto) { oldValue, newValue in
+        .onChange(of: viewModel.capturedPhoto) { _, newValue in
             if let image = newValue {
                 captureReviewState.showPreview(image)
             }
         }
     }
-    
-    private var cameraCapture: some View {
-        DualCameraScreen(
-            viewModel: vm
+
+    private var reviewImage: UIImage? {
+        if case .showing(let image) = captureReviewState.previewPhase {
+            return image
+        }
+
+        return nil
+    }
+
+    private var reviewBinding: Binding<Bool> {
+        Binding(
+            get: { reviewImage != nil },
+            set: { if !$0 { captureReviewState.reset() } }
         )
     }
-    
+
+    private var cameraCapture: some View {
+        DualCameraScreen(
+            viewModel: viewModel
+        )
+    }
+
     private var feedMock: some View {
         VStack {
             Color(.systemMint)
         }
     }
-    
+
     private var mapMock: some View {
         VStack {
             Color(.systemTeal)
         }
     }
-    
+
     @ViewBuilder
     private var tabBar: some View {
         HStack {
@@ -120,12 +132,12 @@ private struct AppTabView: View {
         .padding(.horizontal)
         .padding(.bottom, 10)
     }
-    
+
     @ViewBuilder
     private func tabBarButton(tab: Tab, image: String, isCenter: Bool = false) -> some View {
-        Button(action: {
+        Button {
             selectedTab = tab
-        }) {
+        } label: {
             if isCenter {
                 ZStack {
                     Circle()

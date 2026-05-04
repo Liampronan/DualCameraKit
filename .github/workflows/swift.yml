@@ -9,34 +9,44 @@ on:
 jobs:
   swiftlint:
     name: SwiftLint
-    # use Linux for the SwiftLint action since this GH library requires it (so bot can post inline to PR) 
-    runs-on: ubuntu-latest  
+    # use Linux for the SwiftLint action since this GH library requires it (so bot can post inline to PR)
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: GitHub Action for SwiftLint
         uses: norio-nomura/action-swiftlint@3.2.1
         env:
-          WORKING_DIRECTORY: Source
-          
+          WORKING_DIRECTORY: .
   build:
     runs-on: macos-latest
     needs: swiftlint
     steps:
     - uses: actions/checkout@v4
 
-    - name: Select appropriate Xcode 
-      run: sudo xcode-select -s /Applications/Xcode_16.2.app
+    - name: Show Xcode environment
+      run: |
+        xcodebuild -version
+        xcodebuild -showsdks
 
-    - name: List schemes
-      run: xcodebuild -list -workspace DualCameraKit.xcworkspace
+    - name: List demo schemes
+      run: xcodebuild -list -project DualCameraDemo/DualCameraDemo.xcodeproj
 
-    - name: List Devices
-      run: xcrun simctl list devices
-      
-    - name: Build for iOS simulator
-      run: xcrun xcodebuild build -workspace DualCameraKit.xcworkspace -scheme DualCameraKit -destination "platform=iOS Simulator,name=iPhone 16,OS=18.2" -sdk iphonesimulator
+    - name: Select available iOS simulator
+      id: simulator
+      shell: bash
+      run: |
+        set -euo pipefail
+        xcrun simctl list devices available
+        simulator_id="$(xcrun simctl list devices available | awk -F '[()]' '/iPhone/ && /(Booted|Shutdown)/ { print $2; exit }')"
+        if [[ -z "${simulator_id}" ]]; then
+          echo "No available iPhone simulator found." >&2
+          exit 1
+        fi
+        echo "destination=platform=iOS Simulator,id=${simulator_id}" >> "$GITHUB_OUTPUT"
 
-# Tests not working in CI atm. run locally while we work on fix 
-    # - name: Run tests
-      # run: xcrun xcodebuild -workspace DualCameraKit.xcworkspace -scheme DualCameraKitTests -destination "platform=iOS Simulator,id=02A210DA-73F3-45AB-975A-9003C1E9B9D4" -sdk iphonesimulator test
+    - name: Build demo for iOS simulator
+      run: xcrun xcodebuild build -project DualCameraDemo/DualCameraDemo.xcodeproj -scheme DualCameraDemo -destination "generic/platform=iOS Simulator" -derivedDataPath "$RUNNER_TEMP/DualCameraKitDerivedData" CODE_SIGNING_ALLOWED=NO
+
+    - name: Run package tests on iOS simulator
+      run: xcrun xcodebuild test -workspace .swiftpm/xcode/package.xcworkspace -scheme DualCameraKit-Package -destination "${{ steps.simulator.outputs.destination }}" -derivedDataPath "$RUNNER_TEMP/DualCameraKitDerivedData" CODE_SIGNING_ALLOWED=NO
