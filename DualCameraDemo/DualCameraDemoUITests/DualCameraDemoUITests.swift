@@ -5,8 +5,8 @@
 //  Created by Liam Ronan on 2/19/25.
 //
 
-import XCTest
 import UIKit
+import XCTest
 
 final class DualCameraDemoUITests: XCTestCase {
 
@@ -16,7 +16,7 @@ final class DualCameraDemoUITests: XCTestCase {
         // In UI tests it is usually best to stop immediately when a failure occurs.
         continueAfterFailure = false
 
-        // In UI tests it’s important to set the initial state - such as interface orientation - required for your tests before they run. The setUp method is a good place to do this.
+        // Set any initial UI state required before each test runs.
     }
 
     override func tearDownWithError() throws {
@@ -73,8 +73,8 @@ final class DualCameraDemoUITests: XCTestCase {
 
         let width = cgImage.width
         let height = cgImage.height
-        let x = Int(CGFloat(width) * 0.5)
-        let y = Int(CGFloat(height) * 0.45)
+        let sampleX = Int(CGFloat(width) * 0.5)
+        let sampleY = Int(CGFloat(height) * 0.45)
         let bytesPerPixel = 4
         let bytesPerRow = width * bytesPerPixel
         var pixels = [UInt8](repeating: 0, count: bytesPerRow * height)
@@ -93,7 +93,7 @@ final class DualCameraDemoUITests: XCTestCase {
 
         context.draw(cgImage, in: CGRect(x: 0, y: 0, width: width, height: height))
 
-        let offset = (y * bytesPerRow) + (x * bytesPerPixel)
+        let offset = (sampleY * bytesPerRow) + (sampleX * bytesPerPixel)
         return RGB(red: pixels[offset], green: pixels[offset + 1], blue: pixels[offset + 2])
     }
 

@@ -141,7 +141,11 @@ public final class DualCameraController: DualCameraControlling {
         )
     }
 
-    public func capturePhoto(layout: DualCameraLayout, outputSize: CGSize, displayScale: CGFloat) async throws -> UIImage {
+    public func capturePhoto(
+        layout: DualCameraLayout,
+        outputSize: CGSize,
+        displayScale: CGFloat
+    ) async throws -> UIImage {
         let buffers = try latestBuffers()
         return try await photoCapturer.captureComposedPhoto(
             frontBuffer: buffers.front.buffer,

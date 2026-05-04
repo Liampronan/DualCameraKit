@@ -44,7 +44,10 @@ final class DualCameraLayoutResolverTests: XCTestCase {
         XCTAssertEqual(layout.background.source, .back)
         XCTAssertEqual(layout.background.frame, CGRect(x: 0, y: 0, width: 400, height: 800))
         XCTAssertEqual(layout.overlay?.source, .front)
-        assertEqual(layout.overlay?.frame, CGRect(x: 224, y: 393.77777777777777, width: 152, height: 270.22222222222223))
+        assertEqual(
+            layout.overlay?.frame,
+            CGRect(x: 224, y: 393.77777777777777, width: 152, height: 270.22222222222223)
+        )
     }
 
     private func assertEqual(_ lhs: CGRect?, _ rhs: CGRect, accuracy: CGFloat = 0.001) {
