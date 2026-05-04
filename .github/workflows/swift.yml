@@ -24,17 +24,29 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: Select appropriate Xcode
-      run: sudo xcode-select -s /Applications/Xcode_16.2.app
+    - name: Show Xcode environment
+      run: |
+        xcodebuild -version
+        xcodebuild -showsdks
 
     - name: List demo schemes
-      run: xcodebuild -list -workspace DualCameraKit.xcworkspace
+      run: xcodebuild -list -project DualCameraDemo/DualCameraDemo.xcodeproj
 
-    - name: List Devices
-      run: xcrun simctl list devices
+    - name: Select available iOS simulator
+      id: simulator
+      shell: bash
+      run: |
+        set -euo pipefail
+        xcrun simctl list devices available
+        simulator_id="$(xcrun simctl list devices available | awk -F '[()]' '/iPhone/ && /(Booted|Shutdown)/ { print $2; exit }')"
+        if [[ -z "${simulator_id}" ]]; then
+          echo "No available iPhone simulator found." >&2
+          exit 1
+        fi
+        echo "destination=platform=iOS Simulator,id=${simulator_id}" >> "$GITHUB_OUTPUT"
 
     - name: Build demo for iOS simulator
-      run: xcrun xcodebuild build -workspace DualCameraKit.xcworkspace -scheme DualCameraDemo -destination "generic/platform=iOS Simulator" -sdk iphonesimulator CODE_SIGNING_ALLOWED=NO
+      run: xcrun xcodebuild build -project DualCameraDemo/DualCameraDemo.xcodeproj -scheme DualCameraDemo -destination "generic/platform=iOS Simulator" -derivedDataPath "$RUNNER_TEMP/DualCameraKitDerivedData" CODE_SIGNING_ALLOWED=NO
 
     - name: Run package tests on iOS simulator
-      run: xcrun xcodebuild test -scheme DualCameraKitUI -destination "platform=iOS Simulator,name=iPhone 16,OS=18.2" -sdk iphonesimulator
+      run: xcrun xcodebuild test -workspace .swiftpm/xcode/package.xcworkspace -scheme DualCameraKit-Package -destination "${{ steps.simulator.outputs.destination }}" -derivedDataPath "$RUNNER_TEMP/DualCameraKitDerivedData" CODE_SIGNING_ALLOWED=NO
