@@ -1,7 +1,9 @@
 import CoreGraphics
 import simd
 
+/// Shared geometry for fitting camera frames into preview and capture regions.
 @_spi(Testing) public enum DualCameraContentGeometry: Sendable {
+    /// Returns the rectangle used to draw a source image inside a target region.
     public static func contentRect(
         for sourceSize: CGSize,
         in targetRect: CGRect,
@@ -27,24 +29,26 @@ import simd
         )
     }
 
+    /// Returns the Metal quad scale that matches `contentRect` for the same source and target sizes.
     public static func rendererScale(
         for sourceSize: CGSize,
         in targetSize: CGSize,
         contentMode: DualCameraContentMode
     ) -> SIMD2<Float> {
-        guard targetSize.width > 0, targetSize.height > 0 else {
+        guard targetSize.width > 0,
+              targetSize.height > 0,
+              sourceSize.width > 0,
+              sourceSize.height > 0 else {
             return SIMD2<Float>(1, 1)
         }
 
-        let contentRect = contentRect(
-            for: sourceSize,
-            in: CGRect(origin: .zero, size: targetSize),
-            contentMode: contentMode
-        )
+        let widthRatio = targetSize.width / sourceSize.width
+        let heightRatio = targetSize.height / sourceSize.height
+        let scale = scaleFactor(widthRatio: widthRatio, heightRatio: heightRatio, contentMode: contentMode)
 
         return SIMD2<Float>(
-            Float(contentRect.width / targetSize.width),
-            Float(contentRect.height / targetSize.height)
+            Float(scale / widthRatio),
+            Float(scale / heightRatio)
         )
     }
 
