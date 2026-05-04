@@ -8,8 +8,18 @@ public protocol CameraRenderer: AnyObject {
     /// Backing UIKit view used by SwiftUI adapters.
     var view: UIView { get }
 
+    /// Controls how frames are scaled inside the renderer bounds.
+    var cameraContentMode: DualCameraContentMode { get set }
+
     /// Update renderer with new camera frame.
-    func update(with buffer: CVPixelBuffer)
+    nonisolated func update(with frame: PixelBufferWrapper)
+}
+
+public extension CameraRenderer {
+    /// Update renderer with a bare pixel buffer.
+    nonisolated func update(with buffer: CVPixelBuffer) {
+        update(with: PixelBufferWrapper(buffer: buffer))
+    }
 }
 
 enum MetalRendererError: Error {
@@ -31,7 +41,8 @@ public final class MetalCameraRenderer: MTKView, CameraRenderer, MTKViewDelegate
     private var commandQueue: MTLCommandQueue?
     private var textureCache: CVMetalTextureCache?
     private var renderPipelineState: MTLRenderPipelineState?
-    private var currentTexture: MTLTexture?
+    private let latestFrameStore = LatestPixelBufferStore()
+    public var cameraContentMode: DualCameraContentMode = .aspectFill
 
     // MARK: - Initialization
     public required init(coder: NSCoder) {
@@ -75,8 +86,8 @@ public final class MetalCameraRenderer: MTKView, CameraRenderer, MTKViewDelegate
 
         framebufferOnly = false
         preferredFramesPerSecond = UIScreen.main.maximumFramesPerSecond
-        isPaused = true
-        enableSetNeedsDisplay = true
+        isPaused = false
+        enableSetNeedsDisplay = false
         self.colorPixelFormat = .bgra8Unorm
 
         try setupRenderPipeline()
@@ -152,46 +163,8 @@ public final class MetalCameraRenderer: MTKView, CameraRenderer, MTKViewDelegate
 extension MetalCameraRenderer {
     public var view: UIView { self }
 
-    public func update(with buffer: CVPixelBuffer) {
-        let bufferWrapper = PixelBufferWrapper(buffer: buffer)
-        createAndUpdateTexture(from: bufferWrapper)
-    }
-
-    // MARK: - Private Helpers
-
-    /// Creates a texture from the given buffer and updates the view.
-    @MainActor
-    private func createAndUpdateTexture(from bufferWrapper: PixelBufferWrapper) {
-        guard let textureCache = self.textureCache else {
-            print("⚠️ No texture cache available")
-            return
-        }
-        let buffer = bufferWrapper.buffer
-        let width = CVPixelBufferGetWidth(buffer)
-        let height = CVPixelBufferGetHeight(buffer)
-
-        var textureRef: CVMetalTexture?
-        let status = CVMetalTextureCacheCreateTextureFromImage(
-            kCFAllocatorDefault,
-            textureCache,
-            buffer,
-            nil,
-            .bgra8Unorm,
-            width,
-            height,
-            0,
-            &textureRef
-        )
-
-        guard status == kCVReturnSuccess,
-              let textureRef = textureRef,
-              let metalTexture = CVMetalTextureGetTexture(textureRef) else {
-            print("❌ Failed to create texture: \(status)")
-            return
-        }
-
-        self.currentTexture = metalTexture
-        self.setNeedsDisplay()
+    public nonisolated func update(with frame: PixelBufferWrapper) {
+        latestFrameStore.store(frame)
     }
 }
 
@@ -214,8 +187,8 @@ extension MetalCameraRenderer {
 
         commandEncoder.setRenderPipelineState(pipelineState)
 
-        if let texture = currentTexture {
-            let scale = calculateAspectFitScale(for: texture, in: view.drawableSize)
+        if let texture = makeTexture(fromLatestFrame: latestFrameStore.latestValue) {
+            let scale = calculateScale(for: texture, in: view.drawableSize, contentMode: cameraContentMode)
             var uniforms = Uniforms(scale: scale)
             commandEncoder.setVertexBytes(&uniforms,
                                           length: MemoryLayout<Uniforms>.size,
@@ -231,12 +204,75 @@ extension MetalCameraRenderer {
         commandBuffer.commit()
     }
 
-    /// Calculates a scale to aspect-fit the texture within the drawable size.
-    private func calculateAspectFitScale(for texture: MTLTexture, in drawableSize: CGSize) -> SIMD2<Float> {
+    private func makeTexture(fromLatestFrame frame: PixelBufferWrapper?) -> MTLTexture? {
+        guard let textureCache = self.textureCache else {
+            DualCameraLogger.errors.error("No texture cache available")
+            return nil
+        }
+
+        guard let frame else { return nil }
+
+        let buffer = frame.buffer
+        let width = CVPixelBufferGetWidth(buffer)
+        let height = CVPixelBufferGetHeight(buffer)
+
+        var textureRef: CVMetalTexture?
+        let status = CVMetalTextureCacheCreateTextureFromImage(
+            kCFAllocatorDefault,
+            textureCache,
+            buffer,
+            nil,
+            .bgra8Unorm,
+            width,
+            height,
+            0,
+            &textureRef
+        )
+
+        guard status == kCVReturnSuccess,
+              let textureRef,
+              let metalTexture = CVMetalTextureGetTexture(textureRef) else {
+            DualCameraLogger.errors.error("Failed to create texture: \(status)")
+            return nil
+        }
+
+        return metalTexture
+    }
+
+    private func calculateScale(
+        for texture: MTLTexture,
+        in drawableSize: CGSize,
+        contentMode: DualCameraContentMode
+    ) -> SIMD2<Float> {
         let textureAspect = Float(texture.width) / Float(texture.height)
         let viewAspect = Float(drawableSize.width) / Float(drawableSize.height)
-        return textureAspect > viewAspect
+
+        switch contentMode {
+        case .aspectFill:
+            return textureAspect > viewAspect
             ? SIMD2<Float>(textureAspect / viewAspect, 1)
             : SIMD2<Float>(1, viewAspect / textureAspect)
+        case .aspectFit:
+            return textureAspect > viewAspect
+            ? SIMD2<Float>(1, viewAspect / textureAspect)
+            : SIMD2<Float>(textureAspect / viewAspect, 1)
+        }
+    }
+}
+
+private final class LatestPixelBufferStore: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value: PixelBufferWrapper?
+
+    func store(_ newValue: PixelBufferWrapper) {
+        lock.lock()
+        value = newValue
+        lock.unlock()
+    }
+
+    var latestValue: PixelBufferWrapper? {
+        lock.lock()
+        defer { lock.unlock() }
+        return value
     }
 }

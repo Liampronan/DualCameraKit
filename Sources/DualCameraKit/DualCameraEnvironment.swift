@@ -28,4 +28,9 @@ public struct DualCameraEnvironment {
 
 @MainActor
 // swiftlint:disable:next identifier_name
+@available(
+    *,
+    deprecated,
+    message: "Inject DualCameraEnvironment or DualCameraControlling explicitly instead of using process-wide mutable state."
+)
 public var CurrentDualCameraEnvironment = DualCameraEnvironment()

@@ -11,8 +11,19 @@ public protocol DualCameraControlling {
 
     func captureRawPhotos(displayScale: CGFloat) async throws -> (front: UIImage, back: UIImage)
     func capturePhoto(layout: DualCameraLayout, outputSize: CGSize, displayScale: CGFloat) async throws -> UIImage
+    func capturePhoto(
+        layout: DualCameraLayout,
+        outputSize: CGSize,
+        displayScale: CGFloat,
+        contentMode: DualCameraContentMode
+    ) async throws -> UIImage
 
     func setTorchMode(_ mode: AVCaptureDevice.TorchMode) throws
+    func setZoomFactor(_ factor: CGFloat, for source: DualCameraSource) throws
+    func setFocusMode(_ mode: AVCaptureDevice.FocusMode, for source: DualCameraSource) throws
+    func setExposureMode(_ mode: AVCaptureDevice.ExposureMode, for source: DualCameraSource) throws
+    func setWhiteBalanceMode(_ mode: AVCaptureDevice.WhiteBalanceMode, for source: DualCameraSource) throws
+    func diagnostics() -> DualCameraDiagnostics
 }
 
 public extension DualCameraControlling {
@@ -22,6 +33,28 @@ public extension DualCameraControlling {
 
     func capturePhoto(layout: DualCameraLayout, outputSize: CGSize) async throws -> UIImage {
         try await capturePhoto(layout: layout, outputSize: outputSize, displayScale: 1)
+    }
+
+    func capturePhoto(
+        layout: DualCameraLayout,
+        outputSize: CGSize,
+        contentMode: DualCameraContentMode
+    ) async throws -> UIImage {
+        try await capturePhoto(
+            layout: layout,
+            outputSize: outputSize,
+            displayScale: 1,
+            contentMode: contentMode
+        )
+    }
+
+    func capturePhoto(layout: DualCameraLayout, outputSize: CGSize, displayScale: CGFloat) async throws -> UIImage {
+        try await capturePhoto(
+            layout: layout,
+            outputSize: outputSize,
+            displayScale: displayScale,
+            contentMode: .aspectFill
+        )
     }
 }
 
@@ -132,8 +165,31 @@ public final class DualCameraController: DualCameraControlling {
         try streamSource.setTorchMode(mode)
     }
 
+    public func setZoomFactor(_ factor: CGFloat, for source: DualCameraSource) throws {
+        try streamSource.setZoomFactor(factor, for: source)
+    }
+
+    public func setFocusMode(_ mode: AVCaptureDevice.FocusMode, for source: DualCameraSource) throws {
+        try streamSource.setFocusMode(mode, for: source)
+    }
+
+    public func setExposureMode(_ mode: AVCaptureDevice.ExposureMode, for source: DualCameraSource) throws {
+        try streamSource.setExposureMode(mode, for: source)
+    }
+
+    public func setWhiteBalanceMode(
+        _ mode: AVCaptureDevice.WhiteBalanceMode,
+        for source: DualCameraSource
+    ) throws {
+        try streamSource.setWhiteBalanceMode(mode, for: source)
+    }
+
+    public func diagnostics() -> DualCameraDiagnostics {
+        streamSource.diagnostics()
+    }
+
     public func captureRawPhotos(displayScale: CGFloat) async throws -> (front: UIImage, back: UIImage) {
-        let buffers = try latestBuffers()
+        let buffers = try latestFramePair()
         return try await photoCapturer.captureRawPhotos(
             frontBuffer: buffers.front.buffer,
             backBuffer: buffers.back.buffer,
@@ -144,15 +200,17 @@ public final class DualCameraController: DualCameraControlling {
     public func capturePhoto(
         layout: DualCameraLayout,
         outputSize: CGSize,
-        displayScale: CGFloat
+        displayScale: CGFloat,
+        contentMode: DualCameraContentMode
     ) async throws -> UIImage {
-        let buffers = try latestBuffers()
+        let buffers = try latestFramePair()
         return try await photoCapturer.captureComposedPhoto(
             frontBuffer: buffers.front.buffer,
             backBuffer: buffers.back.buffer,
             layout: layout,
             outputSize: outputSize,
-            displayScale: displayScale
+            displayScale: displayScale,
+            contentMode: contentMode
         )
     }
 
@@ -171,20 +229,19 @@ public final class DualCameraController: DualCameraControlling {
         return renderer
     }
 
-    private func latestBuffers() throws -> (front: PixelBufferWrapper, back: PixelBufferWrapper) {
-        guard let front = streamSource.latestFrame(for: .front),
-              let back = streamSource.latestFrame(for: .back) else {
+    private func latestFramePair() throws -> DualCameraFramePair {
+        guard let framePair = streamSource.latestFramePair() else {
             throw DualCameraError.captureFailure(.noFrameAvailable)
         }
-        return (front, back)
+        return framePair
     }
 
     private func connectStream(for source: DualCameraSource, renderer: CameraRenderer) {
         let stream = subscribe(to: source)
-        let task = Task { @MainActor in
+        let task = Task {
             for await buffer in stream {
                 if Task.isCancelled { break }
-                renderer.update(with: buffer.buffer)
+                renderer.update(with: buffer)
             }
         }
         streamTasks[source] = task

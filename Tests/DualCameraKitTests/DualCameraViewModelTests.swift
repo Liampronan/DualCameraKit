@@ -106,6 +106,7 @@ final class DualCameraViewModelTests: XCTestCase {
 
         XCTAssertEqual(controller.captureOutputSize, CGSize(width: 320, height: 480))
         XCTAssertEqual(controller.captureDisplayScale, 3)
+        XCTAssertEqual(controller.captureContentMode, .aspectFill)
         XCTAssertNotNil(viewModel.capturedPhoto)
         let savedCapturedImage = await savedImage.get()
         XCTAssertTrue(savedCapturedImage === controller.mockCapturedImage)
@@ -153,6 +154,7 @@ final class MockDualCameraController: DualCameraControlling {
     var torchModes: [AVCaptureDevice.TorchMode] = []
     var captureOutputSize: CGSize?
     var captureDisplayScale: CGFloat?
+    var captureContentMode: DualCameraContentMode?
     let mockCapturedImage = UIImage()
 
     func subscribe(to source: DualCameraSource) -> AsyncStream<PixelBufferWrapper> {
@@ -180,12 +182,18 @@ final class MockDualCameraController: DualCameraControlling {
         (mockCapturedImage, mockCapturedImage)
     }
 
-    func capturePhoto(layout: DualCameraLayout, outputSize: CGSize, displayScale: CGFloat) async throws -> UIImage {
+    func capturePhoto(
+        layout: DualCameraLayout,
+        outputSize: CGSize,
+        displayScale: CGFloat,
+        contentMode: DualCameraContentMode
+    ) async throws -> UIImage {
         if shouldFailCapturePhoto {
             throw DualCameraError.captureFailure(.noFrameAvailable)
         }
         captureOutputSize = outputSize
         captureDisplayScale = displayScale
+        captureContentMode = contentMode
         return mockCapturedImage
     }
 
@@ -195,11 +203,24 @@ final class MockDualCameraController: DualCameraControlling {
         }
         torchModes.append(mode)
     }
+
+    func setZoomFactor(_ factor: CGFloat, for source: DualCameraSource) throws {}
+
+    func setFocusMode(_ mode: AVCaptureDevice.FocusMode, for source: DualCameraSource) throws {}
+
+    func setExposureMode(_ mode: AVCaptureDevice.ExposureMode, for source: DualCameraSource) throws {}
+
+    func setWhiteBalanceMode(_ mode: AVCaptureDevice.WhiteBalanceMode, for source: DualCameraSource) throws {}
+
+    func diagnostics() -> DualCameraDiagnostics {
+        DualCameraDiagnostics()
+    }
 }
 
 @MainActor
 final class MockCameraRenderer: CameraRenderer {
     let view = UIView()
+    var cameraContentMode: DualCameraContentMode = .aspectFill
 
-    func update(with buffer: CVPixelBuffer) {}
+    nonisolated func update(with frame: PixelBufferWrapper) {}
 }

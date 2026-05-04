@@ -31,8 +31,47 @@ final class DualCameraPhotoCapturerTests: XCTestCase {
         XCTAssertTrue(try photos.back.isPixelNear(pixelX: 5, pixelY: 5, to: .blue))
     }
 
+    func test_composedPhotoAspectFillCropsToFillRegionByDefault() async throws {
+        let capturer = DualCameraPhotoCapturer()
+        let front = try makePixelBuffer(color: .red, size: CGSize(width: 20, height: 10))
+        let back = try makePixelBuffer(color: .blue, size: CGSize(width: 20, height: 10))
+
+        let image = try await capturer.captureComposedPhoto(
+            frontBuffer: front,
+            backBuffer: back,
+            layout: .sideBySide,
+            outputSize: CGSize(width: 20, height: 10)
+        )
+
+        XCTAssertTrue(try image.isPixelNear(pixelX: 15, pixelY: 1, to: .red))
+        XCTAssertTrue(try image.isPixelNear(pixelX: 15, pixelY: 8, to: .red))
+    }
+
+    func test_composedPhotoAspectFitLetterboxesRegion() async throws {
+        let capturer = DualCameraPhotoCapturer()
+        let front = try makePixelBuffer(color: .red, size: CGSize(width: 20, height: 10))
+        let back = try makePixelBuffer(color: .blue, size: CGSize(width: 20, height: 10))
+
+        let image = try await capturer.captureComposedPhoto(
+            frontBuffer: front,
+            backBuffer: back,
+            layout: .sideBySide,
+            outputSize: CGSize(width: 20, height: 10),
+            displayScale: 1,
+            contentMode: .aspectFit
+        )
+
+        XCTAssertTrue(try image.isPixelNear(pixelX: 15, pixelY: 1, to: .black))
+        XCTAssertTrue(try image.isPixelNear(pixelX: 15, pixelY: 5, to: .red))
+        XCTAssertTrue(try image.isPixelNear(pixelX: 15, pixelY: 8, to: .black))
+    }
+
     private func makePixelBuffer(color: UIColor) throws -> CVPixelBuffer {
-        guard let buffer = color.asImage(CGSize(width: 10, height: 10)).pixelBuffer() else {
+        try makePixelBuffer(color: color, size: CGSize(width: 10, height: 10))
+    }
+
+    private func makePixelBuffer(color: UIColor, size: CGSize) throws -> CVPixelBuffer {
+        guard let buffer = color.asImage(size).pixelBuffer() else {
             throw DualCameraError.captureFailure(.imageCreationFailed)
         }
         return buffer

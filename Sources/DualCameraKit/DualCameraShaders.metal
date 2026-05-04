@@ -1,12 +1,6 @@
 #include <metal_stdlib>
 using namespace metal;
 
-struct MixerParameters
-{
-    float2 pipPosition;
-    float2 pipSize;
-};
-
 struct VertexOut {
     float4 position [[position]];
     float2 texCoord;

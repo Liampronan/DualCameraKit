@@ -1,3 +1,3 @@
-public enum DualCameraSource: Hashable, Sendable {
+public enum DualCameraSource: CaseIterable, Hashable, Sendable {
     case front, back
 }

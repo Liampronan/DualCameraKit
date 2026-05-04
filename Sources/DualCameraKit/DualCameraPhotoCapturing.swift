@@ -13,7 +13,8 @@ public protocol DualCameraPhotoCapturing: AnyObject, Sendable {
         backBuffer: CVPixelBuffer,
         layout: DualCameraLayout,
         outputSize: CGSize,
-        displayScale: CGFloat
+        displayScale: CGFloat,
+        contentMode: DualCameraContentMode
     ) async throws -> UIImage
 }
 
@@ -36,7 +37,25 @@ public extension DualCameraPhotoCapturing {
             backBuffer: backBuffer,
             layout: layout,
             outputSize: outputSize,
-            displayScale: 1
+            displayScale: 1,
+            contentMode: .aspectFill
+        )
+    }
+
+    func captureComposedPhoto(
+        frontBuffer: CVPixelBuffer,
+        backBuffer: CVPixelBuffer,
+        layout: DualCameraLayout,
+        outputSize: CGSize,
+        displayScale: CGFloat
+    ) async throws -> UIImage {
+        try await captureComposedPhoto(
+            frontBuffer: frontBuffer,
+            backBuffer: backBuffer,
+            layout: layout,
+            outputSize: outputSize,
+            displayScale: displayScale,
+            contentMode: .aspectFill
         )
     }
 }
@@ -64,7 +83,8 @@ public class DualCameraPhotoCapturer: DualCameraPhotoCapturing {
         backBuffer: CVPixelBuffer,
         layout: DualCameraLayout,
         outputSize: CGSize,
-        displayScale: CGFloat
+        displayScale: CGFloat,
+        contentMode: DualCameraContentMode
     ) async throws -> UIImage {
         guard outputSize.width > 0, outputSize.height > 0 else {
             throw DualCameraError.captureFailure(.unknownDimensions)
@@ -84,7 +104,12 @@ public class DualCameraPhotoCapturer: DualCameraPhotoCapturing {
 
             for region in resolvedLayout.regionsInDrawingOrder {
                 let image = region.source == .front ? frontImage : backImage
-                draw(image, in: region.frame, cornerRadius: cornerRadius(for: region, layout: layout))
+                draw(
+                    image,
+                    in: region.frame,
+                    cornerRadius: cornerRadius(for: region, layout: layout),
+                    contentMode: contentMode
+                )
             }
         }
     }
@@ -98,7 +123,12 @@ public class DualCameraPhotoCapturer: DualCameraPhotoCapturing {
         return UIImage(cgImage: cgImage, scale: displayScale, orientation: .up)
     }
 
-    private func draw(_ image: UIImage, in targetRect: CGRect, cornerRadius: CGFloat) {
+    private func draw(
+        _ image: UIImage,
+        in targetRect: CGRect,
+        cornerRadius: CGFloat,
+        contentMode: DualCameraContentMode
+    ) {
         let context = UIGraphicsGetCurrentContext()
         context?.saveGState()
         defer { context?.restoreGState() }
@@ -108,7 +138,7 @@ public class DualCameraPhotoCapturer: DualCameraPhotoCapturing {
             clipPath.addClip()
         }
 
-        image.draw(in: aspectFitRect(for: image.size, in: targetRect))
+        image.draw(in: contentRect(for: image.size, in: targetRect, contentMode: contentMode))
     }
 
     private func cornerRadius(for region: DualCameraResolvedLayout.CameraRegion, layout: DualCameraLayout) -> CGFloat {
@@ -118,12 +148,21 @@ public class DualCameraPhotoCapturer: DualCameraPhotoCapturing {
         return 10
     }
 
-    private func aspectFitRect(for sourceSize: CGSize, in targetRect: CGRect) -> CGRect {
+    private func contentRect(
+        for sourceSize: CGSize,
+        in targetRect: CGRect,
+        contentMode: DualCameraContentMode
+    ) -> CGRect {
         guard sourceSize.width > 0, sourceSize.height > 0 else { return targetRect }
 
         let widthRatio = targetRect.width / sourceSize.width
         let heightRatio = targetRect.height / sourceSize.height
-        let scale = min(widthRatio, heightRatio)
+        let scale = switch contentMode {
+        case .aspectFill:
+            max(widthRatio, heightRatio)
+        case .aspectFit:
+            min(widthRatio, heightRatio)
+        }
         let size = CGSize(width: sourceSize.width * scale, height: sourceSize.height * scale)
 
         return CGRect(

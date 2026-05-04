@@ -31,6 +31,7 @@ public final class DualCameraViewModel {
     private(set) var viewState: CameraViewState = .loading
     public var isCameraViewStateCapturing: Bool { viewState.captureInProgress }
     var cameraLayout: DualCameraLayout
+    var contentMode: DualCameraContentMode
     var containerSize: CGSize = .zero
     var displayScale: CGFloat = 1
 
@@ -54,12 +55,14 @@ public final class DualCameraViewModel {
     public init(
         dualCameraController: DualCameraControlling? = nil,
         layout: DualCameraLayout = .piP(miniCamera: .front, miniCameraPosition: .bottomTrailing),
+        contentMode: DualCameraContentMode = .aspectFill,
         photoSaveStrategy: DualCameraPhotoSaveStrategy = .custom { _ in },
         showSettingsButton: Bool = false,
         showCameraFlashButton: Bool = true
     ) {
         self.controller = dualCameraController ?? CurrentDualCameraEnvironment.dualCameraController
         self.cameraLayout = layout
+        self.contentMode = contentMode
         self.photoSaveStrategy = photoSaveStrategy
         self.isSettingsButtonVisible = showSettingsButton
         self.showCameraFlashButton = showCameraFlashButton
@@ -122,7 +125,8 @@ public final class DualCameraViewModel {
             let image = try await controller.capturePhoto(
                 layout: cameraLayout,
                 outputSize: containerSize,
-                displayScale: displayScale
+                displayScale: displayScale,
+                contentMode: contentMode
             )
 
             capturedPhoto = image

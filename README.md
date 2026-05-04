@@ -1,6 +1,6 @@
 # DualCameraKit
 
-![Swift](https://img.shields.io/badge/Swift-5.9-orange?logo=swift)
+![Swift](https://img.shields.io/badge/Swift-6-orange?logo=swift)
 ![SPM Compatible](https://img.shields.io/badge/SPM-Compatible-brightgreen)
 ![iOS](https://img.shields.io/badge/iOS-17+-lightgrey?logo=apple)
 ![Status](https://img.shields.io/badge/status-v0.5_photo_first-yellow)
