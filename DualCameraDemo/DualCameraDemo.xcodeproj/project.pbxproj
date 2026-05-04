@@ -9,6 +9,8 @@
 /* Begin PBXBuildFile section */
 		4F7E4C7F2D6D2B0A006F5609 /* DualCameraKit in Frameworks */ = {isa = PBXBuildFile; productRef = 4F7E4C7E2D6D2B0A006F5609 /* DualCameraKit */; };
 		4F7E4C812D6D6E81006F5609 /* DualCameraKitUI in Frameworks */ = {isa = PBXBuildFile; productRef = 4F7E4C802D6D6E81006F5609 /* DualCameraKitUI */; };
+		4FC0000A2E0000000000000A /* DualCameraKit in Frameworks */ = {isa = PBXBuildFile; productRef = 4F7E4C7E2D6D2B0A006F5609 /* DualCameraKit */; };
+		4FC0000B2E0000000000000B /* DualCameraKitUI in Frameworks */ = {isa = PBXBuildFile; productRef = 4F7E4C802D6D6E81006F5609 /* DualCameraKitUI */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -45,6 +47,7 @@
 		4F4D659B2D66D02C00F40490 /* DualCameraDemo.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = DualCameraDemo.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		4F4D65AB2D66D02F00F40490 /* DualCameraDemoTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = DualCameraDemoTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		4F4D65B52D66D02F00F40490 /* DualCameraDemoUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = DualCameraDemoUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		4FC000012E00000000000001 /* DualCameraKitTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = DualCameraKitTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -61,6 +64,16 @@
 		4F4D65B82D66D02F00F40490 /* DualCameraDemoUITests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = DualCameraDemoUITests;
+			sourceTree = "<group>";
+		};
+		4FC000022E00000000000002 /* DualCameraKitTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = ../Tests/DualCameraKitTests;
+			sourceTree = "<group>";
+		};
+		4FC0000C2E0000000000000C /* Helpers */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = ../Tests/Helpers;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -89,6 +102,15 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		4FC000032E00000000000003 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				4FC0000A2E0000000000000A /* DualCameraKit in Frameworks */,
+				4FC0000B2E0000000000000B /* DualCameraKitUI in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -97,6 +119,8 @@
 			children = (
 				4F4D659D2D66D02C00F40490 /* DualCameraDemo */,
 				4F4D65AE2D66D02F00F40490 /* DualCameraDemoTests */,
+				4FC000022E00000000000002 /* DualCameraKitTests */,
+				4FC0000C2E0000000000000C /* Helpers */,
 				4F4D65B82D66D02F00F40490 /* DualCameraDemoUITests */,
 				4F4D659C2D66D02C00F40490 /* Products */,
 			);
@@ -107,6 +131,7 @@
 			children = (
 				4F4D659B2D66D02C00F40490 /* DualCameraDemo.app */,
 				4F4D65AB2D66D02F00F40490 /* DualCameraDemoTests.xctest */,
+				4FC000012E00000000000001 /* DualCameraKitTests.xctest */,
 				4F4D65B52D66D02F00F40490 /* DualCameraDemoUITests.xctest */,
 			);
 			name = Products;
@@ -186,6 +211,31 @@
 			productReference = 4F4D65B52D66D02F00F40490 /* DualCameraDemoUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
+		4FC000062E00000000000006 /* DualCameraKitTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 4FC000072E00000000000007 /* Build configuration list for PBXNativeTarget "DualCameraKitTests" */;
+			buildPhases = (
+				4FC000042E00000000000004 /* Sources */,
+				4FC000032E00000000000003 /* Frameworks */,
+				4FC000052E00000000000005 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				4FC000022E00000000000002 /* DualCameraKitTests */,
+				4FC0000C2E0000000000000C /* Helpers */,
+			);
+			name = DualCameraKitTests;
+			packageProductDependencies = (
+				4F7E4C7E2D6D2B0A006F5609 /* DualCameraKit */,
+				4F7E4C802D6D6E81006F5609 /* DualCameraKitUI */,
+			);
+			productName = DualCameraKitTests;
+			productReference = 4FC000012E00000000000001 /* DualCameraKitTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -206,6 +256,9 @@
 					4F4D65B42D66D02F00F40490 = {
 						CreatedOnToolsVersion = 16.2;
 						TestTargetID = 4F4D659A2D66D02C00F40490;
+					};
+					4FC000062E00000000000006 = {
+						CreatedOnToolsVersion = 16.2;
 					};
 				};
 			};
@@ -228,6 +281,7 @@
 			targets = (
 				4F4D659A2D66D02C00F40490 /* DualCameraDemo */,
 				4F4D65AA2D66D02F00F40490 /* DualCameraDemoTests */,
+				4FC000062E00000000000006 /* DualCameraKitTests */,
 				4F4D65B42D66D02F00F40490 /* DualCameraDemoUITests */,
 			);
 		};
@@ -255,6 +309,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		4FC000052E00000000000005 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
@@ -273,6 +334,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		4F4D65B12D66D02F00F40490 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		4FC000042E00000000000004 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -575,6 +643,46 @@
 			};
 			name = Release;
 		};
+		4FC000082E00000000000008 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = dualcamerakit.DualCameraKitTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		4FC000092E00000000000009 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = dualcamerakit.DualCameraKitTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -610,6 +718,15 @@
 			buildConfigurations = (
 				4F4D65C62D66D02F00F40490 /* Debug */,
 				4F4D65C72D66D02F00F40490 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		4FC000072E00000000000007 /* Build configuration list for PBXNativeTarget "DualCameraKitTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				4FC000082E00000000000008 /* Debug */,
+				4FC000092E00000000000009 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

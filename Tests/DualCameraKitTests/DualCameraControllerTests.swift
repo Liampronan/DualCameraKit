@@ -1,5 +1,5 @@
 import AVFoundation
-import DualCameraKit
+@testable import DualCameraKit
 import XCTest
 
 @MainActor

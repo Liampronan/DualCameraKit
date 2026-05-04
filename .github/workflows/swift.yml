@@ -48,5 +48,8 @@ jobs:
     - name: Build demo for iOS simulator
       run: xcrun xcodebuild build -project DualCameraDemo/DualCameraDemo.xcodeproj -scheme DualCameraDemo -destination "generic/platform=iOS Simulator" -derivedDataPath "$RUNNER_TEMP/DualCameraKitDerivedData" CODE_SIGNING_ALLOWED=NO
 
-    - name: Run package tests on iOS simulator
-      run: xcrun xcodebuild test -workspace .swiftpm/xcode/package.xcworkspace -scheme DualCameraKit-Package -destination "${{ steps.simulator.outputs.destination }}" -derivedDataPath "$RUNNER_TEMP/DualCameraKitDerivedData" CODE_SIGNING_ALLOWED=NO
+    - name: Run library tests on iOS simulator
+      run: xcrun xcodebuild test -project DualCameraDemo/DualCameraDemo.xcodeproj -scheme DualCameraKitTests -destination "${{ steps.simulator.outputs.destination }}" -derivedDataPath "$RUNNER_TEMP/DualCameraKitDerivedData" CODE_SIGNING_ALLOWED=NO
+
+    - name: Run demo unit tests on iOS simulator
+      run: xcrun xcodebuild test -project DualCameraDemo/DualCameraDemo.xcodeproj -scheme DualCameraDemo -destination "${{ steps.simulator.outputs.destination }}" -only-testing:DualCameraDemoTests -derivedDataPath "$RUNNER_TEMP/DualCameraKitDerivedData" CODE_SIGNING_ALLOWED=NO
