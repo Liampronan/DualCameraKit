@@ -8,6 +8,7 @@ public protocol DualCameraPhotoCapturing: AnyObject, Sendable {
         displayScale: CGFloat
     ) async throws -> (front: UIImage, back: UIImage)
 
+    // swiftlint:disable:next function_parameter_count
     func captureComposedPhoto(
         frontBuffer: CVPixelBuffer,
         backBuffer: CVPixelBuffer,
@@ -78,6 +79,7 @@ public class DualCameraPhotoCapturer: DualCameraPhotoCapturing {
         )
     }
 
+    // swiftlint:disable:next function_parameter_count
     public func captureComposedPhoto(
         frontBuffer: CVPixelBuffer,
         backBuffer: CVPixelBuffer,

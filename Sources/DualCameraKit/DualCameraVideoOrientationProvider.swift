@@ -11,11 +11,12 @@ public protocol DualCameraVideoOrientationProviding: AnyObject {
 public final class DeviceVideoOrientationProvider: DualCameraVideoOrientationProviding {
     private var observer: NSObjectProtocol?
     private var onChange: (@MainActor @Sendable (CGFloat) -> Void)?
+    private var lastKnownVideoRotationAngle: CGFloat = 90
 
     public init() {}
 
     public var currentVideoRotationAngle: CGFloat {
-        Self.videoRotationAngle(for: UIDevice.current.orientation)
+        videoRotationAngle(for: UIDevice.current.orientation)
     }
 
     public func startObserving(_ onChange: @escaping @MainActor @Sendable (CGFloat) -> Void) {
@@ -47,7 +48,15 @@ public final class DeviceVideoOrientationProvider: DualCameraVideoOrientationPro
         UIDevice.current.endGeneratingDeviceOrientationNotifications()
     }
 
-    static func videoRotationAngle(for orientation: UIDeviceOrientation) -> CGFloat {
+    func videoRotationAngle(for orientation: UIDeviceOrientation) -> CGFloat {
+        guard let rotationAngle = Self.videoRotationAngle(for: orientation) else {
+            return lastKnownVideoRotationAngle
+        }
+        lastKnownVideoRotationAngle = rotationAngle
+        return rotationAngle
+    }
+
+    static func videoRotationAngle(for orientation: UIDeviceOrientation) -> CGFloat? {
         switch orientation {
         case .portrait:
             return 90
@@ -58,9 +67,9 @@ public final class DeviceVideoOrientationProvider: DualCameraVideoOrientationPro
         case .landscapeRight:
             return 180
         case .faceUp, .faceDown, .unknown:
-            return 90
+            return nil
         @unknown default:
-            return 90
+            return nil
         }
     }
 }

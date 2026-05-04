@@ -136,6 +136,7 @@ private final class RecordingPhotoCapturer: DualCameraPhotoCapturing {
         return (UIImage(), UIImage())
     }
 
+    // swiftlint:disable:next function_parameter_count
     func captureComposedPhoto(
         frontBuffer: CVPixelBuffer,
         backBuffer: CVPixelBuffer,

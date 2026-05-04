@@ -1,3 +1,4 @@
+// swiftlint:disable file_length
 import AVFoundation
 import UIKit
 
@@ -272,7 +273,11 @@ public final class DualCameraCameraStreamSource: NSObject, DualCameraCameraStrea
         outputRegistry.setOutput(backOutput, for: .back)
 
         let synchronizer = AVCaptureDataOutputSynchronizer(dataOutputs: [frontOutput, backOutput])
-        synchronizer.setDelegate(self, queue: DispatchQueue(label: "DualCameraSynchronizedQueue", qos: .userInteractive))
+        let synchronizedQueue = DispatchQueue(
+            label: "DualCameraSynchronizedQueue",
+            qos: .userInteractive
+        )
+        synchronizer.setDelegate(self, queue: synchronizedQueue)
         outputSynchronizer = synchronizer
         updateVideoRotationAngle(orientationProvider.currentVideoRotationAngle)
     }
