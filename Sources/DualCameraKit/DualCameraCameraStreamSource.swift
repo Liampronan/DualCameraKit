@@ -27,7 +27,8 @@ public final class DualCameraCameraStreamSource: NSObject, DualCameraCameraStrea
     private var backCameraOutput: AVCaptureVideoDataOutput?
     private var isConfigured = false
 
-    // Instance management
+    // Real AVCaptureMultiCamSession ownership is intentionally process-wide for now.
+    // Tests that need multiple independent owners should use mock stream sources.
     @MainActor private static var activeInstance: DualCameraCameraStreamSource?
 
     /// Initialize camera hardware interface
@@ -39,7 +40,7 @@ public final class DualCameraCameraStreamSource: NSObject, DualCameraCameraStrea
     /// - Throws: DualCameraError if session cannot start
     @MainActor
     public func startSession() async throws {
-        // Validate instance & hardware support
+        // Validate hardware ownership and support.
         if let activeInstance = Self.activeInstance, activeInstance !== self {
             throw DualCameraError.multipleInstancesNotSupported
         }

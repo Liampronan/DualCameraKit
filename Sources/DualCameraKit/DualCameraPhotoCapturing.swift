@@ -4,14 +4,41 @@ import UIKit
 public protocol DualCameraPhotoCapturing: AnyObject, Sendable {
     func captureRawPhotos(
         frontBuffer: CVPixelBuffer,
-        backBuffer: CVPixelBuffer
+        backBuffer: CVPixelBuffer,
+        displayScale: CGFloat
     ) async throws -> (front: UIImage, back: UIImage)
+
+    func captureComposedPhoto(
+        frontBuffer: CVPixelBuffer,
+        backBuffer: CVPixelBuffer,
+        layout: DualCameraLayout,
+        outputSize: CGSize,
+        displayScale: CGFloat
+    ) async throws -> UIImage
+}
+
+public extension DualCameraPhotoCapturing {
+    func captureRawPhotos(
+        frontBuffer: CVPixelBuffer,
+        backBuffer: CVPixelBuffer
+    ) async throws -> (front: UIImage, back: UIImage) {
+        try await captureRawPhotos(frontBuffer: frontBuffer, backBuffer: backBuffer, displayScale: 1)
+    }
+
     func captureComposedPhoto(
         frontBuffer: CVPixelBuffer,
         backBuffer: CVPixelBuffer,
         layout: DualCameraLayout,
         outputSize: CGSize
-    ) async throws -> UIImage
+    ) async throws -> UIImage {
+        try await captureComposedPhoto(
+            frontBuffer: frontBuffer,
+            backBuffer: backBuffer,
+            layout: layout,
+            outputSize: outputSize,
+            displayScale: 1
+        )
+    }
 }
 
 public class DualCameraPhotoCapturer: DualCameraPhotoCapturing {
@@ -23,11 +50,12 @@ public class DualCameraPhotoCapturer: DualCameraPhotoCapturing {
 
     public func captureRawPhotos(
         frontBuffer: CVPixelBuffer,
-        backBuffer: CVPixelBuffer
+        backBuffer: CVPixelBuffer,
+        displayScale: CGFloat
     ) async throws -> (front: UIImage, back: UIImage) {
         return (
-            front: try image(from: frontBuffer),
-            back: try image(from: backBuffer)
+            front: try image(from: frontBuffer, displayScale: displayScale),
+            back: try image(from: backBuffer, displayScale: displayScale)
         )
     }
 
@@ -35,17 +63,18 @@ public class DualCameraPhotoCapturer: DualCameraPhotoCapturing {
         frontBuffer: CVPixelBuffer,
         backBuffer: CVPixelBuffer,
         layout: DualCameraLayout,
-        outputSize: CGSize
+        outputSize: CGSize,
+        displayScale: CGFloat
     ) async throws -> UIImage {
         guard outputSize.width > 0, outputSize.height > 0 else {
             throw DualCameraError.captureFailure(.unknownDimensions)
         }
 
         let resolvedLayout = layoutResolver.resolve(layout: layout, in: outputSize)
-        let frontImage = try image(from: frontBuffer)
-        let backImage = try image(from: backBuffer)
+        let frontImage = try image(from: frontBuffer, displayScale: displayScale)
+        let backImage = try image(from: backBuffer, displayScale: displayScale)
         let format = UIGraphicsImageRendererFormat()
-        format.scale = UIScreen.main.scale
+        format.scale = displayScale
         format.opaque = true
 
         let renderer = UIGraphicsImageRenderer(size: outputSize, format: format)
@@ -60,13 +89,13 @@ public class DualCameraPhotoCapturer: DualCameraPhotoCapturing {
         }
     }
 
-    private func image(from buffer: CVPixelBuffer) throws -> UIImage {
+    private func image(from buffer: CVPixelBuffer, displayScale: CGFloat) throws -> UIImage {
         let ciImage = CIImage(cvPixelBuffer: buffer)
         let context = CIContext()
         guard let cgImage = context.createCGImage(ciImage, from: ciImage.extent) else {
             throw DualCameraError.captureFailure(.imageCreationFailed)
         }
-        return UIImage(cgImage: cgImage, scale: UIScreen.main.scale, orientation: .up)
+        return UIImage(cgImage: cgImage, scale: displayScale, orientation: .up)
     }
 
     private func draw(_ image: UIImage, in targetRect: CGRect, cornerRadius: CGFloat) {

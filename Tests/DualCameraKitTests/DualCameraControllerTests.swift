@@ -6,52 +6,72 @@ import XCTest
 final class DualCameraControllerTests: XCTestCase {
     func test_stopSessionDebouncesDuringNavigationHandoff() async throws {
         let streamSource = SpyCameraStreamSource()
+        let sleeper = ManualSessionStopSleeper()
         let controller = DualCameraController(
             streamSource: streamSource,
-            sessionStopDelay: .milliseconds(50)
+            sessionStopDelay: .milliseconds(50),
+            sessionStopSleeper: { duration in
+                await sleeper.sleep(for: duration)
+            }
         )
 
         try await controller.startSession()
         controller.stopSession()
+        await sleeper.waitForSleepRequests(1)
+
         try await controller.startSession()
-        try await Task.sleep(for: .milliseconds(80))
+        sleeper.finishNextSleep()
+        await Task.yield()
 
         XCTAssertEqual(streamSource.startCount, 1)
         XCTAssertEqual(streamSource.stopCount, 0)
 
         controller.stopSession()
-        try await Task.sleep(for: .milliseconds(80))
+        await sleeper.waitForSleepRequests(2)
+        sleeper.finishNextSleep()
+        await Task.yield()
 
         XCTAssertEqual(streamSource.stopCount, 1)
     }
 
     func test_stopSessionWaitsForAllActiveUsers() async throws {
         let streamSource = SpyCameraStreamSource()
+        let sleeper = ManualSessionStopSleeper()
         let controller = DualCameraController(
             streamSource: streamSource,
-            sessionStopDelay: .milliseconds(20)
+            sessionStopDelay: .milliseconds(20),
+            sessionStopSleeper: { duration in
+                await sleeper.sleep(for: duration)
+            }
         )
 
         try await controller.startSession()
         try await controller.startSession()
 
         controller.stopSession()
-        try await Task.sleep(for: .milliseconds(50))
+        await Task.yield()
 
         XCTAssertEqual(streamSource.stopCount, 0)
+        XCTAssertEqual(sleeper.requestedDurations.count, 0)
 
         controller.stopSession()
-        try await Task.sleep(for: .milliseconds(50))
+        await sleeper.waitForSleepRequests(1)
+        sleeper.finishNextSleep()
+        await Task.yield()
 
         XCTAssertEqual(streamSource.stopCount, 1)
     }
 
     func test_startSessionFailureReleasesUseCount() async throws {
         let streamSource = SpyCameraStreamSource()
+        let sleeper = ManualSessionStopSleeper()
         streamSource.startError = DualCameraError.unknownError
         let controller = DualCameraController(
             streamSource: streamSource,
-            sessionStopDelay: .milliseconds(20)
+            sessionStopDelay: .milliseconds(20),
+            sessionStopSleeper: { duration in
+                await sleeper.sleep(for: duration)
+            }
         )
 
         do {
@@ -64,10 +84,48 @@ final class DualCameraControllerTests: XCTestCase {
         streamSource.startError = nil
         try await controller.startSession()
         controller.stopSession()
-        try await Task.sleep(for: .milliseconds(50))
+        await sleeper.waitForSleepRequests(1)
+        sleeper.finishNextSleep()
+        await Task.yield()
 
         XCTAssertEqual(streamSource.startCount, 2)
         XCTAssertEqual(streamSource.stopCount, 1)
+    }
+}
+
+@MainActor
+private final class ManualSessionStopSleeper {
+    private var sleepContinuations: [CheckedContinuation<Void, Never>] = []
+    private var waiters: [(count: Int, continuation: CheckedContinuation<Void, Never>)] = []
+
+    private(set) var requestedDurations: [Duration] = []
+
+    func sleep(for duration: Duration) async {
+        requestedDurations.append(duration)
+        resumeReadyWaiters()
+
+        await withCheckedContinuation { continuation in
+            sleepContinuations.append(continuation)
+        }
+    }
+
+    func waitForSleepRequests(_ count: Int) async {
+        guard requestedDurations.count < count else { return }
+
+        await withCheckedContinuation { continuation in
+            waiters.append((count, continuation))
+        }
+    }
+
+    func finishNextSleep() {
+        guard !sleepContinuations.isEmpty else { return }
+        sleepContinuations.removeFirst().resume()
+    }
+
+    private func resumeReadyWaiters() {
+        let readyWaiters = waiters.filter { requestedDurations.count >= $0.count }
+        waiters.removeAll { requestedDurations.count >= $0.count }
+        readyWaiters.forEach { $0.continuation.resume() }
     }
 }
 

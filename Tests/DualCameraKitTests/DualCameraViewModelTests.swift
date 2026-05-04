@@ -98,13 +98,14 @@ final class DualCameraViewModelTests: XCTestCase {
                 await savedImage.set(image)
             }
         )
-        viewModel.onAppear(containerSize: CGSize(width: 320, height: 480))
+        viewModel.onAppear(containerSize: CGSize(width: 320, height: 480), displayScale: 3)
         await Task.yield()
 
         let captureTask = viewModel.capturePhotoButtonTapped()
         await captureTask.value
 
         XCTAssertEqual(controller.captureOutputSize, CGSize(width: 320, height: 480))
+        XCTAssertEqual(controller.captureDisplayScale, 3)
         XCTAssertNotNil(viewModel.capturedPhoto)
         let savedCapturedImage = await savedImage.get()
         XCTAssertTrue(savedCapturedImage === controller.mockCapturedImage)
@@ -151,6 +152,7 @@ final class MockDualCameraController: DualCameraControlling {
     var shouldFailSetTorchMode = false
     var torchModes: [AVCaptureDevice.TorchMode] = []
     var captureOutputSize: CGSize?
+    var captureDisplayScale: CGFloat?
     let mockCapturedImage = UIImage()
 
     func subscribe(to source: DualCameraSource) -> AsyncStream<PixelBufferWrapper> {
@@ -174,15 +176,16 @@ final class MockDualCameraController: DualCameraControlling {
         sessionStopped = true
     }
 
-    func captureRawPhotos() async throws -> (front: UIImage, back: UIImage) {
+    func captureRawPhotos(displayScale: CGFloat) async throws -> (front: UIImage, back: UIImage) {
         (mockCapturedImage, mockCapturedImage)
     }
 
-    func capturePhoto(layout: DualCameraLayout, outputSize: CGSize) async throws -> UIImage {
+    func capturePhoto(layout: DualCameraLayout, outputSize: CGSize, displayScale: CGFloat) async throws -> UIImage {
         if shouldFailCapturePhoto {
             throw DualCameraError.captureFailure(.noFrameAvailable)
         }
         captureOutputSize = outputSize
+        captureDisplayScale = displayScale
         return mockCapturedImage
     }
 

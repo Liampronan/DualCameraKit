@@ -3,6 +3,7 @@ import SwiftUI
 import UIKit
 
 public struct DualCameraScreen: View {
+    @Environment(\.displayScale) private var displayScale
     @State private var viewModel: DualCameraViewModel
     private let customOverlay: ((DualCameraViewModel) -> AnyView)
 
@@ -33,10 +34,13 @@ public struct DualCameraScreen: View {
                 }
             }
             .onAppear {
-                viewModel.onAppear(containerSize: geoProxy.size)
+                viewModel.onAppear(containerSize: geoProxy.size, displayScale: displayScale)
             }
             .onChange(of: geoProxy.size, initial: true) { _, newSize in
                 viewModel.containerSizeChanged(newSize)
+            }
+            .onChange(of: displayScale, initial: true) { _, newScale in
+                viewModel.displayScaleChanged(newScale)
             }
             .onDisappear {
                 viewModel.onDisappear()

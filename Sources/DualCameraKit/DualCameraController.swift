@@ -9,10 +9,20 @@ public protocol DualCameraControlling {
     func startSession() async throws
     func stopSession()
 
-    func captureRawPhotos() async throws -> (front: UIImage, back: UIImage)
-    func capturePhoto(layout: DualCameraLayout, outputSize: CGSize) async throws -> UIImage
+    func captureRawPhotos(displayScale: CGFloat) async throws -> (front: UIImage, back: UIImage)
+    func capturePhoto(layout: DualCameraLayout, outputSize: CGSize, displayScale: CGFloat) async throws -> UIImage
 
     func setTorchMode(_ mode: AVCaptureDevice.TorchMode) throws
+}
+
+public extension DualCameraControlling {
+    func captureRawPhotos() async throws -> (front: UIImage, back: UIImage) {
+        try await captureRawPhotos(displayScale: 1)
+    }
+
+    func capturePhoto(layout: DualCameraLayout, outputSize: CGSize) async throws -> UIImage {
+        try await capturePhoto(layout: layout, outputSize: outputSize, displayScale: 1)
+    }
 }
 
 @MainActor
@@ -25,6 +35,7 @@ public final class DualCameraController: DualCameraControlling {
     private let photoCapturer: any DualCameraPhotoCapturing
     private let streamSource: DualCameraCameraStreamSourcing
     private let sessionStopDelay: Duration
+    private let sleepBeforeSessionStop: @MainActor @Sendable (Duration) async -> Void
 
     private var renderers: [DualCameraSource: CameraRenderer] = [:]
     private var streamTasks: [DualCameraSource: Task<Void, Never>] = [:]
@@ -36,11 +47,17 @@ public final class DualCameraController: DualCameraControlling {
     public init(
         photoCapturer: (any DualCameraPhotoCapturing)? = nil,
         streamSource: DualCameraCameraStreamSourcing? = nil,
-        sessionStopDelay: Duration? = nil
+        sessionStopDelay: Duration? = nil,
+        sessionStopSleeper: (@MainActor @Sendable (Duration) async -> Void)? = nil
     ) {
         self.photoCapturer = photoCapturer ?? DualCameraPhotoCapturer()
         self.streamSource = streamSource ?? DualCameraCameraStreamSource()
         self.sessionStopDelay = sessionStopDelay ?? Self.navigationHandoffStopDelay
+        self.sleepBeforeSessionStop = sessionStopSleeper ?? { duration in
+            do {
+                try await Task.sleep(for: duration)
+            } catch {}
+        }
     }
 
     deinit {
@@ -84,8 +101,9 @@ public final class DualCameraController: DualCameraControlling {
         guard scheduledStopTask == nil else { return }
 
         let sessionStopDelay = sessionStopDelay
+        let sleepBeforeSessionStop = sleepBeforeSessionStop
         scheduledStopTask = Task { [weak self] in
-            try? await Task.sleep(for: sessionStopDelay)
+            await sleepBeforeSessionStop(sessionStopDelay)
             guard !Task.isCancelled else { return }
 
             self?.stopSessionNowIfUnused()
@@ -103,6 +121,9 @@ public final class DualCameraController: DualCameraControlling {
 
         streamSource.stopSession()
         isSessionStarted = false
+        // If the only user disappears before the initial start finishes,
+        // cancel the in-flight start so the hardware request does not outlive
+        // the screen that needed it.
         startSessionTask?.cancel()
         startSessionTask = nil
     }
@@ -111,21 +132,23 @@ public final class DualCameraController: DualCameraControlling {
         try streamSource.setTorchMode(mode)
     }
 
-    public func captureRawPhotos() async throws -> (front: UIImage, back: UIImage) {
+    public func captureRawPhotos(displayScale: CGFloat) async throws -> (front: UIImage, back: UIImage) {
         let buffers = try latestBuffers()
         return try await photoCapturer.captureRawPhotos(
             frontBuffer: buffers.front.buffer,
-            backBuffer: buffers.back.buffer
+            backBuffer: buffers.back.buffer,
+            displayScale: displayScale
         )
     }
 
-    public func capturePhoto(layout: DualCameraLayout, outputSize: CGSize) async throws -> UIImage {
+    public func capturePhoto(layout: DualCameraLayout, outputSize: CGSize, displayScale: CGFloat) async throws -> UIImage {
         let buffers = try latestBuffers()
         return try await photoCapturer.captureComposedPhoto(
             frontBuffer: buffers.front.buffer,
             backBuffer: buffers.back.buffer,
             layout: layout,
-            outputSize: outputSize
+            outputSize: outputSize,
+            displayScale: displayScale
         )
     }
 

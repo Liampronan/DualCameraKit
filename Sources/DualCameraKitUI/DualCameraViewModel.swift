@@ -32,6 +32,7 @@ public final class DualCameraViewModel {
     public var isCameraViewStateCapturing: Bool { viewState.captureInProgress }
     var cameraLayout: DualCameraLayout
     var containerSize: CGSize = .zero
+    var displayScale: CGFloat = 1
 
     public private(set) var capturedPhoto: UIImage?
     var alert: AlertState?
@@ -64,9 +65,14 @@ public final class DualCameraViewModel {
         self.showCameraFlashButton = showCameraFlashButton
     }
 
-    public func onAppear(containerSize: CGSize) {
+    public func onAppear(containerSize: CGSize, displayScale: CGFloat = 1) {
         self.containerSize = containerSize
+        self.displayScale = displayScale
         startSession()
+    }
+
+    public func displayScaleChanged(_ newScale: CGFloat) {
+        displayScale = newScale
     }
 
     func onDisappear() {
@@ -115,7 +121,8 @@ public final class DualCameraViewModel {
         do {
             let image = try await controller.capturePhoto(
                 layout: cameraLayout,
-                outputSize: containerSize
+                outputSize: containerSize,
+                displayScale: displayScale
             )
 
             capturedPhoto = image

@@ -10,6 +10,7 @@ struct CompositionalExample: View {
         var id: String { rawValue }
     }
 
+    @Environment(\.displayScale) private var displayScale
     @State private var controller = CurrentDualCameraEnvironment.dualCameraController
     @State private var layoutMode = LayoutMode.piP
     @State private var miniCameraPosition = DualCameraLayout.MiniCameraPosition.bottomTrailing
@@ -124,7 +125,11 @@ struct CompositionalExample: View {
         Button {
             Task {
                 do {
-                    capturedImage = try await controller.capturePhoto(layout: layout, outputSize: outputSize)
+                    capturedImage = try await controller.capturePhoto(
+                        layout: layout,
+                        outputSize: outputSize,
+                        displayScale: displayScale
+                    )
                 } catch {
                     alertMessage = error.localizedDescription
                 }
