@@ -337,40 +337,57 @@ extension DualCameraCameraStreamSource: AVCaptureDataOutputSynchronizerDelegate 
         didOutput synchronizedDataCollection: AVCaptureSynchronizedDataCollection
     ) {
         guard let frontOutput = outputRegistry.output(for: .front),
-              let backOutput = outputRegistry.output(for: .back),
-              let frontData = synchronizedDataCollection.synchronizedData(
-                for: frontOutput
-              ) as? AVCaptureSynchronizedSampleBufferData,
-              let backData = synchronizedDataCollection.synchronizedData(
-                for: backOutput
-              ) as? AVCaptureSynchronizedSampleBufferData else {
+              let backOutput = outputRegistry.output(for: .back) else {
             return
         }
 
-        guard !frontData.sampleBufferWasDropped, !backData.sampleBufferWasDropped else {
+        let frontFrame = frame(from: synchronizedDataCollection, output: frontOutput)
+        let backFrame = frame(from: synchronizedDataCollection, output: backOutput)
+
+        if let frontFrame {
+            frontBroadcaster.send(frontFrame.frame)
+        }
+        if let backFrame {
+            backBroadcaster.send(backFrame.frame)
+        }
+
+        guard let frontFrame, let backFrame else {
             diagnosticsStore.incrementDroppedFramePairCount()
             return
         }
 
-        let frontSampleBuffer = frontData.sampleBuffer
-        let backSampleBuffer = backData.sampleBuffer
+        let timestamp = min(frontFrame.timestamp, backFrame.timestamp)
+        let framePair = DualCameraFramePair(
+            front: frontFrame.frame,
+            back: backFrame.frame,
+            timestamp: timestamp
+        )
+        framePairBroadcaster.send(framePair)
+    }
 
-        guard let frontPixelBuffer = CMSampleBufferGetImageBuffer(frontSampleBuffer),
-              let backPixelBuffer = CMSampleBufferGetImageBuffer(backSampleBuffer) else {
-            return
+    private nonisolated func frame(
+        from synchronizedDataCollection: AVCaptureSynchronizedDataCollection,
+        output: AVCaptureVideoDataOutput
+    ) -> (frame: PixelBufferWrapper, timestamp: CMTime)? {
+        guard let data = synchronizedDataCollection.synchronizedData(
+            for: output
+        ) as? AVCaptureSynchronizedSampleBufferData else {
+            return nil
         }
 
-        let frontFrame = PixelBufferWrapper(buffer: frontPixelBuffer, sampleBuffer: frontSampleBuffer)
-        let backFrame = PixelBufferWrapper(buffer: backPixelBuffer, sampleBuffer: backSampleBuffer)
-        let timestamp = min(
-            CMSampleBufferGetPresentationTimeStamp(frontSampleBuffer),
-            CMSampleBufferGetPresentationTimeStamp(backSampleBuffer)
-        )
-        let framePair = DualCameraFramePair(front: frontFrame, back: backFrame, timestamp: timestamp)
+        guard !data.sampleBufferWasDropped else {
+            return nil
+        }
 
-        frontBroadcaster.send(frontFrame)
-        backBroadcaster.send(backFrame)
-        framePairBroadcaster.send(framePair)
+        let sampleBuffer = data.sampleBuffer
+        guard let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else {
+            return nil
+        }
+
+        return (
+            PixelBufferWrapper(buffer: pixelBuffer, sampleBuffer: sampleBuffer),
+            CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
+        )
     }
 }
 
