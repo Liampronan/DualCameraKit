@@ -244,19 +244,11 @@ extension MetalCameraRenderer {
         in drawableSize: CGSize,
         contentMode: DualCameraContentMode
     ) -> SIMD2<Float> {
-        let textureAspect = Float(texture.width) / Float(texture.height)
-        let viewAspect = Float(drawableSize.width) / Float(drawableSize.height)
-
-        switch contentMode {
-        case .aspectFill:
-            return textureAspect > viewAspect
-            ? SIMD2<Float>(textureAspect / viewAspect, 1)
-            : SIMD2<Float>(1, viewAspect / textureAspect)
-        case .aspectFit:
-            return textureAspect > viewAspect
-            ? SIMD2<Float>(1, viewAspect / textureAspect)
-            : SIMD2<Float>(textureAspect / viewAspect, 1)
-        }
+        DualCameraContentGeometry.rendererScale(
+            for: CGSize(width: texture.width, height: texture.height),
+            in: drawableSize,
+            contentMode: contentMode
+        )
     }
 }
 

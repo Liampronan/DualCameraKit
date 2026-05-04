@@ -155,23 +155,6 @@ public class DualCameraPhotoCapturer: DualCameraPhotoCapturing {
         in targetRect: CGRect,
         contentMode: DualCameraContentMode
     ) -> CGRect {
-        guard sourceSize.width > 0, sourceSize.height > 0 else { return targetRect }
-
-        let widthRatio = targetRect.width / sourceSize.width
-        let heightRatio = targetRect.height / sourceSize.height
-        let scale = switch contentMode {
-        case .aspectFill:
-            max(widthRatio, heightRatio)
-        case .aspectFit:
-            min(widthRatio, heightRatio)
-        }
-        let size = CGSize(width: sourceSize.width * scale, height: sourceSize.height * scale)
-
-        return CGRect(
-            x: targetRect.midX - size.width / 2,
-            y: targetRect.midY - size.height / 2,
-            width: size.width,
-            height: size.height
-        )
+        DualCameraContentGeometry.contentRect(for: sourceSize, in: targetRect, contentMode: contentMode)
     }
 }
