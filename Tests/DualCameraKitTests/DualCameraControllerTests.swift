@@ -1,9 +1,29 @@
 import AVFoundation
-import DualCameraKit
+@testable import DualCameraKit
 import XCTest
 
 @MainActor
 final class DualCameraControllerTests: XCTestCase {
+    func test_captureRawPhotosUsesSynchronizedFramePair() async throws {
+        let streamSource = SpyCameraStreamSource()
+        let expectedFront = try makePixelBuffer(color: .red)
+        let expectedBack = try makePixelBuffer(color: .blue)
+        streamSource.framePair = DualCameraFramePair(
+            front: PixelBufferWrapper(buffer: expectedFront),
+            back: PixelBufferWrapper(buffer: expectedBack)
+        )
+        let photoCapturer = RecordingPhotoCapturer()
+        let controller = DualCameraController(
+            photoCapturer: photoCapturer,
+            streamSource: streamSource
+        )
+
+        _ = try await controller.captureRawPhotos()
+
+        XCTAssertTrue(photoCapturer.rawFrontBuffer === expectedFront)
+        XCTAssertTrue(photoCapturer.rawBackBuffer === expectedBack)
+    }
+
     func test_stopSessionDebouncesDuringNavigationHandoff() async throws {
         let streamSource = SpyCameraStreamSource()
         let sleeper = ManualSessionStopSleeper()
@@ -91,6 +111,43 @@ final class DualCameraControllerTests: XCTestCase {
         XCTAssertEqual(streamSource.startCount, 2)
         XCTAssertEqual(streamSource.stopCount, 1)
     }
+
+    private func makePixelBuffer(color: UIColor) throws -> CVPixelBuffer {
+        guard let buffer = color.asImage(CGSize(width: 4, height: 4)).pixelBuffer() else {
+            throw DualCameraError.captureFailure(.imageCreationFailed)
+        }
+        return buffer
+    }
+}
+
+@MainActor
+private final class RecordingPhotoCapturer: DualCameraPhotoCapturing {
+    var rawFrontBuffer: CVPixelBuffer?
+    var rawBackBuffer: CVPixelBuffer?
+    var composedContentMode: DualCameraContentMode?
+
+    func captureRawPhotos(
+        frontBuffer: CVPixelBuffer,
+        backBuffer: CVPixelBuffer,
+        displayScale: CGFloat
+    ) async throws -> (front: UIImage, back: UIImage) {
+        rawFrontBuffer = frontBuffer
+        rawBackBuffer = backBuffer
+        return (UIImage(), UIImage())
+    }
+
+    // swiftlint:disable:next function_parameter_count
+    func captureComposedPhoto(
+        frontBuffer: CVPixelBuffer,
+        backBuffer: CVPixelBuffer,
+        layout: DualCameraLayout,
+        outputSize: CGSize,
+        displayScale: CGFloat,
+        contentMode: DualCameraContentMode
+    ) async throws -> UIImage {
+        composedContentMode = contentMode
+        return UIImage()
+    }
 }
 
 @MainActor
@@ -137,6 +194,7 @@ private final class SpyCameraStreamSource: DualCameraCameraStreamSourcing {
     var stopCount = 0
     var startError: Error?
     var torchModes: [AVCaptureDevice.TorchMode] = []
+    nonisolated(unsafe) var framePair: DualCameraFramePair?
     private var stopWaiters: [(count: Int, continuation: CheckedContinuation<Void, Never>)] = []
 
     func startSession() async throws {
@@ -170,9 +228,31 @@ private final class SpyCameraStreamSource: DualCameraCameraStreamSourcing {
         nil
     }
 
+    nonisolated func subscribeToFramePairs() -> AsyncStream<DualCameraFramePair> {
+        AsyncStream { continuation in
+            continuation.finish()
+        }
+    }
+
+    nonisolated func latestFramePair() -> DualCameraFramePair? {
+        framePair
+    }
+
+    nonisolated func diagnostics() -> DualCameraDiagnostics {
+        DualCameraDiagnostics()
+    }
+
     func setTorchMode(_ mode: AVCaptureDevice.TorchMode) throws {
         torchModes.append(mode)
     }
+
+    func setZoomFactor(_ factor: CGFloat, for source: DualCameraSource) throws {}
+
+    func setFocusMode(_ mode: AVCaptureDevice.FocusMode, for source: DualCameraSource) throws {}
+
+    func setExposureMode(_ mode: AVCaptureDevice.ExposureMode, for source: DualCameraSource) throws {}
+
+    func setWhiteBalanceMode(_ mode: AVCaptureDevice.WhiteBalanceMode, for source: DualCameraSource) throws {}
 
     private func resumeReadyStopWaiters() {
         let readyWaiters = stopWaiters.filter { stopCount >= $0.count }

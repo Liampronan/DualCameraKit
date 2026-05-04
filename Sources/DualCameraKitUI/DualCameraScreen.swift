@@ -22,7 +22,8 @@ public struct DualCameraScreen: View {
             ZStack {
                 DualCameraDisplayView(
                     controller: viewModel.controller,
-                    layout: viewModel.cameraLayout
+                    layout: viewModel.cameraLayout,
+                    contentMode: viewModel.contentMode
                 )
                 .ignoresSafeArea()
                 .overlay(viewModel.isSettingsButtonVisible ? settingsButton : nil, alignment: .topLeading)

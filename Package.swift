@@ -1,4 +1,4 @@
-// swift-tools-version: 5.9
+// swift-tools-version: 6.0
 import PackageDescription
 
 let package = Package(
@@ -23,14 +23,14 @@ let package = Package(
                 .process("DualCameraShaders.metal")
             ],
             swiftSettings: [
-                .unsafeFlags(["-strict-concurrency=complete"])
+                .swiftLanguageMode(.v6)
             ]
         ),
         .target(
             name: "DualCameraKitUI",
             dependencies: ["DualCameraKit"],
             swiftSettings: [
-                .unsafeFlags(["-strict-concurrency=complete"])
+                .swiftLanguageMode(.v6)
             ]
         ),
         .testTarget(

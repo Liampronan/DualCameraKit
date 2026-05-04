@@ -11,6 +11,7 @@ final class DualCameraCameraStreamSourceTests: XCTestCase {
 
         XCTAssertNotNil(source.latestFrame(for: .front))
         XCTAssertNotNil(source.latestFrame(for: .back))
+        XCTAssertNotNil(source.latestFramePair())
     }
 
     func test_mockStreamSourceReplaysLatestFrameToNewSubscriber() async throws {

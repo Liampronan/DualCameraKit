@@ -3,6 +3,7 @@ import SwiftUI
 public struct DualCameraDisplayView: View {
     private let controller: DualCameraControlling
     private let layout: DualCameraLayout
+    private let contentMode: DualCameraContentMode
     private let overlayInsets: EdgeInsets
     private let layoutResolver = DualCameraLayoutResolver()
 
@@ -12,10 +13,12 @@ public struct DualCameraDisplayView: View {
             miniCamera: .front,
             miniCameraPosition: .bottomTrailing
         ),
+        contentMode: DualCameraContentMode = .aspectFill,
         overlayInsets: EdgeInsets = EdgeInsets()
     ) {
         self.controller = controller
         self.layout = layout
+        self.contentMode = contentMode
         self.overlayInsets = overlayInsets
     }
 
@@ -48,7 +51,10 @@ public struct DualCameraDisplayView: View {
         _ region: DualCameraResolvedLayout.CameraRegion,
         cornerRadius: CGFloat = 0
     ) -> some View {
-        DualCameraRendererView(renderer: controller.getRenderer(for: region.source))
+        DualCameraRendererView(
+            renderer: controller.getRenderer(for: region.source),
+            contentMode: contentMode
+        )
             .frame(width: region.frame.width, height: region.frame.height)
             .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
             .position(x: region.frame.midX, y: region.frame.midY)

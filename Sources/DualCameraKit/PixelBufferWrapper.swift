@@ -13,5 +13,11 @@ import AVFoundation
 ///   copy of the pixel data. Use this wrapper only when you're certain your
 ///   usage of `CVPixelBuffer` is read-only or otherwise thread-safe.
 public struct PixelBufferWrapper: @unchecked Sendable {
-    let buffer: CVPixelBuffer
+    public let buffer: CVPixelBuffer
+    private let sampleBuffer: CMSampleBuffer?
+
+    public init(buffer: CVPixelBuffer, sampleBuffer: CMSampleBuffer? = nil) {
+        self.buffer = buffer
+        self.sampleBuffer = sampleBuffer
+    }
 }
