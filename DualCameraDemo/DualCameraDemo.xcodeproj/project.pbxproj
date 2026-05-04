@@ -66,12 +66,12 @@
 			path = DualCameraDemoUITests;
 			sourceTree = "<group>";
 		};
-		4FC000022E00000000000002 /* DualCameraKitTests */ = {
+		4FC000022E00000000000002 /* ../Tests/DualCameraKitTests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = ../Tests/DualCameraKitTests;
 			sourceTree = "<group>";
 		};
-		4FC0000C2E0000000000000C /* Helpers */ = {
+		4FC0000C2E0000000000000C /* ../Tests/Helpers */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = ../Tests/Helpers;
 			sourceTree = "<group>";
@@ -119,8 +119,8 @@
 			children = (
 				4F4D659D2D66D02C00F40490 /* DualCameraDemo */,
 				4F4D65AE2D66D02F00F40490 /* DualCameraDemoTests */,
-				4FC000022E00000000000002 /* DualCameraKitTests */,
-				4FC0000C2E0000000000000C /* Helpers */,
+				4FC000022E00000000000002 /* ../Tests/DualCameraKitTests */,
+				4FC0000C2E0000000000000C /* ../Tests/Helpers */,
 				4F4D65B82D66D02F00F40490 /* DualCameraDemoUITests */,
 				4F4D659C2D66D02C00F40490 /* Products */,
 			);
@@ -224,8 +224,8 @@
 			dependencies = (
 			);
 			fileSystemSynchronizedGroups = (
-				4FC000022E00000000000002 /* DualCameraKitTests */,
-				4FC0000C2E0000000000000C /* Helpers */,
+				4FC000022E00000000000002 /* ../Tests/DualCameraKitTests */,
+				4FC0000C2E0000000000000C /* ../Tests/Helpers */,
 			);
 			name = DualCameraKitTests;
 			packageProductDependencies = (
