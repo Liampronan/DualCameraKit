@@ -29,7 +29,7 @@ final class DualCameraControllerTests: XCTestCase {
         controller.stopSession()
         await sleeper.waitForSleepRequests(2)
         sleeper.finishNextSleep()
-        await Task.yield()
+        await streamSource.waitForStopCount(1)
 
         XCTAssertEqual(streamSource.stopCount, 1)
     }
@@ -57,7 +57,7 @@ final class DualCameraControllerTests: XCTestCase {
         controller.stopSession()
         await sleeper.waitForSleepRequests(1)
         sleeper.finishNextSleep()
-        await Task.yield()
+        await streamSource.waitForStopCount(1)
 
         XCTAssertEqual(streamSource.stopCount, 1)
     }
@@ -86,7 +86,7 @@ final class DualCameraControllerTests: XCTestCase {
         controller.stopSession()
         await sleeper.waitForSleepRequests(1)
         sleeper.finishNextSleep()
-        await Task.yield()
+        await streamSource.waitForStopCount(1)
 
         XCTAssertEqual(streamSource.startCount, 2)
         XCTAssertEqual(streamSource.stopCount, 1)
@@ -97,20 +97,22 @@ final class DualCameraControllerTests: XCTestCase {
 private final class ManualSessionStopSleeper {
     private var sleepContinuations: [CheckedContinuation<Void, Never>] = []
     private var waiters: [(count: Int, continuation: CheckedContinuation<Void, Never>)] = []
+    private var readySleepCount = 0
 
     private(set) var requestedDurations: [Duration] = []
 
     func sleep(for duration: Duration) async {
         requestedDurations.append(duration)
-        resumeReadyWaiters()
 
         await withCheckedContinuation { continuation in
             sleepContinuations.append(continuation)
+            readySleepCount += 1
+            resumeReadyWaiters()
         }
     }
 
     func waitForSleepRequests(_ count: Int) async {
-        guard requestedDurations.count < count else { return }
+        guard readySleepCount < count else { return }
 
         await withCheckedContinuation { continuation in
             waiters.append((count, continuation))
@@ -123,8 +125,8 @@ private final class ManualSessionStopSleeper {
     }
 
     private func resumeReadyWaiters() {
-        let readyWaiters = waiters.filter { requestedDurations.count >= $0.count }
-        waiters.removeAll { requestedDurations.count >= $0.count }
+        let readyWaiters = waiters.filter { readySleepCount >= $0.count }
+        waiters.removeAll { readySleepCount >= $0.count }
         readyWaiters.forEach { $0.continuation.resume() }
     }
 }
@@ -135,6 +137,7 @@ private final class SpyCameraStreamSource: DualCameraCameraStreamSourcing {
     var stopCount = 0
     var startError: Error?
     var torchModes: [AVCaptureDevice.TorchMode] = []
+    private var stopWaiters: [(count: Int, continuation: CheckedContinuation<Void, Never>)] = []
 
     func startSession() async throws {
         startCount += 1
@@ -146,6 +149,15 @@ private final class SpyCameraStreamSource: DualCameraCameraStreamSourcing {
 
     func stopSession() {
         stopCount += 1
+        resumeReadyStopWaiters()
+    }
+
+    func waitForStopCount(_ count: Int) async {
+        guard stopCount < count else { return }
+
+        await withCheckedContinuation { continuation in
+            stopWaiters.append((count, continuation))
+        }
     }
 
     nonisolated func subscribe(to source: DualCameraSource) -> AsyncStream<PixelBufferWrapper> {
@@ -160,5 +172,11 @@ private final class SpyCameraStreamSource: DualCameraCameraStreamSourcing {
 
     func setTorchMode(_ mode: AVCaptureDevice.TorchMode) throws {
         torchModes.append(mode)
+    }
+
+    private func resumeReadyStopWaiters() {
+        let readyWaiters = stopWaiters.filter { stopCount >= $0.count }
+        stopWaiters.removeAll { stopCount >= $0.count }
+        readyWaiters.forEach { $0.continuation.resume() }
     }
 }

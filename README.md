@@ -8,12 +8,30 @@
 
 Photo-first simultaneous front and back camera capture for iOS.
 
-`DualCameraKit` uses `AVCaptureMultiCamSession` to run front and back cameras at the same time, renders them with Metal, and captures composed still images from the latest camera frames. v0.5 intentionally ships a tight photo-only surface; video recording is not part of this release.
+`DualCameraKit` uses `AVCaptureMultiCamSession` to run front and back cameras at the same time, renders them with Metal, and captures composed still images from the latest camera frames.
+
+v0.5 intentionally ships a tight photo-only surface; video recording is not part of this release, with a dedicated video prototype planned next.
 
 <table>
 <tr>
-  <td align="center"><img src="./DocumentationAssets/Photo_Capture.png" width="250"/><br><b>Photo Capture</b></td>
-  <td align="center"><img src="./DocumentationAssets/Layout_PiP_Bottom_Trailing.png" width="250"/><br><b>Composable Layouts</b></td>
+  <td align="center" width="33%">
+    <img src="./DocumentationAssets/Photo_Capture.png" width="220"/><br>
+    <b>Photo Capture</b>
+  </td>
+  <td align="center" width="34%">
+    <img src="./DocumentationAssets/Layout_PiP_Top_Leading.png" width="86"/>
+    <img src="./DocumentationAssets/Layout_PiP_Top_Trailing.png" width="86"/>
+    <img src="./DocumentationAssets/Layout_PiP_Bottom_Leading.png" width="86"/><br>
+    <img src="./DocumentationAssets/Layout_PiP_Bottom_Trailing.png" width="86"/>
+    <img src="./DocumentationAssets/Layout_Side_by_Side.png" width="86"/>
+    <img src="./DocumentationAssets/Layout_Stacked_Vertical.png" width="86"/><br>
+    <b>Composable Layouts</b>
+  </td>
+  <td align="center" width="33%">
+    <img src="./DocumentationAssets/Video_Recording_ReplayKit.gif" width="180"/><br>
+    <b>Video Prototype</b><br>
+    <sub>Coming soon</sub>
+  </td>
 </tr>
 </table>
 
@@ -25,7 +43,7 @@ Photo-first simultaneous front and back camera capture for iOS.
 | Display | ✅ | SwiftUI dual-camera display with PiP, side-by-side, and vertical layouts. |
 | Photo capture | ✅ | Composes the latest front/back camera frames using the same layout resolver as display. |
 | Drop-in UI | ✅ | `DualCameraScreen` provides a ready-to-use photo capture screen. |
-| Video capture | Not shipped | Removed from v0.5 to keep the production API focused; a future release can add a dedicated video product. |
+| Video capture | Prototype coming soon | Removed from v0.5 to keep the production API focused; a future release can add a dedicated video product. |
 
 ## Installation
 
@@ -167,4 +185,3 @@ Part of this project was adapted from Apple's [`AVMultiCamPiP: Capturing from Mu
 ## License
 
 This project is available under the [MIT License](LICENSE.md).
-
