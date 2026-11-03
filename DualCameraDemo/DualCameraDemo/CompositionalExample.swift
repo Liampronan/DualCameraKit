@@ -11,7 +11,7 @@ struct CompositionalExample: View {
     }
 
     @Environment(\.displayScale) private var displayScale
-    @State private var controller = CurrentDualCameraEnvironment.dualCameraController
+    @State private var controller = DualCameraDependencies.live().dualCameraController
     @State private var layoutMode = LayoutMode.piP
     @State private var miniCameraPosition = DualCameraLayout.MiniCameraPosition.bottomTrailing
     @State private var capturedImage: UIImage?

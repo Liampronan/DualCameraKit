@@ -1,23 +1,54 @@
-// Public default environment for DualCameraKit.
-/// A value-type container for default services,
-/// allowing dependency injection with safe, testable defaults.
-/// Inspired by https://www.pointfree.co/episodes/ep16-dependency-injection-made-easy
-///  Trying this out for now. It still feels kinda weird and so
-///  at some point it might  be worth  moving it to a more formal DI.
+/// Explicit dependencies used by UI conveniences and app-level composition.
 @MainActor
-public struct DualCameraEnvironment {
+public struct DualCameraDependencies {
     public var mediaLibraryService: MediaLibraryService
-    public var dualCameraController: DualCameraControlling
+    public var makeDualCameraController: @MainActor () -> DualCameraControlling
 
     public init(
         mediaLibraryService: MediaLibraryService = .live(),
-        dualCameraController: DualCameraControlling? = nil
+        makeDualCameraController: @escaping @MainActor () -> DualCameraControlling = Self.makeDefaultCameraController
     ) {
         self.mediaLibraryService = mediaLibraryService
-        self.dualCameraController = dualCameraController ?? Self.getDefaultCameraController()
+        self.makeDualCameraController = makeDualCameraController
     }
 
-    static func getDefaultCameraController() -> DualCameraControlling {
+    public init(
+        mediaLibraryService: MediaLibraryService = .live(),
+        dualCameraController: DualCameraControlling
+    ) {
+        self.init(
+            mediaLibraryService: mediaLibraryService,
+            makeDualCameraController: { dualCameraController }
+        )
+    }
+
+    public var dualCameraController: DualCameraControlling {
+        makeDualCameraController()
+    }
+
+    public static func live(
+        mediaLibraryService: MediaLibraryService = .live(),
+        makeDualCameraController: @escaping @MainActor () -> DualCameraControlling = Self.makeDefaultCameraController
+    ) -> Self {
+        Self(
+            mediaLibraryService: mediaLibraryService,
+            makeDualCameraController: makeDualCameraController
+        )
+    }
+
+    public static func preview(
+        mediaLibraryService: MediaLibraryService = .noop,
+        animated: Bool = true
+    ) -> Self {
+        Self(
+            mediaLibraryService: mediaLibraryService,
+            makeDualCameraController: {
+                DualCameraController(streamSource: DualCameraMockCameraStreamSource(animated: animated))
+            }
+        )
+    }
+
+    public static func makeDefaultCameraController() -> DualCameraControlling {
 #if targetEnvironment(simulator)
         return DualCameraController(streamSource: DualCameraMockCameraStreamSource(animated: true))
 #else
@@ -25,12 +56,3 @@ public struct DualCameraEnvironment {
 #endif
     }
 }
-
-@MainActor
-@available(
-    *,
-    deprecated,
-    message: "Inject dependencies explicitly instead of using process-wide mutable state."
-)
-// swiftlint:disable:next identifier_name
-public var CurrentDualCameraEnvironment = DualCameraEnvironment()

@@ -10,12 +10,23 @@ public protocol DualCameraCameraStreamSourcing {
     nonisolated func latestFrame(for source: DualCameraSource) -> PixelBufferWrapper?
     nonisolated func subscribeToFramePairs() -> AsyncStream<DualCameraFramePair>
     nonisolated func latestFramePair() -> DualCameraFramePair?
-    nonisolated func diagnostics() -> DualCameraDiagnostics
-    func setTorchMode(_ mode: AVCaptureDevice.TorchMode) throws
-    func setZoomFactor(_ factor: CGFloat, for source: DualCameraSource) throws
-    func setFocusMode(_ mode: AVCaptureDevice.FocusMode, for source: DualCameraSource) throws
-    func setExposureMode(_ mode: AVCaptureDevice.ExposureMode, for source: DualCameraSource) throws
-    func setWhiteBalanceMode(_ mode: AVCaptureDevice.WhiteBalanceMode, for source: DualCameraSource) throws
+    nonisolated func diagnosticEvents() -> AsyncStream<DualCameraDiagnosticEvent>
+    nonisolated func diagnosticsSnapshot() -> DualCameraDiagnostics
+    func cameraCapabilities(for source: DualCameraSource) throws -> DualCameraCameraCapabilities
+    @discardableResult
+    func applyTorchMode(_ mode: AVCaptureDevice.TorchMode, for source: DualCameraSource) throws
+        -> DualCameraCameraControlResult
+    @discardableResult
+    func applyZoomFactor(_ factor: CGFloat, for source: DualCameraSource) throws -> DualCameraCameraControlResult
+    @discardableResult
+    func applyFocusMode(_ mode: AVCaptureDevice.FocusMode, for source: DualCameraSource) throws
+        -> DualCameraCameraControlResult
+    @discardableResult
+    func applyExposureMode(_ mode: AVCaptureDevice.ExposureMode, for source: DualCameraSource) throws
+        -> DualCameraCameraControlResult
+    @discardableResult
+    func applyWhiteBalanceMode(_ mode: AVCaptureDevice.WhiteBalanceMode, for source: DualCameraSource) throws
+        -> DualCameraCameraControlResult
 }
 
 /// Manages low-level camera access and stream production
@@ -28,6 +39,7 @@ public final class DualCameraCameraStreamSource: NSObject, DualCameraCameraStrea
     private let frontBroadcaster = PixelBufferBroadcaster()
     private let backBroadcaster = PixelBufferBroadcaster()
     private let framePairBroadcaster = FramePairBroadcaster()
+    private let diagnosticEventBroadcaster = DiagnosticEventBroadcaster()
     private let diagnosticsStore = DiagnosticsStore()
     private let outputRegistry = CaptureOutputRegistry()
 
@@ -76,7 +88,12 @@ public final class DualCameraCameraStreamSource: NSObject, DualCameraCameraStrea
                 try configureCameras()
                 isConfigured = true
             } catch {
-                diagnosticsStore.incrementConfigurationFailureCount()
+                recordDiagnosticEvent(
+                    DualCameraDiagnosticEvent(
+                        kind: .configurationFailed,
+                        context: .configurationFailure(source: nil, errorDescription: error.localizedDescription)
+                    )
+                )
                 session.commitConfiguration()
                 throw error
             }
@@ -140,24 +157,33 @@ public final class DualCameraCameraStreamSource: NSObject, DualCameraCameraStrea
         framePairBroadcaster.latestValue
     }
 
-    nonisolated public func diagnostics() -> DualCameraDiagnostics {
+    nonisolated public func diagnosticEvents() -> AsyncStream<DualCameraDiagnosticEvent> {
+        diagnosticEventBroadcaster.subscribe()
+    }
+
+    nonisolated public func diagnosticsSnapshot() -> DualCameraDiagnostics {
         diagnosticsStore.snapshot
     }
 
-    /// Sets the back-camera torch mode.
-    @MainActor
-    public func setTorchMode(_ mode: AVCaptureDevice.TorchMode) throws {
-        guard let device = backCameraInput?.device else {
-            throw DualCameraError.cameraUnavailable(position: .back)
-        }
+    public func cameraCapabilities(for source: DualCameraSource) throws -> DualCameraCameraCapabilities {
+        let device = try cameraDevice(for: source)
+        return capabilities(for: device, source: source)
+    }
 
+    /// Applies a torch mode to a specific camera when that camera supports torch.
+    @discardableResult
+    @MainActor
+    public func applyTorchMode(
+        _ mode: AVCaptureDevice.TorchMode,
+        for source: DualCameraSource
+    ) throws -> DualCameraCameraControlResult {
+        let device = try cameraDevice(for: source)
         guard device.hasTorch else {
-            // Some simulator or external-camera configurations have no torch.
-            return
+            return recordUnsupportedControl(.torch, source: source, requestedValueDescription: "\(mode)")
         }
 
         guard device.isTorchModeSupported(mode) else {
-            return
+            return recordUnsupportedControl(.torch, source: source, requestedValueDescription: "\(mode)")
         }
 
         do {
@@ -165,47 +191,111 @@ public final class DualCameraCameraStreamSource: NSObject, DualCameraCameraStrea
             defer { device.unlockForConfiguration() }
 
             if mode == .on {
+                guard device.isTorchAvailable else {
+                    return recordUnsupportedControl(.torch, source: source, requestedValueDescription: "\(mode)")
+                }
                 try device.setTorchModeOn(level: AVCaptureDevice.maxAvailableTorchLevel)
             } else {
                 device.torchMode = mode
             }
+            return .applied
         } catch {
+            recordControlFailure(.torch, source: source, requestedValueDescription: "\(mode)")
             throw DualCameraError.configurationFailed
         }
     }
 
-    public func setZoomFactor(_ factor: CGFloat, for source: DualCameraSource) throws {
+    @discardableResult
+    public func applyZoomFactor(_ factor: CGFloat, for source: DualCameraSource) throws -> DualCameraCameraControlResult {
         let device = try cameraDevice(for: source)
-        try configureDevice(device) {
-            let clampedFactor = min(max(factor, device.minAvailableVideoZoomFactor), device.maxAvailableVideoZoomFactor)
-            device.videoZoomFactor = clampedFactor
+
+        guard factor.isFinite else {
+            recordControlFailure(.zoom, source: source, requestedValueDescription: "\(factor)")
+            throw DualCameraError.configurationFailed
+        }
+
+        let minimumFactor = device.minAvailableVideoZoomFactor
+        let maximumFactor = max(minimumFactor, device.maxAvailableVideoZoomFactor)
+        let clampedFactor = min(max(factor, minimumFactor), maximumFactor)
+
+        do {
+            try configureDevice(device) {
+                device.videoZoomFactor = clampedFactor
+            }
+        } catch {
+            recordControlFailure(.zoom, source: source, requestedValueDescription: "\(factor)")
+            throw error
+        }
+
+        if clampedFactor != factor {
+            return recordAdjustedControl(
+                .zoom,
+                source: source,
+                requestedValueDescription: "\(factor)",
+                appliedValueDescription: "\(clampedFactor)"
+            )
+        }
+
+        return .applied
+    }
+
+    @discardableResult
+    public func applyFocusMode(
+        _ mode: AVCaptureDevice.FocusMode,
+        for source: DualCameraSource
+    ) throws -> DualCameraCameraControlResult {
+        let device = try cameraDevice(for: source)
+        guard device.isFocusModeSupported(mode) else {
+            return recordUnsupportedControl(.focus, source: source, requestedValueDescription: "\(mode)")
+        }
+        do {
+            try configureDevice(device) {
+                device.focusMode = mode
+            }
+            return .applied
+        } catch {
+            recordControlFailure(.focus, source: source, requestedValueDescription: "\(mode)")
+            throw error
         }
     }
 
-    public func setFocusMode(_ mode: AVCaptureDevice.FocusMode, for source: DualCameraSource) throws {
+    @discardableResult
+    public func applyExposureMode(
+        _ mode: AVCaptureDevice.ExposureMode,
+        for source: DualCameraSource
+    ) throws -> DualCameraCameraControlResult {
         let device = try cameraDevice(for: source)
-        guard device.isFocusModeSupported(mode) else { return }
-        try configureDevice(device) {
-            device.focusMode = mode
+        guard device.isExposureModeSupported(mode) else {
+            return recordUnsupportedControl(.exposure, source: source, requestedValueDescription: "\(mode)")
+        }
+        do {
+            try configureDevice(device) {
+                device.exposureMode = mode
+            }
+            return .applied
+        } catch {
+            recordControlFailure(.exposure, source: source, requestedValueDescription: "\(mode)")
+            throw error
         }
     }
 
-    public func setExposureMode(_ mode: AVCaptureDevice.ExposureMode, for source: DualCameraSource) throws {
-        let device = try cameraDevice(for: source)
-        guard device.isExposureModeSupported(mode) else { return }
-        try configureDevice(device) {
-            device.exposureMode = mode
-        }
-    }
-
-    public func setWhiteBalanceMode(
+    @discardableResult
+    public func applyWhiteBalanceMode(
         _ mode: AVCaptureDevice.WhiteBalanceMode,
         for source: DualCameraSource
-    ) throws {
+    ) throws -> DualCameraCameraControlResult {
         let device = try cameraDevice(for: source)
-        guard device.isWhiteBalanceModeSupported(mode) else { return }
-        try configureDevice(device) {
-            device.whiteBalanceMode = mode
+        guard device.isWhiteBalanceModeSupported(mode) else {
+            return recordUnsupportedControl(.whiteBalance, source: source, requestedValueDescription: "\(mode)")
+        }
+        do {
+            try configureDevice(device) {
+                device.whiteBalanceMode = mode
+            }
+            return .applied
+        } catch {
+            recordControlFailure(.whiteBalance, source: source, requestedValueDescription: "\(mode)")
+            throw error
         }
     }
 
@@ -297,6 +387,58 @@ public final class DualCameraCameraStreamSource: NSObject, DualCameraCameraStrea
         }
     }
 
+    private func capabilities(
+        for device: AVCaptureDevice,
+        source: DualCameraSource
+    ) -> DualCameraCameraCapabilities {
+        DualCameraCameraCapabilities(
+            source: source,
+            supportsTorch: device.hasTorch,
+            supportedTorchModes: supportedTorchModes(for: device),
+            zoom: DualCameraZoomCapability(
+                isSupported: device.maxAvailableVideoZoomFactor > device.minAvailableVideoZoomFactor,
+                minimumFactor: device.minAvailableVideoZoomFactor,
+                maximumFactor: max(device.minAvailableVideoZoomFactor, device.maxAvailableVideoZoomFactor),
+                currentFactor: device.videoZoomFactor
+            ),
+            supportedFocusModes: supportedFocusModes(for: device),
+            supportedExposureModes: supportedExposureModes(for: device),
+            supportedWhiteBalanceModes: supportedWhiteBalanceModes(for: device)
+        )
+    }
+
+    private func supportedTorchModes(for device: AVCaptureDevice) -> Set<AVCaptureDevice.TorchMode> {
+        guard device.hasTorch else { return [] }
+        return Set([.off, .on, .auto].filter { device.isTorchModeSupported($0) })
+    }
+
+    private func supportedFocusModes(for device: AVCaptureDevice) -> Set<AVCaptureDevice.FocusMode> {
+        Set([
+            AVCaptureDevice.FocusMode.locked,
+            .autoFocus,
+            .continuousAutoFocus
+        ].filter { device.isFocusModeSupported($0) })
+    }
+
+    private func supportedExposureModes(for device: AVCaptureDevice) -> Set<AVCaptureDevice.ExposureMode> {
+        Set([
+            AVCaptureDevice.ExposureMode.locked,
+            .autoExpose,
+            .continuousAutoExposure,
+            .custom
+        ].filter { device.isExposureModeSupported($0) })
+    }
+
+    private func supportedWhiteBalanceModes(
+        for device: AVCaptureDevice
+    ) -> Set<AVCaptureDevice.WhiteBalanceMode> {
+        Set([
+            AVCaptureDevice.WhiteBalanceMode.locked,
+            .autoWhiteBalance,
+            .continuousAutoWhiteBalance
+        ].filter { device.isWhiteBalanceModeSupported($0) })
+    }
+
     private func configureDevice(_ device: AVCaptureDevice, changes: () throws -> Void) throws {
         do {
             try device.lockForConfiguration()
@@ -305,6 +447,73 @@ public final class DualCameraCameraStreamSource: NSObject, DualCameraCameraStrea
         } catch {
             throw DualCameraError.configurationFailed
         }
+    }
+
+    @discardableResult
+    private nonisolated func recordUnsupportedControl(
+        _ control: DualCameraCameraControl,
+        source: DualCameraSource,
+        requestedValueDescription: String
+    ) -> DualCameraCameraControlResult {
+        recordDiagnosticEvent(
+            DualCameraDiagnosticEvent(
+                kind: .controlUnsupported,
+                context: .control(
+                    source: source,
+                    control: control,
+                    requestedValueDescription: requestedValueDescription,
+                    appliedValueDescription: nil
+                )
+            )
+        )
+        return .unsupported
+    }
+
+    @discardableResult
+    private nonisolated func recordAdjustedControl(
+        _ control: DualCameraCameraControl,
+        source: DualCameraSource,
+        requestedValueDescription: String,
+        appliedValueDescription: String
+    ) -> DualCameraCameraControlResult {
+        recordDiagnosticEvent(
+            DualCameraDiagnosticEvent(
+                kind: .controlAdjusted,
+                context: .control(
+                    source: source,
+                    control: control,
+                    requestedValueDescription: requestedValueDescription,
+                    appliedValueDescription: appliedValueDescription
+                )
+            )
+        )
+        return .adjusted(
+            requestedValueDescription: requestedValueDescription,
+            appliedValueDescription: appliedValueDescription
+        )
+    }
+
+    private nonisolated func recordControlFailure(
+        _ control: DualCameraCameraControl,
+        source: DualCameraSource,
+        requestedValueDescription: String
+    ) {
+        recordDiagnosticEvent(
+            DualCameraDiagnosticEvent(
+                kind: .controlFailed,
+                context: .control(
+                    source: source,
+                    control: control,
+                    requestedValueDescription: requestedValueDescription,
+                    appliedValueDescription: nil
+                )
+            )
+        )
+    }
+
+    private nonisolated func recordDiagnosticEvent(_ event: DualCameraDiagnosticEvent) {
+        diagnosticsStore.record(event)
+        diagnosticEventBroadcaster.send(event)
     }
 
     private func updateVideoRotationAngle(_ angle: CGFloat) {
@@ -324,8 +533,15 @@ public final class DualCameraCameraStreamSource: NSObject, DualCameraCameraStrea
             forName: AVCaptureSession.wasInterruptedNotification,
             object: session,
             queue: .main
-        ) { [diagnosticsStore] _ in
-            diagnosticsStore.incrementSessionInterruptionCount()
+        ) { [weak self] notification in
+            let rawReason = notification.userInfo?[AVCaptureSessionInterruptionReasonKey] as? Int
+            let reason = rawReason.flatMap(AVCaptureSession.InterruptionReason.init(rawValue:))
+            self?.recordDiagnosticEvent(
+                DualCameraDiagnosticEvent(
+                    kind: .sessionInterrupted,
+                    context: .sessionInterruption(reason: reason)
+                )
+            )
         }
     }
 }
@@ -352,7 +568,12 @@ extension DualCameraCameraStreamSource: AVCaptureDataOutputSynchronizerDelegate 
         }
 
         guard let frontFrame, let backFrame else {
-            diagnosticsStore.incrementDroppedFramePairCount()
+            recordDiagnosticEvent(
+                DualCameraDiagnosticEvent(
+                    kind: .framePairDropped,
+                    context: .none
+                )
+            )
             return
         }
 
@@ -401,6 +622,7 @@ public final class DualCameraMockCameraStreamSource: DualCameraCameraStreamSourc
     private let frontBroadcaster = PixelBufferBroadcaster()
     private let backBroadcaster = PixelBufferBroadcaster()
     private let framePairBroadcaster = FramePairBroadcaster()
+    private let diagnosticEventBroadcaster = DiagnosticEventBroadcaster()
     private let diagnosticsStore = DiagnosticsStore()
     private let animated: Bool
     private var frameTask: Task<Void, Never>?
@@ -460,31 +682,92 @@ public final class DualCameraMockCameraStreamSource: DualCameraCameraStreamSourc
         framePairBroadcaster.latestValue
     }
 
-    nonisolated public func diagnostics() -> DualCameraDiagnostics {
+    nonisolated public func diagnosticEvents() -> AsyncStream<DualCameraDiagnosticEvent> {
+        diagnosticEventBroadcaster.subscribe()
+    }
+
+    nonisolated public func diagnosticsSnapshot() -> DualCameraDiagnostics {
         diagnosticsStore.snapshot
     }
 
-    public func setTorchMode(_ mode: AVCaptureDevice.TorchMode) throws {
+    public func cameraCapabilities(for source: DualCameraSource) throws -> DualCameraCameraCapabilities {
+        DualCameraCameraCapabilities(
+            source: source,
+            supportsTorch: source == .back,
+            supportedTorchModes: source == .back ? [.off, .on] : [],
+            zoom: DualCameraZoomCapability(
+                isSupported: true,
+                minimumFactor: 1,
+                maximumFactor: 8,
+                currentFactor: zoomFactors[source] ?? 1
+            ),
+            supportedFocusModes: [.locked, .autoFocus, .continuousAutoFocus],
+            supportedExposureModes: [.locked, .autoExpose, .continuousAutoExposure],
+            supportedWhiteBalanceModes: [.locked, .autoWhiteBalance, .continuousAutoWhiteBalance]
+        )
+    }
+
+    @discardableResult
+    public func applyTorchMode(
+        _ mode: AVCaptureDevice.TorchMode,
+        for source: DualCameraSource
+    ) throws -> DualCameraCameraControlResult {
+        guard source == .back, mode == .off || mode == .on else {
+            return recordUnsupportedControl(.torch, source: source, requestedValueDescription: "\(mode)")
+        }
         torchMode = mode
+        return .applied
     }
 
-    public func setZoomFactor(_ factor: CGFloat, for source: DualCameraSource) throws {
-        zoomFactors[source] = factor
+    @discardableResult
+    public func applyZoomFactor(_ factor: CGFloat, for source: DualCameraSource) throws -> DualCameraCameraControlResult {
+        let clampedFactor = min(max(factor, 1), 8)
+        zoomFactors[source] = clampedFactor
+        if clampedFactor != factor {
+            return recordAdjustedControl(
+                .zoom,
+                source: source,
+                requestedValueDescription: "\(factor)",
+                appliedValueDescription: "\(clampedFactor)"
+            )
+        }
+        return .applied
     }
 
-    public func setFocusMode(_ mode: AVCaptureDevice.FocusMode, for source: DualCameraSource) throws {
+    @discardableResult
+    public func applyFocusMode(
+        _ mode: AVCaptureDevice.FocusMode,
+        for source: DualCameraSource
+    ) throws -> DualCameraCameraControlResult {
+        guard [.locked, .autoFocus, .continuousAutoFocus].contains(mode) else {
+            return recordUnsupportedControl(.focus, source: source, requestedValueDescription: "\(mode)")
+        }
         focusModes[source] = mode
+        return .applied
     }
 
-    public func setExposureMode(_ mode: AVCaptureDevice.ExposureMode, for source: DualCameraSource) throws {
+    @discardableResult
+    public func applyExposureMode(
+        _ mode: AVCaptureDevice.ExposureMode,
+        for source: DualCameraSource
+    ) throws -> DualCameraCameraControlResult {
+        guard [.locked, .autoExpose, .continuousAutoExposure].contains(mode) else {
+            return recordUnsupportedControl(.exposure, source: source, requestedValueDescription: "\(mode)")
+        }
         exposureModes[source] = mode
+        return .applied
     }
 
-    public func setWhiteBalanceMode(
+    @discardableResult
+    public func applyWhiteBalanceMode(
         _ mode: AVCaptureDevice.WhiteBalanceMode,
         for source: DualCameraSource
-    ) throws {
+    ) throws -> DualCameraCameraControlResult {
+        guard [.locked, .autoWhiteBalance, .continuousAutoWhiteBalance].contains(mode) else {
+            return recordUnsupportedControl(.whiteBalance, source: source, requestedValueDescription: "\(mode)")
+        }
         whiteBalanceModes[source] = mode
+        return .applied
     }
 
     private func sendMockFrames(sequence: Int) {
@@ -534,6 +817,55 @@ public final class DualCameraMockCameraStreamSource: DualCameraCameraStreamSourc
         .asImage(size)
         .pixelBuffer()
     }
+
+    @discardableResult
+    private func recordUnsupportedControl(
+        _ control: DualCameraCameraControl,
+        source: DualCameraSource,
+        requestedValueDescription: String
+    ) -> DualCameraCameraControlResult {
+        recordDiagnosticEvent(
+            DualCameraDiagnosticEvent(
+                kind: .controlUnsupported,
+                context: .control(
+                    source: source,
+                    control: control,
+                    requestedValueDescription: requestedValueDescription,
+                    appliedValueDescription: nil
+                )
+            )
+        )
+        return .unsupported
+    }
+
+    @discardableResult
+    private func recordAdjustedControl(
+        _ control: DualCameraCameraControl,
+        source: DualCameraSource,
+        requestedValueDescription: String,
+        appliedValueDescription: String
+    ) -> DualCameraCameraControlResult {
+        recordDiagnosticEvent(
+            DualCameraDiagnosticEvent(
+                kind: .controlAdjusted,
+                context: .control(
+                    source: source,
+                    control: control,
+                    requestedValueDescription: requestedValueDescription,
+                    appliedValueDescription: appliedValueDescription
+                )
+            )
+        )
+        return .adjusted(
+            requestedValueDescription: requestedValueDescription,
+            appliedValueDescription: appliedValueDescription
+        )
+    }
+
+    private func recordDiagnosticEvent(_ event: DualCameraDiagnosticEvent) {
+        diagnosticsStore.record(event)
+        diagnosticEventBroadcaster.send(event)
+    }
 }
 
 private final class CaptureOutputRegistry: @unchecked Sendable {
@@ -558,6 +890,10 @@ private final class DiagnosticsStore: @unchecked Sendable {
     private var droppedFramePairCount = 0
     private var sessionInterruptionCount = 0
     private var configurationFailureCount = 0
+    private var controlUnsupportedCount = 0
+    private var controlAdjustmentCount = 0
+    private var controlFailureCount = 0
+    private var latestEvent: DualCameraDiagnosticEvent?
 
     var snapshot: DualCameraDiagnostics {
         lock.lock()
@@ -565,25 +901,31 @@ private final class DiagnosticsStore: @unchecked Sendable {
         return DualCameraDiagnostics(
             droppedFramePairCount: droppedFramePairCount,
             sessionInterruptionCount: sessionInterruptionCount,
-            configurationFailureCount: configurationFailureCount
+            configurationFailureCount: configurationFailureCount,
+            controlUnsupportedCount: controlUnsupportedCount,
+            controlAdjustmentCount: controlAdjustmentCount,
+            controlFailureCount: controlFailureCount,
+            latestEvent: latestEvent
         )
     }
 
-    func incrementDroppedFramePairCount() {
+    func record(_ event: DualCameraDiagnosticEvent) {
         lock.lock()
-        droppedFramePairCount += 1
-        lock.unlock()
-    }
-
-    func incrementSessionInterruptionCount() {
-        lock.lock()
-        sessionInterruptionCount += 1
-        lock.unlock()
-    }
-
-    func incrementConfigurationFailureCount() {
-        lock.lock()
-        configurationFailureCount += 1
+        latestEvent = event
+        switch event.kind {
+        case .framePairDropped:
+            droppedFramePairCount += 1
+        case .sessionInterrupted:
+            sessionInterruptionCount += 1
+        case .configurationFailed:
+            configurationFailureCount += 1
+        case .controlUnsupported:
+            controlUnsupportedCount += 1
+        case .controlAdjusted:
+            controlAdjustmentCount += 1
+        case .controlFailed:
+            controlFailureCount += 1
+        }
         lock.unlock()
     }
 }

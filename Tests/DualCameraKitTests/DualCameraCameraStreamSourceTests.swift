@@ -27,8 +27,37 @@ final class DualCameraCameraStreamSourceTests: XCTestCase {
     func test_mockStreamSourceTracksTorchMode() async throws {
         let source = DualCameraMockCameraStreamSource()
 
-        try source.setTorchMode(.on)
+        try source.applyTorchMode(.on, for: .back)
 
         XCTAssertEqual(source.torchMode, .on)
+    }
+
+    func test_mockStreamSourceReportsPerCameraCapabilities() throws {
+        let source = DualCameraMockCameraStreamSource()
+
+        let frontCapabilities = try source.cameraCapabilities(for: .front)
+        let backCapabilities = try source.cameraCapabilities(for: .back)
+
+        XCTAssertFalse(frontCapabilities.supportsTorch)
+        XCTAssertTrue(backCapabilities.supportsTorch)
+        XCTAssertEqual(backCapabilities.zoom.minimumFactor, 1)
+        XCTAssertEqual(backCapabilities.zoom.maximumFactor, 8)
+        XCTAssertTrue(backCapabilities.supportedFocusModes.contains(.continuousAutoFocus))
+    }
+
+    func test_mockStreamSourceEmitsDiagnosticsForAdjustedControls() async throws {
+        let source = DualCameraMockCameraStreamSource()
+        var iterator = source.diagnosticEvents().makeAsyncIterator()
+
+        let result = try source.applyZoomFactor(12, for: .front)
+        let event = await iterator.next()
+
+        XCTAssertEqual(
+            result,
+            .adjusted(requestedValueDescription: "12.0", appliedValueDescription: "8.0")
+        )
+        XCTAssertEqual(event?.kind, .controlAdjusted)
+        XCTAssertEqual(source.diagnosticsSnapshot().controlAdjustmentCount, 1)
+        XCTAssertEqual(source.diagnosticsSnapshot().latestEvent?.kind, .controlAdjusted)
     }
 }
