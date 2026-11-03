@@ -89,8 +89,8 @@ public final class DualCameraViewModel {
         let nextMode: CameraFlashMode = flashMode == .on ? .off : .on
 
         do {
-            try controller.applyTorchMode(nextMode.torchMode, for: .back)
-            flashMode = nextMode
+            let result = try controller.applyTorchMode(nextMode.torchMode, for: .back)
+            flashMode = result.wasApplied ? nextMode : .off
         } catch {
             flashMode = .off
             showError(error, message: "Failed to update flashlight")

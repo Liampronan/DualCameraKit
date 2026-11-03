@@ -101,6 +101,17 @@ final class DualCameraViewModelTests: XCTestCase {
         XCTAssertNotNil(viewModel.alert)
     }
 
+    func test_toggleFlashButtonTapped_whenTorchUnsupportedKeepsFlashOffWithoutAlert() {
+        let controller = MockDualCameraController()
+        controller.torchModeResult = .unsupported
+        let viewModel = DualCameraViewModel(dualCameraController: controller)
+
+        viewModel.toggleFlashButtonTapped()
+
+        XCTAssertEqual(viewModel.flashMode, .off)
+        XCTAssertNil(viewModel.alert)
+    }
+
     func test_capturePhoto_savesImageAndPublishesCapture() async throws {
         let controller = MockDualCameraController()
         let savedImage = TestBox<UIImage>()
@@ -163,6 +174,7 @@ final class MockDualCameraController: DualCameraControlling {
     var shouldFailStartSession = false
     var shouldFailCapturePhoto = false
     var shouldFailSetTorchMode = false
+    var torchModeResult: DualCameraCameraControlResult = .applied
     var torchModes: [AVCaptureDevice.TorchMode] = []
     var captureOutputSize: CGSize?
     var captureDisplayScale: CGFloat?
@@ -228,7 +240,7 @@ final class MockDualCameraController: DualCameraControlling {
             throw DualCameraError.configurationFailed
         }
         torchModes.append(mode)
-        return .applied
+        return torchModeResult
     }
 
     @discardableResult
