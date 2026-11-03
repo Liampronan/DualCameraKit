@@ -58,9 +58,10 @@ public final class DualCameraViewModel {
         contentMode: DualCameraContentMode = .aspectFill,
         photoSaveStrategy: DualCameraPhotoSaveStrategy = .custom { _ in },
         showSettingsButton: Bool = false,
-        showCameraFlashButton: Bool = true
+        showCameraFlashButton: Bool = true,
+        dependencies: DualCameraDependencies = .live()
     ) {
-        self.controller = dualCameraController ?? CurrentDualCameraEnvironment.dualCameraController
+        self.controller = dualCameraController ?? dependencies.dualCameraController
         self.cameraLayout = layout
         self.contentMode = contentMode
         self.photoSaveStrategy = photoSaveStrategy
@@ -79,7 +80,7 @@ public final class DualCameraViewModel {
     }
 
     func onDisappear() {
-        try? controller.setTorchMode(.off)
+        try? controller.applyTorchMode(.off, for: .back)
         flashMode = .off
         controller.stopSession()
     }
@@ -88,8 +89,8 @@ public final class DualCameraViewModel {
         let nextMode: CameraFlashMode = flashMode == .on ? .off : .on
 
         do {
-            try controller.setTorchMode(nextMode.torchMode)
-            flashMode = nextMode
+            let result = try controller.applyTorchMode(nextMode.torchMode, for: .back)
+            flashMode = result.wasApplied ? nextMode : .off
         } catch {
             flashMode = .off
             showError(error, message: "Failed to update flashlight")
@@ -173,9 +174,11 @@ public final class DualCameraViewModel {
 }
 
 public extension DualCameraViewModel {
-    static func `default`() -> DualCameraViewModel {
+    static func `default`(
+        dependencies: DualCameraDependencies = .live()
+    ) -> DualCameraViewModel {
         DualCameraViewModel(
-            dualCameraController: CurrentDualCameraEnvironment.dualCameraController
+            dependencies: dependencies
         )
     }
 }

@@ -149,6 +149,49 @@ struct CameraComposer: View {
 }
 ```
 
+### Diagnostics and Camera Controls
+
+Subscribe to diagnostic events when you need runtime visibility into capture health:
+
+```swift
+let controller = DualCameraController(diagnosticEventHandler: { event in
+    print("Dual camera event:", event.kind)
+})
+
+let snapshot = controller.diagnosticsSnapshot()
+```
+
+Diagnostics use a small event taxonomy covering dropped synchronized frame pairs, session interruptions, configuration failures, unsupported controls, adjusted controls, and control failures.
+
+Per-camera controls expose both capabilities and application results:
+
+```swift
+let capabilities = try controller.cameraCapabilities(for: .back)
+
+if capabilities.zoom.isSupported {
+    let result = try controller.applyZoomFactor(3, for: .back)
+
+    if case .adjusted(_, let applied) = result {
+        print("Zoom was clamped to", applied)
+    }
+}
+
+try controller.applyTorchMode(.on, for: .back)
+```
+
+### Dependency Injection
+
+Use `DualCameraDependencies` when composing the bundled UI with explicit services:
+
+```swift
+let dependencies = DualCameraDependencies(
+    mediaLibraryService: .noop,
+    dualCameraController: DualCameraController()
+)
+
+let viewModel = DualCameraViewModel(dependencies: dependencies)
+```
+
 ## Layouts
 
 ```swift

@@ -26,6 +26,18 @@ final class DualCameraViewModelTests: XCTestCase {
         XCTAssertIdentical(viewModel.controller as? MockDualCameraController, controller)
     }
 
+    func test_init_usesExplicitDependenciesWhenControllerIsNotProvided() {
+        let controller = MockDualCameraController()
+        let dependencies = DualCameraDependencies(
+            mediaLibraryService: .noop,
+            dualCameraController: controller
+        )
+
+        let viewModel = DualCameraViewModel(dependencies: dependencies)
+
+        XCTAssertIdentical(viewModel.controller as? MockDualCameraController, controller)
+    }
+
     func test_onAppear_startsSession() async {
         let controller = MockDualCameraController()
         let viewModel = DualCameraViewModel(dualCameraController: controller)
@@ -87,6 +99,17 @@ final class DualCameraViewModelTests: XCTestCase {
 
         XCTAssertEqual(viewModel.flashMode, .off)
         XCTAssertNotNil(viewModel.alert)
+    }
+
+    func test_toggleFlashButtonTapped_whenTorchUnsupportedKeepsFlashOffWithoutAlert() {
+        let controller = MockDualCameraController()
+        controller.torchModeResult = .unsupported
+        let viewModel = DualCameraViewModel(dualCameraController: controller)
+
+        viewModel.toggleFlashButtonTapped()
+
+        XCTAssertEqual(viewModel.flashMode, .off)
+        XCTAssertNil(viewModel.alert)
     }
 
     func test_capturePhoto_savesImageAndPublishesCapture() async throws {
@@ -151,6 +174,7 @@ final class MockDualCameraController: DualCameraControlling {
     var shouldFailStartSession = false
     var shouldFailCapturePhoto = false
     var shouldFailSetTorchMode = false
+    var torchModeResult: DualCameraCameraControlResult = .applied
     var torchModes: [AVCaptureDevice.TorchMode] = []
     var captureOutputSize: CGSize?
     var captureDisplayScale: CGFloat?
@@ -158,6 +182,12 @@ final class MockDualCameraController: DualCameraControlling {
     let mockCapturedImage = UIImage()
 
     func subscribe(to source: DualCameraSource) -> AsyncStream<PixelBufferWrapper> {
+        AsyncStream { continuation in
+            continuation.finish()
+        }
+    }
+
+    func diagnosticEvents() -> AsyncStream<DualCameraDiagnosticEvent> {
         AsyncStream { continuation in
             continuation.finish()
         }
@@ -197,24 +227,55 @@ final class MockDualCameraController: DualCameraControlling {
         return mockCapturedImage
     }
 
-    func setTorchMode(_ mode: AVCaptureDevice.TorchMode) throws {
+    func cameraCapabilities(for source: DualCameraSource) throws -> DualCameraCameraCapabilities {
+        .unavailable(for: source)
+    }
+
+    @discardableResult
+    func applyTorchMode(
+        _ mode: AVCaptureDevice.TorchMode,
+        for source: DualCameraSource
+    ) throws -> DualCameraCameraControlResult {
         if shouldFailSetTorchMode {
             throw DualCameraError.configurationFailed
         }
         torchModes.append(mode)
+        return torchModeResult
     }
 
-    func setZoomFactor(_ factor: CGFloat, for source: DualCameraSource) throws {}
+    @discardableResult
+    func applyZoomFactor(_ factor: CGFloat, for source: DualCameraSource) throws -> DualCameraCameraControlResult {
+        .applied
+    }
 
-    func setFocusMode(_ mode: AVCaptureDevice.FocusMode, for source: DualCameraSource) throws {}
+    @discardableResult
+    func applyFocusMode(
+        _ mode: AVCaptureDevice.FocusMode,
+        for source: DualCameraSource
+    ) throws -> DualCameraCameraControlResult {
+        .applied
+    }
 
-    func setExposureMode(_ mode: AVCaptureDevice.ExposureMode, for source: DualCameraSource) throws {}
+    @discardableResult
+    func applyExposureMode(
+        _ mode: AVCaptureDevice.ExposureMode,
+        for source: DualCameraSource
+    ) throws -> DualCameraCameraControlResult {
+        .applied
+    }
 
-    func setWhiteBalanceMode(_ mode: AVCaptureDevice.WhiteBalanceMode, for source: DualCameraSource) throws {}
+    @discardableResult
+    func applyWhiteBalanceMode(
+        _ mode: AVCaptureDevice.WhiteBalanceMode,
+        for source: DualCameraSource
+    ) throws -> DualCameraCameraControlResult {
+        .applied
+    }
 
-    func diagnostics() -> DualCameraDiagnostics {
+    func diagnosticsSnapshot() -> DualCameraDiagnostics {
         DualCameraDiagnostics()
     }
+
 }
 
 @MainActor

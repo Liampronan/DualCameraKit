@@ -5,6 +5,7 @@ import UIKit
 @MainActor
 public protocol DualCameraControlling {
     func subscribe(to source: DualCameraSource) -> AsyncStream<PixelBufferWrapper>
+    func diagnosticEvents() -> AsyncStream<DualCameraDiagnosticEvent>
     func getRenderer(for source: DualCameraSource) -> CameraRenderer
     func startSession() async throws
     func stopSession()
@@ -18,12 +19,23 @@ public protocol DualCameraControlling {
         contentMode: DualCameraContentMode
     ) async throws -> UIImage
 
-    func setTorchMode(_ mode: AVCaptureDevice.TorchMode) throws
-    func setZoomFactor(_ factor: CGFloat, for source: DualCameraSource) throws
-    func setFocusMode(_ mode: AVCaptureDevice.FocusMode, for source: DualCameraSource) throws
-    func setExposureMode(_ mode: AVCaptureDevice.ExposureMode, for source: DualCameraSource) throws
-    func setWhiteBalanceMode(_ mode: AVCaptureDevice.WhiteBalanceMode, for source: DualCameraSource) throws
-    func diagnostics() -> DualCameraDiagnostics
+    func cameraCapabilities(for source: DualCameraSource) throws -> DualCameraCameraCapabilities
+    @discardableResult
+    func applyTorchMode(_ mode: AVCaptureDevice.TorchMode, for source: DualCameraSource) throws
+        -> DualCameraCameraControlResult
+    @discardableResult
+    func applyZoomFactor(_ factor: CGFloat, for source: DualCameraSource) throws -> DualCameraCameraControlResult
+    @discardableResult
+    func applyFocusMode(_ mode: AVCaptureDevice.FocusMode, for source: DualCameraSource) throws
+        -> DualCameraCameraControlResult
+    @discardableResult
+    func applyExposureMode(_ mode: AVCaptureDevice.ExposureMode, for source: DualCameraSource) throws
+        -> DualCameraCameraControlResult
+    @discardableResult
+    func applyWhiteBalanceMode(_ mode: AVCaptureDevice.WhiteBalanceMode, for source: DualCameraSource) throws
+        -> DualCameraCameraControlResult
+
+    func diagnosticsSnapshot() -> DualCameraDiagnostics
 }
 
 public extension DualCameraControlling {
@@ -69,9 +81,11 @@ public final class DualCameraController: DualCameraControlling {
     private let streamSource: DualCameraCameraStreamSourcing
     private let sessionStopDelay: Duration
     private let sleepBeforeSessionStop: @MainActor @Sendable (Duration) async -> Void
+    private var diagnosticEventHandler: DualCameraDiagnosticEventHandler?
 
     private var renderers: [DualCameraSource: CameraRenderer] = [:]
     private var streamTasks: [DualCameraSource: Task<Void, Never>] = [:]
+    private var diagnosticEventTask: Task<Void, Never>?
     private var sessionUseCount = 0
     private var isSessionStarted = false
     private var startSessionTask: Task<Void, Error>?
@@ -81,20 +95,24 @@ public final class DualCameraController: DualCameraControlling {
         photoCapturer: (any DualCameraPhotoCapturing)? = nil,
         streamSource: DualCameraCameraStreamSourcing? = nil,
         sessionStopDelay: Duration? = nil,
-        sessionStopSleeper: (@MainActor @Sendable (Duration) async -> Void)? = nil
+        sessionStopSleeper: (@MainActor @Sendable (Duration) async -> Void)? = nil,
+        diagnosticEventHandler: DualCameraDiagnosticEventHandler? = nil
     ) {
         self.photoCapturer = photoCapturer ?? DualCameraPhotoCapturer()
         self.streamSource = streamSource ?? DualCameraCameraStreamSource()
         self.sessionStopDelay = sessionStopDelay ?? Self.navigationHandoffStopDelay
+        self.diagnosticEventHandler = diagnosticEventHandler
         self.sleepBeforeSessionStop = sessionStopSleeper ?? { duration in
             do {
                 try await Task.sleep(for: duration)
             } catch {}
         }
+        startDiagnosticEventForwardingIfNeeded()
     }
 
     deinit {
         scheduledStopTask?.cancel()
+        diagnosticEventTask?.cancel()
         for task in streamTasks.values {
             task.cancel()
         }
@@ -102,6 +120,15 @@ public final class DualCameraController: DualCameraControlling {
 
     public func subscribe(to source: DualCameraSource) -> AsyncStream<PixelBufferWrapper> {
         streamSource.subscribe(to: source)
+    }
+
+    public func diagnosticEvents() -> AsyncStream<DualCameraDiagnosticEvent> {
+        streamSource.diagnosticEvents()
+    }
+
+    public func setDiagnosticEventHandler(_ handler: DualCameraDiagnosticEventHandler?) {
+        diagnosticEventHandler = handler
+        startDiagnosticEventForwardingIfNeeded()
     }
 
     public func startSession() async throws {
@@ -161,31 +188,52 @@ public final class DualCameraController: DualCameraControlling {
         startSessionTask = nil
     }
 
-    public func setTorchMode(_ mode: AVCaptureDevice.TorchMode) throws {
-        try streamSource.setTorchMode(mode)
+    public func cameraCapabilities(for source: DualCameraSource) throws -> DualCameraCameraCapabilities {
+        try streamSource.cameraCapabilities(for: source)
     }
 
-    public func setZoomFactor(_ factor: CGFloat, for source: DualCameraSource) throws {
-        try streamSource.setZoomFactor(factor, for: source)
+    @discardableResult
+    public func applyTorchMode(
+        _ mode: AVCaptureDevice.TorchMode,
+        for source: DualCameraSource
+    ) throws -> DualCameraCameraControlResult {
+        try streamSource.applyTorchMode(mode, for: source)
     }
 
-    public func setFocusMode(_ mode: AVCaptureDevice.FocusMode, for source: DualCameraSource) throws {
-        try streamSource.setFocusMode(mode, for: source)
+    @discardableResult
+    public func applyZoomFactor(
+        _ factor: CGFloat,
+        for source: DualCameraSource
+    ) throws -> DualCameraCameraControlResult {
+        try streamSource.applyZoomFactor(factor, for: source)
     }
 
-    public func setExposureMode(_ mode: AVCaptureDevice.ExposureMode, for source: DualCameraSource) throws {
-        try streamSource.setExposureMode(mode, for: source)
+    @discardableResult
+    public func applyFocusMode(
+        _ mode: AVCaptureDevice.FocusMode,
+        for source: DualCameraSource
+    ) throws -> DualCameraCameraControlResult {
+        try streamSource.applyFocusMode(mode, for: source)
     }
 
-    public func setWhiteBalanceMode(
+    @discardableResult
+    public func applyExposureMode(
+        _ mode: AVCaptureDevice.ExposureMode,
+        for source: DualCameraSource
+    ) throws -> DualCameraCameraControlResult {
+        try streamSource.applyExposureMode(mode, for: source)
+    }
+
+    @discardableResult
+    public func applyWhiteBalanceMode(
         _ mode: AVCaptureDevice.WhiteBalanceMode,
         for source: DualCameraSource
-    ) throws {
-        try streamSource.setWhiteBalanceMode(mode, for: source)
+    ) throws -> DualCameraCameraControlResult {
+        try streamSource.applyWhiteBalanceMode(mode, for: source)
     }
 
-    public func diagnostics() -> DualCameraDiagnostics {
-        streamSource.diagnostics()
+    public func diagnosticsSnapshot() -> DualCameraDiagnostics {
+        streamSource.diagnosticsSnapshot()
     }
 
     public func captureRawPhotos(displayScale: CGFloat) async throws -> (front: UIImage, back: UIImage) {
@@ -245,6 +293,23 @@ public final class DualCameraController: DualCameraControlling {
             }
         }
         streamTasks[source] = task
+    }
+
+    private func startDiagnosticEventForwardingIfNeeded() {
+        guard diagnosticEventHandler != nil else {
+            diagnosticEventTask?.cancel()
+            diagnosticEventTask = nil
+            return
+        }
+        guard diagnosticEventTask == nil else { return }
+
+        let eventStream = streamSource.diagnosticEvents()
+        diagnosticEventTask = Task { [weak self] in
+            for await event in eventStream {
+                guard !Task.isCancelled else { break }
+                await self?.diagnosticEventHandler?(event)
+            }
+        }
     }
 
     private func ensureSessionStarted() async throws {

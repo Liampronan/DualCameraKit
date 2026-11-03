@@ -234,25 +234,61 @@ private final class SpyCameraStreamSource: DualCameraCameraStreamSourcing {
         }
     }
 
+    nonisolated func diagnosticEvents() -> AsyncStream<DualCameraDiagnosticEvent> {
+        AsyncStream { continuation in
+            continuation.finish()
+        }
+    }
+
     nonisolated func latestFramePair() -> DualCameraFramePair? {
         framePair
     }
 
-    nonisolated func diagnostics() -> DualCameraDiagnostics {
+    nonisolated func diagnosticsSnapshot() -> DualCameraDiagnostics {
         DualCameraDiagnostics()
     }
 
-    func setTorchMode(_ mode: AVCaptureDevice.TorchMode) throws {
-        torchModes.append(mode)
+    func cameraCapabilities(for source: DualCameraSource) throws -> DualCameraCameraCapabilities {
+        .unavailable(for: source)
     }
 
-    func setZoomFactor(_ factor: CGFloat, for source: DualCameraSource) throws {}
+    @discardableResult
+    func applyTorchMode(
+        _ mode: AVCaptureDevice.TorchMode,
+        for source: DualCameraSource
+    ) throws -> DualCameraCameraControlResult {
+        torchModes.append(mode)
+        return .applied
+    }
 
-    func setFocusMode(_ mode: AVCaptureDevice.FocusMode, for source: DualCameraSource) throws {}
+    @discardableResult
+    func applyZoomFactor(_ factor: CGFloat, for source: DualCameraSource) throws -> DualCameraCameraControlResult {
+        .applied
+    }
 
-    func setExposureMode(_ mode: AVCaptureDevice.ExposureMode, for source: DualCameraSource) throws {}
+    @discardableResult
+    func applyFocusMode(
+        _ mode: AVCaptureDevice.FocusMode,
+        for source: DualCameraSource
+    ) throws -> DualCameraCameraControlResult {
+        .applied
+    }
 
-    func setWhiteBalanceMode(_ mode: AVCaptureDevice.WhiteBalanceMode, for source: DualCameraSource) throws {}
+    @discardableResult
+    func applyExposureMode(
+        _ mode: AVCaptureDevice.ExposureMode,
+        for source: DualCameraSource
+    ) throws -> DualCameraCameraControlResult {
+        .applied
+    }
+
+    @discardableResult
+    func applyWhiteBalanceMode(
+        _ mode: AVCaptureDevice.WhiteBalanceMode,
+        for source: DualCameraSource
+    ) throws -> DualCameraCameraControlResult {
+        .applied
+    }
 
     private func resumeReadyStopWaiters() {
         let readyWaiters = stopWaiters.filter { stopCount >= $0.count }
