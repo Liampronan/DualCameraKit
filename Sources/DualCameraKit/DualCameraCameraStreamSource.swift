@@ -165,6 +165,131 @@ public final class DualCameraCameraStreamSource: NSObject, DualCameraCameraStrea
         diagnosticsStore.snapshot
     }
 
+    // MARK: - Private Methods
+
+    @MainActor
+    private func requestCameraPermission() async -> Bool {
+        let status = AVCaptureDevice.authorizationStatus(for: .video)
+
+        if status == .authorized {
+            return true
+        } else if status == .notDetermined {
+            return await AVCaptureDevice.requestAccess(for: .video)
+        }
+        return false
+    }
+
+    private func configureCameras() throws {
+        try configureCameraInputs()
+        try configureVideoOutputs()
+    }
+
+    private func configureCameraInputs() throws {
+        guard let frontCamera = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .front) else {
+            throw DualCameraError.cameraUnavailable(position: .front)
+        }
+
+        guard let backCamera = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back) else {
+            throw DualCameraError.cameraUnavailable(position: .back)
+        }
+
+        let frontInput = try AVCaptureDeviceInput(device: frontCamera)
+        let backInput = try AVCaptureDeviceInput(device: backCamera)
+
+        if session.canAddInput(frontInput) {
+            session.addInput(frontInput)
+            frontCameraInput = frontInput
+        }
+
+        if session.canAddInput(backInput) {
+            session.addInput(backInput)
+            backCameraInput = backInput
+        }
+    }
+
+    private func configureVideoOutputs() throws {
+        let frontOutput = AVCaptureVideoDataOutput()
+        let backOutput = AVCaptureVideoDataOutput()
+
+        // Set pixel format
+        frontOutput.videoSettings = [kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA]
+        backOutput.videoSettings = [kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA]
+        frontOutput.alwaysDiscardsLateVideoFrames = true
+        backOutput.alwaysDiscardsLateVideoFrames = true
+
+        guard session.canAddOutput(frontOutput), session.canAddOutput(backOutput) else {
+            throw DualCameraError.configurationFailed
+        }
+
+        session.addOutput(frontOutput)
+        session.addOutput(backOutput)
+        frontCameraOutput = frontOutput
+        backCameraOutput = backOutput
+        outputRegistry.setOutput(frontOutput, for: .front)
+        outputRegistry.setOutput(backOutput, for: .back)
+
+        let synchronizer = AVCaptureDataOutputSynchronizer(dataOutputs: [frontOutput, backOutput])
+        let synchronizedQueue = DispatchQueue(
+            label: "DualCameraSynchronizedQueue",
+            qos: .userInteractive
+        )
+        synchronizer.setDelegate(self, queue: synchronizedQueue)
+        outputSynchronizer = synchronizer
+        updateVideoRotationAngle(orientationProvider.currentVideoRotationAngle)
+    }
+
+    private func cameraDevice(for source: DualCameraSource) throws -> AVCaptureDevice {
+        switch source {
+        case .front:
+            guard let device = frontCameraInput?.device else {
+                throw DualCameraError.cameraUnavailable(position: .front)
+            }
+            return device
+        case .back:
+            guard let device = backCameraInput?.device else {
+                throw DualCameraError.cameraUnavailable(position: .back)
+            }
+            return device
+        }
+    }
+
+    private nonisolated func recordDiagnosticEvent(_ event: DualCameraDiagnosticEvent) {
+        diagnosticsStore.record(event)
+        diagnosticEventBroadcaster.send(event)
+    }
+
+    private func updateVideoRotationAngle(_ angle: CGFloat) {
+        for output in [frontCameraOutput, backCameraOutput] {
+            guard let connection = output?.connection(with: .video),
+                  connection.isVideoRotationAngleSupported(angle) else {
+                continue
+            }
+            connection.videoRotationAngle = angle
+        }
+    }
+
+    private func observeSessionNotificationsIfNeeded() {
+        guard interruptionObserver == nil else { return }
+
+        interruptionObserver = NotificationCenter.default.addObserver(
+            forName: AVCaptureSession.wasInterruptedNotification,
+            object: session,
+            queue: .main
+        ) { [weak self] notification in
+            let rawReason = notification.userInfo?[AVCaptureSessionInterruptionReasonKey] as? Int
+            let reason = rawReason.flatMap(AVCaptureSession.InterruptionReason.init(rawValue:))
+            self?.recordDiagnosticEvent(
+                DualCameraDiagnosticEvent(
+                    kind: .sessionInterrupted,
+                    context: .sessionInterruption(reason: reason)
+                )
+            )
+        }
+    }
+}
+
+// MARK: - Camera Controls
+extension DualCameraCameraStreamSource {
     public func cameraCapabilities(for source: DualCameraSource) throws -> DualCameraCameraCapabilities {
         let device = try cameraDevice(for: source)
         return capabilities(for: device, source: source)
@@ -206,7 +331,10 @@ public final class DualCameraCameraStreamSource: NSObject, DualCameraCameraStrea
     }
 
     @discardableResult
-    public func applyZoomFactor(_ factor: CGFloat, for source: DualCameraSource) throws -> DualCameraCameraControlResult {
+    public func applyZoomFactor(
+        _ factor: CGFloat,
+        for source: DualCameraSource
+    ) throws -> DualCameraCameraControlResult {
         let device = try cameraDevice(for: source)
 
         guard factor.isFinite else {
@@ -299,93 +427,7 @@ public final class DualCameraCameraStreamSource: NSObject, DualCameraCameraStrea
         }
     }
 
-    // MARK: - Private Methods
-
-    @MainActor
-    private func requestCameraPermission() async -> Bool {
-        let status = AVCaptureDevice.authorizationStatus(for: .video)
-
-        if status == .authorized {
-            return true
-        } else if status == .notDetermined {
-            return await AVCaptureDevice.requestAccess(for: .video)
-        }
-        return false
-    }
-
-    private func configureCameras() throws {
-        try configureCameraInputs()
-        try configureVideoOutputs()
-    }
-
-    private func configureCameraInputs() throws {
-        guard let frontCamera = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .front) else {
-            throw DualCameraError.cameraUnavailable(position: .front)
-        }
-
-        guard let backCamera = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back) else {
-            throw DualCameraError.cameraUnavailable(position: .back)
-        }
-
-        let frontInput = try AVCaptureDeviceInput(device: frontCamera)
-        let backInput = try AVCaptureDeviceInput(device: backCamera)
-
-        if session.canAddInput(frontInput) {
-            session.addInput(frontInput)
-            frontCameraInput = frontInput
-        }
-
-        if session.canAddInput(backInput) {
-            session.addInput(backInput)
-            backCameraInput = backInput
-        }
-    }
-
-    private func configureVideoOutputs() throws {
-        let frontOutput = AVCaptureVideoDataOutput()
-        let backOutput = AVCaptureVideoDataOutput()
-
-        // Set pixel format
-        frontOutput.videoSettings = [kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA]
-        backOutput.videoSettings = [kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA]
-        frontOutput.alwaysDiscardsLateVideoFrames = true
-        backOutput.alwaysDiscardsLateVideoFrames = true
-
-        guard session.canAddOutput(frontOutput), session.canAddOutput(backOutput) else {
-            throw DualCameraError.configurationFailed
-        }
-
-        session.addOutput(frontOutput)
-        session.addOutput(backOutput)
-        frontCameraOutput = frontOutput
-        backCameraOutput = backOutput
-        outputRegistry.setOutput(frontOutput, for: .front)
-        outputRegistry.setOutput(backOutput, for: .back)
-
-        let synchronizer = AVCaptureDataOutputSynchronizer(dataOutputs: [frontOutput, backOutput])
-        let synchronizedQueue = DispatchQueue(
-            label: "DualCameraSynchronizedQueue",
-            qos: .userInteractive
-        )
-        synchronizer.setDelegate(self, queue: synchronizedQueue)
-        outputSynchronizer = synchronizer
-        updateVideoRotationAngle(orientationProvider.currentVideoRotationAngle)
-    }
-
-    private func cameraDevice(for source: DualCameraSource) throws -> AVCaptureDevice {
-        switch source {
-        case .front:
-            guard let device = frontCameraInput?.device else {
-                throw DualCameraError.cameraUnavailable(position: .front)
-            }
-            return device
-        case .back:
-            guard let device = backCameraInput?.device else {
-                throw DualCameraError.cameraUnavailable(position: .back)
-            }
-            return device
-        }
-    }
+    // MARK: - Camera Control Helpers
 
     private func capabilities(
         for device: AVCaptureDevice,
@@ -509,40 +551,6 @@ public final class DualCameraCameraStreamSource: NSObject, DualCameraCameraStrea
                 )
             )
         )
-    }
-
-    private nonisolated func recordDiagnosticEvent(_ event: DualCameraDiagnosticEvent) {
-        diagnosticsStore.record(event)
-        diagnosticEventBroadcaster.send(event)
-    }
-
-    private func updateVideoRotationAngle(_ angle: CGFloat) {
-        for output in [frontCameraOutput, backCameraOutput] {
-            guard let connection = output?.connection(with: .video),
-                  connection.isVideoRotationAngleSupported(angle) else {
-                continue
-            }
-            connection.videoRotationAngle = angle
-        }
-    }
-
-    private func observeSessionNotificationsIfNeeded() {
-        guard interruptionObserver == nil else { return }
-
-        interruptionObserver = NotificationCenter.default.addObserver(
-            forName: AVCaptureSession.wasInterruptedNotification,
-            object: session,
-            queue: .main
-        ) { [weak self] notification in
-            let rawReason = notification.userInfo?[AVCaptureSessionInterruptionReasonKey] as? Int
-            let reason = rawReason.flatMap(AVCaptureSession.InterruptionReason.init(rawValue:))
-            self?.recordDiagnosticEvent(
-                DualCameraDiagnosticEvent(
-                    kind: .sessionInterrupted,
-                    context: .sessionInterruption(reason: reason)
-                )
-            )
-        }
     }
 }
 
@@ -720,7 +728,10 @@ public final class DualCameraMockCameraStreamSource: DualCameraCameraStreamSourc
     }
 
     @discardableResult
-    public func applyZoomFactor(_ factor: CGFloat, for source: DualCameraSource) throws -> DualCameraCameraControlResult {
+    public func applyZoomFactor(
+        _ factor: CGFloat,
+        for source: DualCameraSource
+    ) throws -> DualCameraCameraControlResult {
         let clampedFactor = min(max(factor, 1), 8)
         zoomFactors[source] = clampedFactor
         if clampedFactor != factor {
