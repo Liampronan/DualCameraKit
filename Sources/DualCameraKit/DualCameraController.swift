@@ -337,6 +337,8 @@ public final class DualCameraController: DualCameraControlling {
 extension DualCameraController {
     /// Frame pairs older than this, relative to the newest single-camera frame, count as stale.
     static let framePairFreshnessTolerance = CMTime(value: 1, timescale: 10)
+    /// Fallback frames further apart than this are reported, since one camera may have stalled.
+    static let fallbackFrameGapTolerance = CMTime(value: 1, timescale: 10)
 
     fileprivate func latestFramePair() throws -> DualCameraFramePair {
         let front = streamSource.latestFrame(for: .front)
@@ -352,6 +354,7 @@ extension DualCameraController {
         // Fall back to the newest frame from each camera; they may be a few milliseconds apart.
         if let front, let back {
             let timestamps = [front.presentationTimestamp, back.presentationTimestamp].compactMap { $0 }
+            recordFallbackCapture(front: front, back: back)
             return DualCameraFramePair(front: front, back: back, timestamp: timestamps.min())
         }
 
@@ -360,6 +363,27 @@ extension DualCameraController {
         }
 
         throw DualCameraError.captureFailure(.noFrameAvailable)
+    }
+
+    private func recordFallbackCapture(front: PixelBufferWrapper, back: PixelBufferWrapper) {
+        let frameGap = Self.frameGap(between: front, and: back)
+        let exceedsTolerance = frameGap.map { $0 > Self.fallbackFrameGapTolerance } ?? false
+
+        streamSource.recordDiagnosticEvent(
+            DualCameraDiagnosticEvent(
+                kind: exceedsTolerance ? .captureFrameGapExceeded : .captureUsedFallbackFrames,
+                context: .captureFallback(frameGapSeconds: frameGap?.seconds)
+            )
+        )
+    }
+
+    static func frameGap(between front: PixelBufferWrapper, and back: PixelBufferWrapper) -> CMTime? {
+        guard let frontTimestamp = front.presentationTimestamp, frontTimestamp.isNumeric,
+              let backTimestamp = back.presentationTimestamp, backTimestamp.isNumeric else {
+            return nil
+        }
+
+        return CMTimeAbsoluteValue(frontTimestamp - backTimestamp)
     }
 
     static func isFresh(_ framePair: DualCameraFramePair, comparedTo frames: [PixelBufferWrapper?]) -> Bool {

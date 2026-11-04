@@ -161,7 +161,7 @@ let controller = DualCameraController(diagnosticEventHandler: { event in
 let snapshot = controller.diagnosticsSnapshot()
 ```
 
-Diagnostics use a small event taxonomy covering dropped synchronized frame pairs, session interruptions, configuration failures, unsupported controls, adjusted controls, and control failures.
+Diagnostics use a small event taxonomy covering dropped synchronized frame pairs, fallback captures, oversized fallback frame gaps, session interruptions, configuration failures, unsupported controls, adjusted controls, and control failures.
 
 Per-camera controls expose both capabilities and application results:
 

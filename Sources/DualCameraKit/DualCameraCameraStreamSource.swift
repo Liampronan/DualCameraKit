@@ -12,6 +12,7 @@ public protocol DualCameraCameraStreamSourcing {
     nonisolated func latestFramePair() -> DualCameraFramePair?
     nonisolated func diagnosticEvents() -> AsyncStream<DualCameraDiagnosticEvent>
     nonisolated func diagnosticsSnapshot() -> DualCameraDiagnostics
+    nonisolated func recordDiagnosticEvent(_ event: DualCameraDiagnosticEvent)
     func cameraCapabilities(for source: DualCameraSource) throws -> DualCameraCameraCapabilities
     @discardableResult
     func applyTorchMode(_ mode: AVCaptureDevice.TorchMode, for source: DualCameraSource) throws
@@ -253,7 +254,7 @@ public final class DualCameraCameraStreamSource: NSObject, DualCameraCameraStrea
         }
     }
 
-    private nonisolated func recordDiagnosticEvent(_ event: DualCameraDiagnosticEvent) {
+    nonisolated public func recordDiagnosticEvent(_ event: DualCameraDiagnosticEvent) {
         diagnosticsStore.record(event)
         diagnosticEventBroadcaster.send(event)
     }
@@ -873,7 +874,7 @@ public final class DualCameraMockCameraStreamSource: DualCameraCameraStreamSourc
         )
     }
 
-    private func recordDiagnosticEvent(_ event: DualCameraDiagnosticEvent) {
+    nonisolated public func recordDiagnosticEvent(_ event: DualCameraDiagnosticEvent) {
         diagnosticsStore.record(event)
         diagnosticEventBroadcaster.send(event)
     }
@@ -899,6 +900,8 @@ private final class CaptureOutputRegistry: @unchecked Sendable {
 private final class DiagnosticsStore: @unchecked Sendable {
     private let lock = NSLock()
     private var droppedFramePairCount = 0
+    private var captureFallbackCount = 0
+    private var captureFrameGapExceededCount = 0
     private var sessionInterruptionCount = 0
     private var configurationFailureCount = 0
     private var controlUnsupportedCount = 0
@@ -911,6 +914,8 @@ private final class DiagnosticsStore: @unchecked Sendable {
         defer { lock.unlock() }
         return DualCameraDiagnostics(
             droppedFramePairCount: droppedFramePairCount,
+            captureFallbackCount: captureFallbackCount,
+            captureFrameGapExceededCount: captureFrameGapExceededCount,
             sessionInterruptionCount: sessionInterruptionCount,
             configurationFailureCount: configurationFailureCount,
             controlUnsupportedCount: controlUnsupportedCount,
@@ -926,6 +931,11 @@ private final class DiagnosticsStore: @unchecked Sendable {
         switch event.kind {
         case .framePairDropped:
             droppedFramePairCount += 1
+        case .captureUsedFallbackFrames:
+            captureFallbackCount += 1
+        case .captureFrameGapExceeded:
+            captureFallbackCount += 1
+            captureFrameGapExceededCount += 1
         case .sessionInterrupted:
             sessionInterruptionCount += 1
         case .configurationFailed:
