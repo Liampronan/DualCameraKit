@@ -24,6 +24,102 @@ final class DualCameraControllerTests: XCTestCase {
         XCTAssertTrue(photoCapturer.rawBackBuffer === expectedBack)
     }
 
+    func test_captureFallsBackToLatestFramesWithoutSynchronizedPair() async throws {
+        let streamSource = SpyCameraStreamSource()
+        let expectedFront = try makePixelBuffer(color: .red)
+        let expectedBack = try makePixelBuffer(color: .blue)
+        streamSource.frames = [
+            .front: PixelBufferWrapper(buffer: expectedFront),
+            .back: PixelBufferWrapper(buffer: expectedBack)
+        ]
+        let photoCapturer = RecordingPhotoCapturer()
+        let controller = DualCameraController(photoCapturer: photoCapturer, streamSource: streamSource)
+
+        _ = try await controller.captureRawPhotos()
+
+        XCTAssertTrue(photoCapturer.rawFrontBuffer === expectedFront)
+        XCTAssertTrue(photoCapturer.rawBackBuffer === expectedBack)
+    }
+
+    func test_capturePrefersLatestFramesOverStaleSynchronizedPair() async throws {
+        let streamSource = SpyCameraStreamSource()
+        let staleFront = try makePixelBuffer(color: .green)
+        let staleBack = try makePixelBuffer(color: .yellow)
+        let expectedFront = try makePixelBuffer(color: .red)
+        let expectedBack = try makePixelBuffer(color: .blue)
+        streamSource.framePair = DualCameraFramePair(
+            front: PixelBufferWrapper(buffer: staleFront),
+            back: PixelBufferWrapper(buffer: staleBack),
+            timestamp: CMTime(seconds: 1, preferredTimescale: 600)
+        )
+        streamSource.frames = [
+            .front: PixelBufferWrapper(
+                buffer: expectedFront,
+                presentationTimestamp: CMTime(seconds: 5, preferredTimescale: 600)
+            ),
+            .back: PixelBufferWrapper(
+                buffer: expectedBack,
+                presentationTimestamp: CMTime(seconds: 5.01, preferredTimescale: 600)
+            )
+        ]
+        let photoCapturer = RecordingPhotoCapturer()
+        let controller = DualCameraController(photoCapturer: photoCapturer, streamSource: streamSource)
+
+        _ = try await controller.captureRawPhotos()
+
+        XCTAssertTrue(photoCapturer.rawFrontBuffer === expectedFront)
+        XCTAssertTrue(photoCapturer.rawBackBuffer === expectedBack)
+    }
+
+    func test_capturePrefersFreshSynchronizedPairOverLatestFrames() async throws {
+        let streamSource = SpyCameraStreamSource()
+        let expectedFront = try makePixelBuffer(color: .red)
+        let expectedBack = try makePixelBuffer(color: .blue)
+        streamSource.framePair = DualCameraFramePair(
+            front: PixelBufferWrapper(buffer: expectedFront),
+            back: PixelBufferWrapper(buffer: expectedBack),
+            timestamp: CMTime(seconds: 5, preferredTimescale: 600)
+        )
+        streamSource.frames = [
+            .front: PixelBufferWrapper(
+                buffer: try makePixelBuffer(color: .green),
+                presentationTimestamp: CMTime(seconds: 5.03, preferredTimescale: 600)
+            ),
+            .back: PixelBufferWrapper(
+                buffer: try makePixelBuffer(color: .yellow),
+                presentationTimestamp: CMTime(seconds: 5.02, preferredTimescale: 600)
+            )
+        ]
+        let photoCapturer = RecordingPhotoCapturer()
+        let controller = DualCameraController(photoCapturer: photoCapturer, streamSource: streamSource)
+
+        _ = try await controller.captureRawPhotos()
+
+        XCTAssertTrue(photoCapturer.rawFrontBuffer === expectedFront)
+        XCTAssertTrue(photoCapturer.rawBackBuffer === expectedBack)
+    }
+
+    func test_captureThrowsNoFrameAvailableWithoutAnyFrames() async throws {
+        let controller = DualCameraController(
+            photoCapturer: RecordingPhotoCapturer(),
+            streamSource: SpyCameraStreamSource()
+        )
+
+        do {
+            _ = try await controller.captureRawPhotos()
+            XCTFail("Expected capture to throw")
+        } catch {
+            XCTAssertEqual(error as? DualCameraError, .captureFailure(.noFrameAvailable))
+        }
+    }
+
+    func test_errorBridgesLocalizedDescription() {
+        let error: Error = DualCameraError.captureFailure(.noFrameAvailable)
+
+        XCTAssertEqual(error.localizedDescription, "No frame available to capture.")
+        XCTAssertEqual((error as NSError).localizedDescription, "No frame available to capture.")
+    }
+
     func test_stopSessionDebouncesDuringNavigationHandoff() async throws {
         let streamSource = SpyCameraStreamSource()
         let sleeper = ManualSessionStopSleeper()
@@ -195,6 +291,7 @@ private final class SpyCameraStreamSource: DualCameraCameraStreamSourcing {
     var startError: Error?
     var torchModes: [AVCaptureDevice.TorchMode] = []
     nonisolated(unsafe) var framePair: DualCameraFramePair?
+    nonisolated(unsafe) var frames: [DualCameraSource: PixelBufferWrapper] = [:]
     private var stopWaiters: [(count: Int, continuation: CheckedContinuation<Void, Never>)] = []
 
     func startSession() async throws {
@@ -225,7 +322,7 @@ private final class SpyCameraStreamSource: DualCameraCameraStreamSourcing {
     }
 
     nonisolated func latestFrame(for source: DualCameraSource) -> PixelBufferWrapper? {
-        nil
+        frames[source]
     }
 
     nonisolated func subscribeToFramePairs() -> AsyncStream<DualCameraFramePair> {

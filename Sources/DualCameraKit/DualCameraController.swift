@@ -277,13 +277,6 @@ public final class DualCameraController: DualCameraControlling {
         return renderer
     }
 
-    private func latestFramePair() throws -> DualCameraFramePair {
-        guard let framePair = streamSource.latestFramePair() else {
-            throw DualCameraError.captureFailure(.noFrameAvailable)
-        }
-        return framePair
-    }
-
     private func connectStream(for source: DualCameraSource, renderer: CameraRenderer) {
         let stream = subscribe(to: source)
         let task = Task {
@@ -337,4 +330,52 @@ public final class DualCameraController: DualCameraControlling {
         }
     }
 
+}
+
+// MARK: - Frame pair selection
+
+extension DualCameraController {
+    /// Frame pairs older than this, relative to the newest single-camera frame, count as stale.
+    static let framePairFreshnessTolerance = CMTime(value: 1, timescale: 10)
+
+    fileprivate func latestFramePair() throws -> DualCameraFramePair {
+        let front = streamSource.latestFrame(for: .front)
+        let back = streamSource.latestFrame(for: .back)
+        let synchronizedPair = streamSource.latestFramePair()
+
+        if let synchronizedPair, Self.isFresh(synchronizedPair, comparedTo: [front, back]) {
+            return synchronizedPair
+        }
+
+        // The front and back cameras are not hardware-synchronized, so the output synchronizer can go
+        // long stretches (or a whole session) without delivering both frames in one collection.
+        // Fall back to the newest frame from each camera; they may be a few milliseconds apart.
+        if let front, let back {
+            let timestamps = [front.presentationTimestamp, back.presentationTimestamp].compactMap { $0 }
+            return DualCameraFramePair(front: front, back: back, timestamp: timestamps.min())
+        }
+
+        if let synchronizedPair {
+            return synchronizedPair
+        }
+
+        throw DualCameraError.captureFailure(.noFrameAvailable)
+    }
+
+    static func isFresh(_ framePair: DualCameraFramePair, comparedTo frames: [PixelBufferWrapper?]) -> Bool {
+        guard let pairTimestamp = framePair.timestamp, pairTimestamp.isNumeric else {
+            return true
+        }
+
+        let newestFrameTimestamp = frames
+            .compactMap { $0?.presentationTimestamp }
+            .filter(\.isNumeric)
+            .max()
+
+        guard let newestFrameTimestamp else {
+            return true
+        }
+
+        return newestFrameTimestamp - pairTimestamp <= framePairFreshnessTolerance
+    }
 }

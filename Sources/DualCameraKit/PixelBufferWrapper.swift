@@ -15,9 +15,12 @@ import AVFoundation
 public struct PixelBufferWrapper: @unchecked Sendable {
     public let buffer: CVPixelBuffer
     private let sampleBuffer: CMSampleBuffer?
+    /// When the camera produced this frame, if known. Taken from the sample buffer unless given explicitly.
+    public let presentationTimestamp: CMTime?
 
-    public init(buffer: CVPixelBuffer, sampleBuffer: CMSampleBuffer? = nil) {
+    public init(buffer: CVPixelBuffer, sampleBuffer: CMSampleBuffer? = nil, presentationTimestamp: CMTime? = nil) {
         self.buffer = buffer
         self.sampleBuffer = sampleBuffer
+        self.presentationTimestamp = presentationTimestamp ?? sampleBuffer.map(CMSampleBufferGetPresentationTimeStamp)
     }
 }
