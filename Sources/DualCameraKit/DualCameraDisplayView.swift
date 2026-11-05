@@ -5,8 +5,13 @@ public struct DualCameraDisplayView: View {
     private let layout: DualCameraLayout
     private let contentMode: DualCameraContentMode
     private let overlayInsets: EdgeInsets
+    private let onDisplaySizeChange: (@MainActor (CGSize) -> Void)?
     private let layoutResolver = DualCameraLayoutResolver()
 
+    /// - Parameter onDisplaySizeChange: Called with the size the cameras are laid out in, initially
+    ///   and whenever it changes. Pass this size as `outputSize` when capturing so the composed photo
+    ///   matches the preview. It includes any safe area the view ignores, which a `GeometryReader`
+    ///   around the view does not.
     public init(
         controller: DualCameraControlling,
         layout: DualCameraLayout = .piP(
@@ -14,12 +19,14 @@ public struct DualCameraDisplayView: View {
             miniCameraPosition: .bottomTrailing
         ),
         contentMode: DualCameraContentMode = .aspectFill,
-        overlayInsets: EdgeInsets = EdgeInsets()
+        overlayInsets: EdgeInsets = EdgeInsets(),
+        onDisplaySizeChange: (@MainActor (CGSize) -> Void)? = nil
     ) {
         self.controller = controller
         self.layout = layout
         self.contentMode = contentMode
         self.overlayInsets = overlayInsets
+        self.onDisplaySizeChange = onDisplaySizeChange
     }
 
     public var body: some View {
@@ -36,6 +43,9 @@ public struct DualCameraDisplayView: View {
                 if let overlay = resolvedLayout.overlay {
                     cameraRegion(overlay, cornerRadius: overlayCornerRadius)
                 }
+            }
+            .onChange(of: proxy.size, initial: true) { _, newSize in
+                onDisplaySizeChange?(newSize)
             }
         }
     }

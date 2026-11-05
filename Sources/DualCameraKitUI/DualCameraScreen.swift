@@ -5,6 +5,7 @@ import UIKit
 public struct DualCameraScreen: View {
     @Environment(\.displayScale) private var displayScale
     @State private var viewModel: DualCameraViewModel
+    @State private var cameraDisplaySize: CGSize = .zero
     private let customOverlay: ((DualCameraViewModel) -> AnyView)
 
     @MainActor
@@ -18,49 +19,52 @@ public struct DualCameraScreen: View {
     }
 
     public var body: some View {
-        GeometryReader { geoProxy in
-            ZStack {
-                DualCameraDisplayView(
-                    controller: viewModel.controller,
-                    layout: viewModel.cameraLayout,
-                    contentMode: viewModel.contentMode
-                )
-                .ignoresSafeArea()
-                .overlay(viewModel.isSettingsButtonVisible ? settingsButton : nil, alignment: .topLeading)
-                .overlay(controlButtons, alignment: .bottom)
-                .overlay(accessoryItems, alignment: .trailing)
+        ZStack {
+            // Capture is sized from the display view's own layout size, measured after
+            // `.ignoresSafeArea()`, so the composed photo and its PiP placement match the
+            // full-bleed preview. A GeometryReader around this ZStack would report the
+            // safe-area size and the photo would come out shorter than the screen.
+            DualCameraDisplayView(
+                controller: viewModel.controller,
+                layout: viewModel.cameraLayout,
+                contentMode: viewModel.contentMode,
+                onDisplaySizeChange: { newSize in
+                    cameraDisplaySize = newSize
+                    viewModel.containerSizeChanged(newSize)
+                }
+            )
+            .ignoresSafeArea()
+            .overlay(viewModel.isSettingsButtonVisible ? settingsButton : nil, alignment: .topLeading)
+            .overlay(controlButtons, alignment: .bottom)
+            .overlay(accessoryItems, alignment: .trailing)
 
-                if case .error(let error) = viewModel.viewState {
-                    errorOverlay(error)
-                }
+            if case .error(let error) = viewModel.viewState {
+                errorOverlay(error)
             }
-            .onAppear {
-                viewModel.onAppear(containerSize: geoProxy.size, displayScale: displayScale)
+        }
+        .onAppear {
+            viewModel.onAppear(containerSize: cameraDisplaySize, displayScale: displayScale)
+        }
+        .onChange(of: displayScale, initial: true) { _, newScale in
+            viewModel.displayScaleChanged(newScale)
+        }
+        .onDisappear {
+            viewModel.onDisappear()
+        }
+        .animation(.easeInOut(duration: 0.2), value: viewModel.viewState)
+        .sheet(item: $viewModel.presentedSheet, content: { sheetType in
+            switch sheetType {
+            case .configSheet:
+                DualCameraConfigView(viewModel: viewModel)
             }
-            .onChange(of: geoProxy.size, initial: true) { _, newSize in
-                viewModel.containerSizeChanged(newSize)
-            }
-            .onChange(of: displayScale, initial: true) { _, newScale in
-                viewModel.displayScaleChanged(newScale)
-            }
-            .onDisappear {
-                viewModel.onDisappear()
-            }
-            .animation(.easeInOut(duration: 0.2), value: viewModel.viewState)
-            .sheet(item: $viewModel.presentedSheet, content: { sheetType in
-                switch sheetType {
-                case .configSheet:
-                    DualCameraConfigView(viewModel: viewModel)
-                }
-            })
-            .alert(
-                item: $viewModel.alert
-            ) { alert in
-                getAlert(for: alert)
-            }
-            .overlay(alignment: .top) {
-                customOverlay(viewModel)
-            }
+        })
+        .alert(
+            item: $viewModel.alert
+        ) { alert in
+            getAlert(for: alert)
+        }
+        .overlay(alignment: .top) {
+            customOverlay(viewModel)
         }
     }
 

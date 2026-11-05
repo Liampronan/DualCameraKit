@@ -122,32 +122,38 @@ import SwiftUI
 struct CameraComposer: View {
     @State private var controller = DualCameraController()
     @State private var capturedImage: UIImage?
+    @State private var displaySize: CGSize = .zero
     let layout: DualCameraLayout = .piP(miniCamera: .front, miniCameraPosition: .bottomTrailing)
 
     var body: some View {
-        GeometryReader { proxy in
-            ZStack(alignment: .bottom) {
-                DualCameraDisplayView(controller: controller, layout: layout)
+        ZStack(alignment: .bottom) {
+            DualCameraDisplayView(
+                controller: controller,
+                layout: layout,
+                onDisplaySizeChange: { displaySize = $0 }
+            )
+            .ignoresSafeArea()
 
-                Button("Capture") {
-                    Task {
-                        capturedImage = try await controller.capturePhoto(
-                            layout: layout,
-                            outputSize: proxy.size
-                        )
-                    }
+            Button("Capture") {
+                Task {
+                    capturedImage = try await controller.capturePhoto(
+                        layout: layout,
+                        outputSize: displaySize
+                    )
                 }
             }
-            .task {
-                try? await controller.startSession()
-            }
-            .onDisappear {
-                controller.stopSession()
-            }
+        }
+        .task {
+            try? await controller.startSession()
+        }
+        .onDisappear {
+            controller.stopSession()
         }
     }
 }
 ```
+
+Capture with the size from `onDisplaySizeChange` so the photo matches the preview. When the display view ignores the safe area, a `GeometryReader` around it reports the smaller safe-area size, and the photo comes out shorter than the screen with the PiP in a different spot.
 
 ### Diagnostics and Camera Controls
 
