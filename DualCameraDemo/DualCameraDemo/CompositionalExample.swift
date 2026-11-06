@@ -14,6 +14,7 @@ struct CompositionalExample: View {
     @State private var controller = DualCameraDependencies.live().dualCameraController
     @State private var layoutMode = LayoutMode.piP
     @State private var miniCameraPosition = DualCameraLayout.MiniCameraPosition.bottomTrailing
+    @State private var cameraDisplaySize: CGSize = .zero
     @State private var capturedImage: UIImage?
     @State private var alertMessage: String?
 
@@ -23,7 +24,8 @@ struct CompositionalExample: View {
                 DualCameraDisplayView(
                     controller: controller,
                     layout: layout,
-                    overlayInsets: cameraOverlayInsets(for: proxy)
+                    overlayInsets: cameraOverlayInsets(for: proxy),
+                    onDisplaySizeChange: { cameraDisplaySize = $0 }
                 )
                 .ignoresSafeArea()
                 .animation(layoutAnimation, value: layout)
@@ -31,7 +33,7 @@ struct CompositionalExample: View {
                 VStack(spacing: 0) {
                     compositionControls
                     Spacer()
-                    captureButton(outputSize: proxy.size)
+                    captureButton(outputSize: cameraDisplaySize)
                 }
                 .padding(.horizontal, 16)
                 .padding(.top, controlsTopPadding(for: proxy))

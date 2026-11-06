@@ -4,6 +4,10 @@ import Foundation
 /// Coarse-grained taxonomy for runtime capture events.
 public enum DualCameraDiagnosticEventKind: Equatable, Sendable {
     case framePairDropped
+    /// A capture used each camera's newest frame because no fresh synchronized pair was available.
+    case captureUsedFallbackFrames
+    /// A fallback capture whose two frames were further apart than expected, such as when a camera stalled.
+    case captureFrameGapExceeded
     case sessionInterrupted
     case configurationFailed
     case controlUnsupported
@@ -15,6 +19,7 @@ public enum DualCameraDiagnosticEventKind: Equatable, Sendable {
 public enum DualCameraDiagnosticEventContext: Equatable, Sendable {
     case none
     case source(DualCameraSource)
+    case captureFallback(frameGapSeconds: Double?)
     case sessionInterruption(reason: AVCaptureSession.InterruptionReason?)
     case configurationFailure(source: DualCameraSource?, errorDescription: String?)
     case control(
@@ -50,6 +55,8 @@ public typealias DualCameraDiagnosticEventHandler = @MainActor (DualCameraDiagno
 /// Lightweight runtime diagnostics for capture-session health.
 public struct DualCameraDiagnostics: Equatable, Sendable {
     public let droppedFramePairCount: Int
+    public let captureFallbackCount: Int
+    public let captureFrameGapExceededCount: Int
     public let sessionInterruptionCount: Int
     public let configurationFailureCount: Int
     public let controlUnsupportedCount: Int
@@ -59,6 +66,8 @@ public struct DualCameraDiagnostics: Equatable, Sendable {
 
     public init(
         droppedFramePairCount: Int = 0,
+        captureFallbackCount: Int = 0,
+        captureFrameGapExceededCount: Int = 0,
         sessionInterruptionCount: Int = 0,
         configurationFailureCount: Int = 0,
         controlUnsupportedCount: Int = 0,
@@ -67,6 +76,8 @@ public struct DualCameraDiagnostics: Equatable, Sendable {
         latestEvent: DualCameraDiagnosticEvent? = nil
     ) {
         self.droppedFramePairCount = droppedFramePairCount
+        self.captureFallbackCount = captureFallbackCount
+        self.captureFrameGapExceededCount = captureFrameGapExceededCount
         self.sessionInterruptionCount = sessionInterruptionCount
         self.configurationFailureCount = configurationFailureCount
         self.controlUnsupportedCount = controlUnsupportedCount

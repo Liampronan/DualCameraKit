@@ -63,6 +63,8 @@ public extension DualCameraPhotoCapturing {
 
 public class DualCameraPhotoCapturer: DualCameraPhotoCapturing {
     private let layoutResolver: DualCameraLayoutResolver
+    /// Creating a `CIContext` is expensive, so one context is shared by every capture.
+    private let ciContext = CIContext()
 
     public init(layoutResolver: DualCameraLayoutResolver = DualCameraLayoutResolver()) {
         self.layoutResolver = layoutResolver
@@ -118,8 +120,7 @@ public class DualCameraPhotoCapturer: DualCameraPhotoCapturing {
 
     private func image(from buffer: CVPixelBuffer, displayScale: CGFloat) throws -> UIImage {
         let ciImage = CIImage(cvPixelBuffer: buffer)
-        let context = CIContext()
-        guard let cgImage = context.createCGImage(ciImage, from: ciImage.extent) else {
+        guard let cgImage = ciContext.createCGImage(ciImage, from: ciImage.extent) else {
             throw DualCameraError.captureFailure(.imageCreationFailed)
         }
         return UIImage(cgImage: cgImage, scale: displayScale, orientation: .up)

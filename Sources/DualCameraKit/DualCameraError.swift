@@ -1,6 +1,6 @@
 import AVFoundation
 
-public enum DualCameraError: Error, Equatable {
+public enum DualCameraError: LocalizedError, Equatable {
     case cameraUnavailable(position: AVCaptureDevice.Position)
     case captureFailure(CaptureFailureReason)
     case configurationFailed
@@ -64,4 +64,7 @@ public enum DualCameraError: Error, Equatable {
             return "An unknown error occurred in CameraManager."
         }
     }
+
+    /// Bridges `localizedDescription` to `NSError`, so alerts show the reason instead of "error 1".
+    public var errorDescription: String? { localizedDescription }
 }
