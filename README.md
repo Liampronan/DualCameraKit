@@ -73,7 +73,7 @@ targets: [
 - `NSCameraUsageDescription` in your app's `Info.plist`
 - `NSPhotoLibraryAddUsageDescription` only if you use `.photoLibrary(service:)`
 
-The simulator uses a mock stream source so previews and UI integration can run without camera hardware.
+The simulator uses a mock stream source so previews and UI integration can run without camera hardware. See [Simulator and Test Fixtures](#simulator-and-test-fixtures) to swap the default animated colours for deterministic images.
 
 ## Usage
 
@@ -198,6 +198,33 @@ let dependencies = DualCameraDependencies(
 let viewModel = DualCameraViewModel(dependencies: dependencies)
 ```
 
+### Simulator and Test Fixtures
+
+`DualCameraDependencies.makeDefaultCameraController()` uses `DualCameraMockCameraStreamSource(animated: true)` in the Simulator: flat colours whose hue changes every 250 ms. That is enough to see a screen run, but it cannot show a crop, offset or aspect-ratio bug. For those, give the controller a still fixture instead:
+
+```swift
+// Built-in test pattern: grid, TL/TR/BL/BR corner markers, centre crosshair, FRONT/BACK label.
+let controller = DualCameraController(streamSource: DualCameraMockCameraStreamSource.testPattern())
+
+// Your own stills, one per camera. Frames use each image's pixel size.
+let controller = DualCameraController(
+    streamSource: DualCameraMockCameraStreamSource(front: frontFixture, back: backFixture)
+)
+
+// Or a provider, called with the camera and a frame index (0 on start; 1, 2, … every 250 ms when animated).
+let controller = DualCameraController(
+    streamSource: DualCameraMockCameraStreamSource(animated: false) { source, frameIndex in
+        source == .front ? frontFixture : backFixture
+    }
+)
+```
+
+Still fixtures are published once per `startSession()`, so every capture gets the same pixels. To use one across the bundled UI, pass it through `DualCameraDependencies(makeDualCameraController:)`, for example behind a launch argument in UI tests.
+
+`DualCameraTestPattern` exposes the pattern's marker rectangles and colours (`markerRect(for:in:)`, `Corner.color`, `backgroundColor(for:)`) so tests can sample captured images: a missing corner marker means that side was cropped, and a crosshair off the centre of its region means the frame was offset.
+
+**Frame sizes.** The live `DualCameraCameraStreamSource` sets a 32BGRA pixel format and rotates each connection to portrait, but it does not choose a session preset or `activeFormat`, so each camera streams at its device's default format, which varies by iPhone model and is not documented. The 4:3 formats iPhone cameras commonly default to arrive as portrait 3:4 frames, so `testPattern()` defaults to `DualCameraTestPattern.portrait3x4FrameSize` (1080×1440). Pass `frontFrameSize:` / `backFrameSize:` (for example `DualCameraTestPattern.portrait9x16FrameSize`) to match other devices or to test both. On a device, the live source logs each camera's active format under the `DualCameraKit` subsystem, `Camera` category, so you can confirm what your target hardware uses. The default animated mock still renders 360×640 points (9:16), which can hide bugs that only show with 3:4 frames.
+
 ## Layouts
 
 ```swift
@@ -224,7 +251,7 @@ To run it, open `DualCameraKit.xcworkspace`, select the `DualCameraDemo` scheme,
 
 - v0.5 is photo-only.
 - Live capture requires a physical device that supports multi-cam.
-- Simulator support is mock-driven and intended for UI iteration.
+- Simulator support is mock-driven. Use `DualCameraMockCameraStreamSource.testPattern()` or image fixtures to check layout and capture geometry; mock frames do not reproduce device colour, timing or format differences.
 - iPad and audio/video capture are future work.
 
 ## References

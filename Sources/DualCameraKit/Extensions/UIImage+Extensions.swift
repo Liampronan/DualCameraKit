@@ -2,6 +2,23 @@ import AVFoundation
 import UIKit
 
 extension UIImage {
+    /// Converts to a BGRA pixel buffer of the image's pixel size, applying `imageOrientation` first so the
+    /// buffer's rows read the way the image displays.
+    func uprightPixelBuffer() -> CVPixelBuffer? {
+        guard imageOrientation != .up || cgImage == nil else {
+            return pixelBuffer()
+        }
+
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = scale
+        format.opaque = false
+        format.preferredRange = .standard
+        let upright = UIGraphicsImageRenderer(size: size, format: format).image { _ in
+            draw(in: CGRect(origin: .zero, size: size))
+        }
+        return upright.pixelBuffer()
+    }
+
     /// Converts UIImage to CVPixelBuffer.
     func pixelBuffer() -> CVPixelBuffer? {
         // First, try to get the CGImage for more direct conversion
