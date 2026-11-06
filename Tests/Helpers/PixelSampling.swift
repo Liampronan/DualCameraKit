@@ -45,9 +45,9 @@ enum PixelSamplingError: Error {
 }
 
 extension CGImage {
-    /// Reads the pixel at (`x`, `y`) in pixels, with the origin at the top left.
-    func rgbPixel(x: Int, y: Int) throws -> RGBPixel {
-        guard x >= 0, y >= 0, x < width, y < height else {
+    /// Reads the pixel at (`pixelX`, `pixelY`) in pixels, with the origin at the top left.
+    func rgbPixel(pixelX: Int, pixelY: Int) throws -> RGBPixel {
+        guard pixelX >= 0, pixelY >= 0, pixelX < width, pixelY < height else {
             throw PixelSamplingError.outOfBounds
         }
 
@@ -64,17 +64,17 @@ extension CGImage {
             throw PixelSamplingError.contextCreationFailed
         }
 
-        context.translateBy(x: CGFloat(-x), y: CGFloat(y - height + 1))
+        context.translateBy(x: CGFloat(-pixelX), y: CGFloat(pixelY - height + 1))
         context.draw(self, in: CGRect(x: 0, y: 0, width: width, height: height))
         return RGBPixel(red: Int(pixel[0]), green: Int(pixel[1]), blue: Int(pixel[2]))
     }
 }
 
 extension UIImage {
-    /// Reads the pixel at (`x`, `y`) in pixels (not points), with the origin at the top left.
-    func rgbPixel(x: Int, y: Int) throws -> RGBPixel {
+    /// Reads the pixel at (`pixelX`, `pixelY`) in pixels (not points), with the origin at the top left.
+    func rgbPixel(pixelX: Int, pixelY: Int) throws -> RGBPixel {
         guard let cgImage else { throw PixelSamplingError.missingCGImage }
-        return try cgImage.rgbPixel(x: x, y: y)
+        return try cgImage.rgbPixel(pixelX: pixelX, pixelY: pixelY)
     }
 }
 
@@ -83,9 +83,9 @@ extension CVPixelBuffer {
         CGSize(width: CVPixelBufferGetWidth(self), height: CVPixelBufferGetHeight(self))
     }
 
-    /// Reads the pixel at (`x`, `y`) from a 32BGRA buffer, with the origin at the top left.
-    func rgbPixel(x: Int, y: Int) throws -> RGBPixel {
-        guard x >= 0, y >= 0, x < CVPixelBufferGetWidth(self), y < CVPixelBufferGetHeight(self),
+    /// Reads the pixel at (`pixelX`, `pixelY`) from a 32BGRA buffer, with the origin at the top left.
+    func rgbPixel(pixelX: Int, pixelY: Int) throws -> RGBPixel {
+        guard pixelX >= 0, pixelY >= 0, pixelX < CVPixelBufferGetWidth(self), pixelY < CVPixelBufferGetHeight(self),
               CVPixelBufferGetPixelFormatType(self) == kCVPixelFormatType_32BGRA else {
             throw PixelSamplingError.outOfBounds
         }
@@ -97,7 +97,7 @@ extension CVPixelBuffer {
         }
 
         let bytes = base.assumingMemoryBound(to: UInt8.self)
-        let offset = y * CVPixelBufferGetBytesPerRow(self) + x * 4
+        let offset = pixelY * CVPixelBufferGetBytesPerRow(self) + pixelX * 4
         return RGBPixel(red: Int(bytes[offset + 2]), green: Int(bytes[offset + 1]), blue: Int(bytes[offset]))
     }
 

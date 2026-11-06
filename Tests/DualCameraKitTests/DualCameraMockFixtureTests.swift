@@ -24,10 +24,10 @@ final class DualCameraMockFixtureTests: XCTestCase {
 
         for corner in DualCameraTestPattern.Corner.allCases {
             let point = Self.outerSamplePoint(for: corner, in: size)
-            let pixel = try image.rgbPixel(x: point.x, y: point.y)
+            let pixel = try image.rgbPixel(pixelX: point.x, pixelY: point.y)
             XCTAssertTrue(pixel.isNear(corner.color), "\(corner) marker was \(pixel)")
         }
-        let background = try image.rgbPixel(x: 60, y: 330)
+        let background = try image.rgbPixel(pixelX: 60, pixelY: 330)
         XCTAssertTrue(background.isNear(DualCameraTestPattern.backgroundColor(for: .back)), "\(background)")
     }
 
@@ -71,8 +71,8 @@ final class DualCameraMockFixtureTests: XCTestCase {
         let back = try XCTUnwrap(source.latestFrame(for: .back)?.buffer)
         XCTAssertEqual(front.pixelSize, CGSize(width: 40, height: 30))
         XCTAssertEqual(back.pixelSize, CGSize(width: 30, height: 40))
-        XCTAssertTrue(try front.rgbPixel(x: 5, y: 5).isNear(.red))
-        XCTAssertTrue(try back.rgbPixel(x: 5, y: 5).isNear(.blue))
+        XCTAssertTrue(try front.rgbPixel(pixelX: 5, pixelY: 5).isNear(.red))
+        XCTAssertTrue(try back.rgbPixel(pixelX: 5, pixelY: 5).isNear(.blue))
     }
 
     func test_imageSourceAppliesImageOrientation() async throws {
@@ -86,8 +86,8 @@ final class DualCameraMockFixtureTests: XCTestCase {
 
         let front = try XCTUnwrap(source.latestFrame(for: .front)?.buffer)
         XCTAssertEqual(front.pixelSize, CGSize(width: 20, height: 40))
-        XCTAssertTrue(try front.rgbPixel(x: 10, y: 5).isNear(.red))
-        XCTAssertTrue(try front.rgbPixel(x: 10, y: 35).isNear(.blue))
+        XCTAssertTrue(try front.rgbPixel(pixelX: 10, pixelY: 5).isNear(.red))
+        XCTAssertTrue(try front.rgbPixel(pixelX: 10, pixelY: 35).isNear(.blue))
     }
 
     func test_frameProviderSourceReceivesCameraAndFrameIndex() async throws {
@@ -100,7 +100,8 @@ final class DualCameraMockFixtureTests: XCTestCase {
         try await source.startSession()
 
         XCTAssertEqual(calls, ["front-0", "back-0"])
-        XCTAssertTrue(try XCTUnwrap(source.latestFrame(for: .back)?.buffer).rgbPixel(x: 1, y: 1).isNear(.blue))
+        let back = try XCTUnwrap(source.latestFrame(for: .back)?.buffer)
+        XCTAssertTrue(try back.rgbPixel(pixelX: 1, pixelY: 1).isNear(.blue))
     }
 
     func test_frameProviderReturningNilSkipsThatCamera() async throws {
@@ -183,10 +184,10 @@ final class DualCameraMockFixtureTests: XCTestCase {
         for (cameraSource, originX) in [(DualCameraSource.back, 0), (.front, 300)] {
             for corner in DualCameraTestPattern.Corner.allCases {
                 let point = Self.outerSamplePoint(for: corner, in: frontSize)
-                let pixel = try image.rgbPixel(x: originX + point.x, y: point.y)
+                let pixel = try image.rgbPixel(pixelX: originX + point.x, pixelY: point.y)
                 XCTAssertTrue(pixel.isNear(corner.color), "\(cameraSource) \(corner) marker was \(pixel)")
             }
-            let background = try image.rgbPixel(x: originX + 60, y: 330)
+            let background = try image.rgbPixel(pixelX: originX + 60, pixelY: 330)
             XCTAssertTrue(
                 background.isNear(DualCameraTestPattern.backgroundColor(for: cameraSource)),
                 "\(cameraSource) background was \(background)"
@@ -204,9 +205,9 @@ final class DualCameraMockFixtureTests: XCTestCase {
             displayScale: 1
         )
 
-        let topLeftOfBackHalf = try image.rgbPixel(x: 5, y: 5)
+        let topLeftOfBackHalf = try image.rgbPixel(pixelX: 5, pixelY: 5)
         XCTAssertFalse(topLeftOfBackHalf.isNear(DualCameraTestPattern.Corner.topLeft.color), "\(topLeftOfBackHalf)")
-        let leftEdgeOfBackHalf = try image.rgbPixel(x: 5, y: 330)
+        let leftEdgeOfBackHalf = try image.rgbPixel(pixelX: 5, pixelY: 330)
         XCTAssertTrue(
             leftEdgeOfBackHalf.isNear(DualCameraTestPattern.backgroundColor(for: .back)),
             "\(leftEdgeOfBackHalf)"
@@ -239,7 +240,7 @@ final class DualCameraMockFixtureTests: XCTestCase {
         XCTAssertEqual(photos.front.cgImage?.height, 400)
         XCTAssertEqual(photos.back.cgImage?.width, 225)
         XCTAssertEqual(photos.back.cgImage?.height, 400)
-        XCTAssertTrue(try photos.back.rgbPixel(x: 5, y: 5).isNear(DualCameraTestPattern.Corner.topLeft.color))
+        XCTAssertTrue(try photos.back.rgbPixel(pixelX: 5, pixelY: 5).isNear(DualCameraTestPattern.Corner.topLeft.color))
     }
 
     // MARK: - Helpers
