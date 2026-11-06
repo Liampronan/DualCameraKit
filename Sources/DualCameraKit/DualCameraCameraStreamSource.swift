@@ -206,6 +206,16 @@ public final class DualCameraCameraStreamSource: NSObject, DualCameraCameraStrea
             session.addInput(backInput)
             backCameraInput = backInput
         }
+
+        // No preset or activeFormat is chosen here, so frame sizes are each device's default format, which
+        // varies by model. Log them so simulator fixtures (DualCameraTestPattern) can be matched to devices.
+        for (name, device) in [("front", frontCamera), ("back", backCamera)] {
+            let dimensions = CMVideoFormatDescriptionGetDimensions(device.activeFormat.formatDescription)
+            // Dimensions are in sensor (landscape) orientation; delivered frames are rotated to portrait.
+            DualCameraLogger.camera.info(
+                "\(name, privacy: .public) camera active format: \(dimensions.width)x\(dimensions.height)"
+            )
+        }
     }
 
     private func configureVideoOutputs() throws {
@@ -634,10 +644,21 @@ public final class DualCameraMockCameraStreamSource: DualCameraCameraStreamSourc
     private let diagnosticEventBroadcaster = DiagnosticEventBroadcaster()
     private let diagnosticsStore = DiagnosticsStore()
     private let animated: Bool
+    private let frameProvider: FrameProvider
     private var frameTask: Task<Void, Never>?
 
+    /// Produces the pixel buffer for one camera at one frame index (0 on start, then 1, 2, … when animated).
+    private typealias FrameProvider = @MainActor (DualCameraSource, Int) -> CVPixelBuffer?
+
+    /// Serves flat colour frames whose hue changes every 250 ms when `animated` is true.
     public init(animated: Bool = false) {
         self.animated = animated
+        self.frameProvider = Self.solidColorFrame(for:sequence:)
+    }
+
+    private init(animated: Bool, pixelBufferProvider: @escaping FrameProvider) {
+        self.animated = animated
+        self.frameProvider = pixelBufferProvider
     }
 
     public func startSession() async throws {
@@ -783,27 +804,16 @@ public final class DualCameraMockCameraStreamSource: DualCameraCameraStreamSourc
     }
 
     private func sendMockFrames(sequence: Int) {
-        let mockSize = CGSize(width: 360, height: 640)
         var frontFrame: PixelBufferWrapper?
         var backFrame: PixelBufferWrapper?
 
-        if let frontBuffer = mockPixelBuffer(
-            size: mockSize,
-            hue: CGFloat((sequence * 9) % 360) / 360,
-            saturation: 1,
-            brightness: 1
-        ) {
+        if let frontBuffer = frameProvider(.front, sequence) {
             let wrapper = PixelBufferWrapper(buffer: frontBuffer)
             frontFrame = wrapper
             frontBroadcaster.send(wrapper)
         }
 
-        if let backBuffer = mockPixelBuffer(
-            size: mockSize,
-            hue: CGFloat((280 + sequence * 7) % 360) / 360,
-            saturation: 1,
-            brightness: 0.58
-        ) {
+        if let backBuffer = frameProvider(.back, sequence) {
             let wrapper = PixelBufferWrapper(buffer: backBuffer)
             backFrame = wrapper
             backBroadcaster.send(wrapper)
@@ -814,7 +824,27 @@ public final class DualCameraMockCameraStreamSource: DualCameraCameraStreamSourc
         }
     }
 
-    private func mockPixelBuffer(
+    private static func solidColorFrame(for source: DualCameraSource, sequence: Int) -> CVPixelBuffer? {
+        let mockSize = CGSize(width: 360, height: 640)
+        switch source {
+        case .front:
+            return mockPixelBuffer(
+                size: mockSize,
+                hue: CGFloat((sequence * 9) % 360) / 360,
+                saturation: 1,
+                brightness: 1
+            )
+        case .back:
+            return mockPixelBuffer(
+                size: mockSize,
+                hue: CGFloat((280 + sequence * 7) % 360) / 360,
+                saturation: 1,
+                brightness: 0.58
+            )
+        }
+    }
+
+    private static func mockPixelBuffer(
         size: CGSize,
         hue: CGFloat,
         saturation: CGFloat,
@@ -877,6 +907,53 @@ public final class DualCameraMockCameraStreamSource: DualCameraCameraStreamSourc
     nonisolated public func recordDiagnosticEvent(_ event: DualCameraDiagnosticEvent) {
         diagnosticsStore.record(event)
         diagnosticEventBroadcaster.send(event)
+    }
+}
+
+// MARK: - Fixture frames
+
+@MainActor
+extension DualCameraMockCameraStreamSource {
+    /// Serves the same still image for each camera on every frame, so captures are deterministic.
+    ///
+    /// Frames have each image's pixel size (`size × scale`), so pass images whose aspect ratio matches the
+    /// device streams you want to stand in for. Images that are not `.up` are redrawn upright first.
+    public convenience init(front: UIImage, back: UIImage) {
+        let frontBuffer = front.uprightPixelBuffer()
+        let backBuffer = back.uprightPixelBuffer()
+        self.init(animated: false, pixelBufferProvider: { source, _ in
+            source == .front ? frontBuffer : backBuffer
+        })
+    }
+
+    /// Serves frames from `frameProvider`, which receives the camera and a frame index that starts at 0.
+    ///
+    /// With `animated` false the provider is called once per camera each time the session starts, which
+    /// suits still fixtures. With `animated` true it is also called every 250 ms with increasing indexes.
+    /// Returning nil skips that camera's frame.
+    public convenience init(
+        animated: Bool = false,
+        frameProvider: @escaping @MainActor (_ source: DualCameraSource, _ frameIndex: Int) -> UIImage?
+    ) {
+        self.init(animated: animated, pixelBufferProvider: { source, frameIndex in
+            frameProvider(source, frameIndex)?.uprightPixelBuffer()
+        })
+    }
+
+    /// Serves `DualCameraTestPattern` still frames: a grid, labelled corner markers, a centre crosshair and
+    /// a FRONT or BACK label. Useful for catching crop, offset and aspect-ratio bugs in the Simulator.
+    ///
+    /// - Parameters:
+    ///   - frontFrameSize: Pixel size of front camera frames. Defaults to portrait 3:4.
+    ///   - backFrameSize: Pixel size of back camera frames. Defaults to portrait 3:4.
+    public static func testPattern(
+        frontFrameSize: CGSize = DualCameraTestPattern.defaultFrameSize,
+        backFrameSize: CGSize = DualCameraTestPattern.defaultFrameSize
+    ) -> DualCameraMockCameraStreamSource {
+        DualCameraMockCameraStreamSource(
+            front: DualCameraTestPattern.image(for: .front, size: frontFrameSize),
+            back: DualCameraTestPattern.image(for: .back, size: backFrameSize)
+        )
     }
 }
 

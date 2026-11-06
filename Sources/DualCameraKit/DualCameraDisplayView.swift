@@ -156,3 +156,13 @@ private func previewController() -> DualCameraControlling {
         )
     }
 }
+
+#Preview("Test Pattern - PiP") {
+    let controller = DualCameraController(streamSource: DualCameraMockCameraStreamSource.testPattern())
+    PreviewSessionView(controller: controller) {
+        DualCameraDisplayView(
+            controller: controller,
+            layout: .piP(miniCamera: .front, miniCameraPosition: .bottomTrailing)
+        )
+    }
+}

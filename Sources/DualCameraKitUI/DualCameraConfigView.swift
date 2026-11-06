@@ -66,3 +66,11 @@ struct DualCameraConfigView: View {
         )
     )
 }
+
+#Preview("Test Pattern") {
+    DualCameraConfigView(
+        viewModel: DualCameraViewModel(
+            dualCameraController: DualCameraController(streamSource: DualCameraMockCameraStreamSource.testPattern())
+        )
+    )
+}
