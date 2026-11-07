@@ -13,6 +13,7 @@ public enum DualCameraDiagnosticEventKind: Equatable, Sendable {
     case controlUnsupported
     case controlAdjusted
     case controlFailed
+    case systemPressureElevated
 }
 
 /// Additional context for a runtime diagnostic event.
@@ -28,6 +29,7 @@ public enum DualCameraDiagnosticEventContext: Equatable, Sendable {
         requestedValueDescription: String,
         appliedValueDescription: String?
     )
+    case systemPressure(source: DualCameraSource, levelDescription: String)
 }
 
 /// A timestamped diagnostic event emitted by the camera pipeline.
@@ -62,8 +64,10 @@ public struct DualCameraDiagnostics: Equatable, Sendable {
     public let controlUnsupportedCount: Int
     public let controlAdjustmentCount: Int
     public let controlFailureCount: Int
+    public let systemPressureWarningCount: Int
     public let latestEvent: DualCameraDiagnosticEvent?
 
+    /// Creates a snapshot of capture-session diagnostic counters and the latest recorded event.
     public init(
         droppedFramePairCount: Int = 0,
         captureFallbackCount: Int = 0,
@@ -73,6 +77,7 @@ public struct DualCameraDiagnostics: Equatable, Sendable {
         controlUnsupportedCount: Int = 0,
         controlAdjustmentCount: Int = 0,
         controlFailureCount: Int = 0,
+        systemPressureWarningCount: Int = 0,
         latestEvent: DualCameraDiagnosticEvent? = nil
     ) {
         self.droppedFramePairCount = droppedFramePairCount
@@ -83,6 +88,7 @@ public struct DualCameraDiagnostics: Equatable, Sendable {
         self.controlUnsupportedCount = controlUnsupportedCount
         self.controlAdjustmentCount = controlAdjustmentCount
         self.controlFailureCount = controlFailureCount
+        self.systemPressureWarningCount = systemPressureWarningCount
         self.latestEvent = latestEvent
     }
 }
