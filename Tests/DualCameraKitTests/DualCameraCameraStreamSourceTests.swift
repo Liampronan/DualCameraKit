@@ -154,4 +154,55 @@ final class DualCameraCameraStreamSourceTests: XCTestCase {
         )
         XCTAssertEqual(source.diagnosticsSnapshot().systemPressureWarningCount, 5)
     }
+
+    func test_handleSystemPressureChange_ignoresStaleObservationGenerationAcrossStopAndRestart() async throws {
+        let runner = SessionLifecycleRunner(isRunning: { false }, startRunning: {}, stopRunning: {})
+        let source = DualCameraCameraStreamSource(sessionRunner: runner)
+        var iterator = source.diagnosticEvents().makeAsyncIterator()
+
+        try await source.startSession()
+        let firstGeneration = source.systemPressureObservationGeneration
+
+        source.handleSystemPressureChange(
+            level: .serious,
+            for: .front,
+            observationGeneration: firstGeneration
+        )
+        let firstEvent = await iterator.next()
+        XCTAssertEqual(firstEvent?.kind, .systemPressureElevated)
+        XCTAssertEqual(source.diagnosticsSnapshot().systemPressureWarningCount, 1)
+
+        // Stopping the session invalidates the active observation generation and resets deduplication state.
+        source.stopSession()
+        XCTAssertNotEqual(source.systemPressureObservationGeneration, firstGeneration)
+
+        // A queued callback from the stopped session's generation must be ignored.
+        source.handleSystemPressureChange(
+            level: .critical,
+            for: .front,
+            observationGeneration: firstGeneration
+        )
+        XCTAssertEqual(source.diagnosticsSnapshot().systemPressureWarningCount, 1)
+
+        // Restarting begins a fresh generation where the same .serious level emits again.
+        try await source.startSession()
+        let secondGeneration = source.systemPressureObservationGeneration
+        XCTAssertNotEqual(secondGeneration, firstGeneration)
+
+        source.handleSystemPressureChange(
+            level: .serious,
+            for: .front,
+            observationGeneration: secondGeneration
+        )
+        let restartedEvent = await iterator.next()
+        XCTAssertEqual(
+            restartedEvent?.context,
+            .systemPressure(
+                source: .front,
+                levelDescription: AVCaptureDevice.SystemPressureState.Level.serious.rawValue
+            )
+        )
+        XCTAssertEqual(source.diagnosticsSnapshot().systemPressureWarningCount, 2)
+        source.stopSession()
+    }
 }

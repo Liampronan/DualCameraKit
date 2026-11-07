@@ -67,6 +67,7 @@ public struct DualCameraDiagnostics: Equatable, Sendable {
     public let systemPressureWarningCount: Int
     public let latestEvent: DualCameraDiagnosticEvent?
 
+    /// Creates a snapshot of capture-session diagnostic counters and the latest recorded event.
     public init(
         droppedFramePairCount: Int = 0,
         captureFallbackCount: Int = 0,

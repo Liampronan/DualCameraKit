@@ -56,6 +56,7 @@ public final class DualCameraCameraStreamSource: NSObject, DualCameraCameraStrea
     private var outputSynchronizer: AVCaptureDataOutputSynchronizer?
     private var interruptionObserver: NSObjectProtocol?
     private var systemPressureObservers: [NSKeyValueObservation] = []
+    private(set) var systemPressureObservationGeneration: UInt64 = 0
     private var lastReportedSystemPressureLevel: [DualCameraSource: AVCaptureDevice.SystemPressureState.Level] = [:]
     private var isConfigured = false
     private let orientationProvider: DualCameraVideoOrientationProviding
@@ -174,6 +175,7 @@ public final class DualCameraCameraStreamSource: NSObject, DualCameraCameraStrea
             NotificationCenter.default.removeObserver(interruptionObserver)
             self.interruptionObserver = nil
         }
+        systemPressureObservationGeneration &+= 1
         systemPressureObservers.forEach { $0.invalidate() }
         systemPressureObservers.removeAll()
         lastReportedSystemPressureLevel.removeAll()
@@ -238,11 +240,13 @@ public final class DualCameraCameraStreamSource: NSObject, DualCameraCameraStrea
 
 // MARK: - Session Configuration & System Pressure
 extension DualCameraCameraStreamSource {
+    /// Configures the front and back camera inputs and video data outputs on the capture session.
     private func configureCameras() throws {
         try configureCameraInputs()
         try configureVideoOutputs()
     }
 
+    /// Adds front and back wide-angle camera inputs and selects budgeted multi-cam video formats.
     private func configureCameraInputs() throws {
         session.sessionPreset = .inputPriority
 
@@ -284,6 +288,7 @@ extension DualCameraCameraStreamSource {
         }
     }
 
+    /// Configures synchronized 32BGRA video outputs for the front and back cameras.
     private func configureVideoOutputs() throws {
         let frontOutput = AVCaptureVideoDataOutput()
         let backOutput = AVCaptureVideoDataOutput()
@@ -315,6 +320,7 @@ extension DualCameraCameraStreamSource {
         updateVideoRotationAngle(orientationProvider.currentVideoRotationAngle)
     }
 
+    /// Returns the configured `AVCaptureDevice` for `source`, or throws `.cameraUnavailable`.
     private func cameraDevice(for source: DualCameraSource) throws -> AVCaptureDevice {
         switch source {
         case .front:
@@ -347,6 +353,7 @@ extension DualCameraCameraStreamSource {
         }
     }
 
+    /// Registers session interruption and device system-pressure observers if not already active.
     private func observeSessionNotificationsIfNeeded() {
         if interruptionObserver == nil {
             interruptionObserver = NotificationCenter.default.addObserver(
@@ -367,10 +374,17 @@ extension DualCameraCameraStreamSource {
 
         observeSystemPressureIfNeeded()
     }
+
+    /// Evaluates a camera system-pressure transition and emits deduplicated `.systemPressureElevated` events.
     func handleSystemPressureChange(
         level: AVCaptureDevice.SystemPressureState.Level,
-        for source: DualCameraSource
+        for source: DualCameraSource,
+        observationGeneration: UInt64? = nil
     ) {
+        if let observationGeneration, observationGeneration != systemPressureObservationGeneration {
+            return
+        }
+
         switch level {
         case .serious, .critical, .shutdown:
             guard lastReportedSystemPressureLevel[source] != level else { return }
@@ -386,8 +400,11 @@ extension DualCameraCameraStreamSource {
         }
     }
 
+    /// Starts KVO observation of `systemPressureState` on configured front and back camera devices.
     private func observeSystemPressureIfNeeded() {
         guard systemPressureObservers.isEmpty else { return }
+        systemPressureObservationGeneration &+= 1
+        let generation = systemPressureObservationGeneration
 
         let cameraDevices: [(DualCameraSource, AVCaptureDevice?)] = [
             (.front, frontCameraInput?.device),
@@ -399,13 +416,18 @@ extension DualCameraCameraStreamSource {
             let observer = device.observe(\.systemPressureState, options: [.initial, .new]) { [weak self] observed, _ in
                 let level = observed.systemPressureState.level
                 Task { @MainActor [weak self] in
-                    self?.handleSystemPressureChange(level: level, for: source)
+                    self?.handleSystemPressureChange(
+                        level: level,
+                        for: source,
+                        observationGeneration: generation
+                    )
                 }
             }
             systemPressureObservers.append(observer)
         }
     }
 
+    /// Selects and applies a 30 fps multi-cam-supported video format near 1920px width when available.
     private func configureOptimalMultiCamFormat(
         for device: AVCaptureDevice,
         source: DualCameraSource
@@ -447,6 +469,7 @@ extension DualCameraCameraStreamSource {
         }
     }
 
+    /// Returns `true` when `lhs` is a better multi-cam format match than `rhs` for `targetWidth`.
     private func isPreferredMultiCamFormat(
         _ lhs: AVCaptureDevice.Format,
         over rhs: AVCaptureDevice.Format,
@@ -470,6 +493,7 @@ extension DualCameraCameraStreamSource {
         return lhsDims.height > rhsDims.height
     }
 
+    /// Returns `true` when `dimensions` has a standard 4:3 or 16:9 sensor aspect ratio.
     private func isStandardAspectRatio(_ dimensions: CMVideoDimensions) -> Bool {
         guard dimensions.width > 0, dimensions.height > 0 else { return false }
         let ratio = Double(dimensions.width) / Double(dimensions.height)
@@ -1174,6 +1198,7 @@ private final class DiagnosticsStore: @unchecked Sendable {
     private var systemPressureWarningCount = 0
     private var latestEvent: DualCameraDiagnosticEvent?
 
+    /// Returns a thread-safe snapshot of all accumulated diagnostic counters.
     var snapshot: DualCameraDiagnostics {
         lock.lock()
         defer { lock.unlock() }
@@ -1191,6 +1216,7 @@ private final class DiagnosticsStore: @unchecked Sendable {
         )
     }
 
+    /// Records a diagnostic event and increments the corresponding counter.
     func record(_ event: DualCameraDiagnosticEvent) {
         lock.lock()
         latestEvent = event
