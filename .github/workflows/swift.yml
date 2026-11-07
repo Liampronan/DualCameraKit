@@ -12,7 +12,7 @@ jobs:
     # use Linux for the SwiftLint action since this GH library requires it (so bot can post inline to PR)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: GitHub Action for SwiftLint
         uses: norio-nomura/action-swiftlint@3.2.1
@@ -22,7 +22,7 @@ jobs:
     runs-on: macos-26
     needs: swiftlint
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7
 
     - name: Select latest stable Xcode
       uses: maxim-lobanov/setup-xcode@v1
