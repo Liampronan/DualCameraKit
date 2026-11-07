@@ -3,14 +3,15 @@ import UIKit
 
 @MainActor
 public protocol DualCameraPhotoCapturing: AnyObject, Sendable {
+    /// Converts raw front and back pixel buffers into `UIImage` instances.
     func captureRawPhotos(
         frontBuffer: CVPixelBuffer,
         backBuffer: CVPixelBuffer,
         displayScale: CGFloat
     ) async throws -> (front: UIImage, back: UIImage)
 
-    // swiftlint:disable:next function_parameter_count
-    func captureComposedPhoto(
+    /// Composites front and back pixel buffers into a single image matching `layout` and `overlayInsets`.
+    func captureComposedPhoto( // swiftlint:disable:this function_parameter_count
         frontBuffer: CVPixelBuffer,
         backBuffer: CVPixelBuffer,
         layout: DualCameraLayout,
@@ -22,6 +23,7 @@ public protocol DualCameraPhotoCapturing: AnyObject, Sendable {
 }
 
 public extension DualCameraPhotoCapturing {
+    /// Converts raw front and back pixel buffers into `UIImage` instances at scale `1`.
     func captureRawPhotos(
         frontBuffer: CVPixelBuffer,
         backBuffer: CVPixelBuffer
@@ -29,6 +31,7 @@ public extension DualCameraPhotoCapturing {
         try await captureRawPhotos(frontBuffer: frontBuffer, backBuffer: backBuffer, displayScale: 1)
     }
 
+    /// Composites front and back pixel buffers for `layout` and `outputSize` using `.aspectFill` at scale `1`.
     func captureComposedPhoto(
         frontBuffer: CVPixelBuffer,
         backBuffer: CVPixelBuffer,
@@ -46,6 +49,7 @@ public extension DualCameraPhotoCapturing {
         )
     }
 
+    /// Composites front and back pixel buffers for `layout`, `outputSize`, and `displayScale` using `.aspectFill`.
     func captureComposedPhoto(
         frontBuffer: CVPixelBuffer,
         backBuffer: CVPixelBuffer,
@@ -64,8 +68,8 @@ public extension DualCameraPhotoCapturing {
         )
     }
 
-    // swiftlint:disable:next function_parameter_count
-    func captureComposedPhoto(
+    /// Composites front and back pixel buffers for `layout`, `outputSize`, `displayScale`, and `contentMode`.
+    func captureComposedPhoto( // swiftlint:disable:this function_parameter_count
         frontBuffer: CVPixelBuffer,
         backBuffer: CVPixelBuffer,
         layout: DualCameraLayout,
@@ -90,10 +94,12 @@ public class DualCameraPhotoCapturer: DualCameraPhotoCapturing {
     /// Creating a `CIContext` is expensive, so one context is shared by every capture.
     private let ciContext = CIContext()
 
+    /// Creates a photo capturer using the given layout resolver.
     public init(layoutResolver: DualCameraLayoutResolver = DualCameraLayoutResolver()) {
         self.layoutResolver = layoutResolver
     }
 
+    /// Converts raw front and back pixel buffers into `UIImage` instances.
     public func captureRawPhotos(
         frontBuffer: CVPixelBuffer,
         backBuffer: CVPixelBuffer,
@@ -105,8 +111,8 @@ public class DualCameraPhotoCapturer: DualCameraPhotoCapturing {
         )
     }
 
-    // swiftlint:disable:next function_parameter_count
-    public func captureComposedPhoto(
+    /// Composites front and back pixel buffers into a single image matching `layout` and `overlayInsets`.
+    public func captureComposedPhoto( // swiftlint:disable:this function_parameter_count
         frontBuffer: CVPixelBuffer,
         backBuffer: CVPixelBuffer,
         layout: DualCameraLayout,

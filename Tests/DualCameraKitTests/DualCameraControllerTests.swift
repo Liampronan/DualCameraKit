@@ -1,10 +1,11 @@
-// swiftlint:disable file_length type_body_length
+// swiftlint:disable file_length
 import AVFoundation
 @testable import DualCameraKit
 import SwiftUI
 import XCTest
 
 @MainActor
+// swiftlint:disable:next type_body_length
 final class DualCameraControllerTests: XCTestCase {
     func test_captureRawPhotosUsesSynchronizedFramePair() async throws {
         let streamSource = SpyCameraStreamSource()
@@ -325,6 +326,84 @@ final class DualCameraControllerTests: XCTestCase {
         XCTAssertEqual(streamSource.stopCount, 1)
     }
 
+    func test_sessionLifecycleRunnerPropagatesStopDuringInFlightStart() async {
+        let driver = BlockingSessionDriver()
+        let runner = driver.makeRunner()
+
+        let startTask = Task {
+            try await runner.startRunningIfNeeded()
+        }
+
+        await driver.waitForStartEntered()
+        runner.stopRunningIfNeeded()
+        driver.allowStartToFinish()
+
+        do {
+            try await startTask.value
+            XCTFail("Expected startRunningIfNeeded to throw CancellationError")
+        } catch is CancellationError {
+            // Expected cancellation when stopped during startup.
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+
+        XCTAssertEqual(driver.startCallCount, 1)
+        XCTAssertEqual(driver.stopCallCount, 1)
+        XCTAssertFalse(driver.isRunning)
+    }
+
+    func test_stoppedInFlightStartDoesNotRegisterObserversOrBlockAnotherStreamSource() async throws {
+        let firstDriver = BlockingSessionDriver()
+        let firstOrientationProvider = SpyVideoOrientationProvider()
+        let firstSource = DualCameraCameraStreamSource(
+            orientationProvider: firstOrientationProvider,
+            sessionRunner: firstDriver.makeRunner()
+        )
+        let sleeper = ManualSessionStopSleeper()
+        let firstController = DualCameraController(
+            streamSource: firstSource,
+            sessionStopDelay: .milliseconds(20),
+            sessionStopSleeper: { duration in
+                await sleeper.sleep(for: duration)
+            }
+        )
+
+        let startTask = Task {
+            try await firstController.startSession()
+        }
+
+        await firstDriver.waitForStartEntered()
+        firstController.stopSession()
+        await sleeper.waitForSleepRequests(1)
+        sleeper.finishNextSleep()
+        await Task.yield()
+        firstDriver.allowStartToFinish()
+
+        do {
+            try await startTask.value
+            XCTFail("Expected in-flight startSession to throw CancellationError after delayed stop")
+        } catch is CancellationError {
+            // Expected cancellation when delayed stop runs during hardware startup.
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+
+        XCTAssertEqual(firstOrientationProvider.startObservingCallCount, 0)
+        XCTAssertFalse(firstDriver.isRunning)
+
+        let secondDriver = BlockingSessionDriver(blocksOnStart: false)
+        let secondOrientationProvider = SpyVideoOrientationProvider()
+        let secondSource = DualCameraCameraStreamSource(
+            orientationProvider: secondOrientationProvider,
+            sessionRunner: secondDriver.makeRunner()
+        )
+        defer { secondSource.stopSession() }
+
+        try await secondSource.startSession()
+        XCTAssertEqual(secondOrientationProvider.startObservingCallCount, 1)
+        XCTAssertTrue(secondDriver.isRunning)
+    }
+
     private func makePixelBuffer(color: UIColor) throws -> CVPixelBuffer {
         guard let buffer = color.asImage(CGSize(width: 4, height: 4)).pixelBuffer() else {
             throw DualCameraError.captureFailure(.imageCreationFailed)
@@ -516,5 +595,102 @@ private final class SpyCameraStreamSource: DualCameraCameraStreamSourcing {
         let readyWaiters = stopWaiters.filter { stopCount >= $0.count }
         stopWaiters.removeAll { stopCount >= $0.count }
         readyWaiters.forEach { $0.continuation.resume() }
+    }
+}
+
+@MainActor
+private final class SpyVideoOrientationProvider: DualCameraVideoOrientationProviding {
+    var currentVideoRotationAngle: CGFloat = 90
+    private(set) var startObservingCallCount = 0
+    private(set) var stopObservingCallCount = 0
+
+    func startObserving(_ onChange: @escaping @MainActor @Sendable (CGFloat) -> Void) {
+        startObservingCallCount += 1
+        onChange(currentVideoRotationAngle)
+    }
+
+    func stopObserving() {
+        stopObservingCallCount += 1
+    }
+}
+
+private final class BlockingSessionDriver: @unchecked Sendable {
+    private let lock = NSLock()
+    private let startEnteredSemaphore = DispatchSemaphore(value: 0)
+    private let allowStartToFinishSemaphore = DispatchSemaphore(value: 0)
+    private let blocksOnStart: Bool
+    private var running = false
+    private var startCallCountStorage = 0
+    private var stopCallCountStorage = 0
+
+    init(blocksOnStart: Bool = true) {
+        self.blocksOnStart = blocksOnStart
+    }
+
+    var isRunning: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return running
+    }
+
+    var startCallCount: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return startCallCountStorage
+    }
+
+    var stopCallCount: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return stopCallCountStorage
+    }
+
+    func makeRunner() -> SessionLifecycleRunner {
+        SessionLifecycleRunner(
+            isRunning: { [weak self] in
+                self?.isRunning ?? false
+            },
+            startRunning: { [weak self] in
+                self?.handleStartRunning()
+            },
+            stopRunning: { [weak self] in
+                self?.handleStopRunning()
+            }
+        )
+    }
+
+    func waitForStartEntered() async {
+        await withCheckedContinuation { continuation in
+            DispatchQueue.global().async { [startEnteredSemaphore] in
+                startEnteredSemaphore.wait()
+                continuation.resume()
+            }
+        }
+    }
+
+    func allowStartToFinish() {
+        allowStartToFinishSemaphore.signal()
+    }
+
+    private func handleStartRunning() {
+        lock.lock()
+        startCallCountStorage += 1
+        lock.unlock()
+
+        startEnteredSemaphore.signal()
+        if blocksOnStart {
+            allowStartToFinishSemaphore.wait()
+        }
+
+        lock.lock()
+        running = true
+        lock.unlock()
+    }
+
+    private func handleStopRunning() {
+        lock.lock()
+        stopCallCountStorage += 1
+        running = false
+        lock.unlock()
     }
 }

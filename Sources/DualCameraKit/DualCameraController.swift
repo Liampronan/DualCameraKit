@@ -12,13 +12,16 @@ public protocol DualCameraControlling {
     func stopSession()
 
     func captureRawPhotos(displayScale: CGFloat) async throws -> (front: UIImage, back: UIImage)
+    /// Captures a composed photo for the given layout, output size, and display scale.
     func capturePhoto(layout: DualCameraLayout, outputSize: CGSize, displayScale: CGFloat) async throws -> UIImage
+    /// Captures a composed photo with an explicit content mode.
     func capturePhoto(
         layout: DualCameraLayout,
         outputSize: CGSize,
         displayScale: CGFloat,
         contentMode: DualCameraContentMode
     ) async throws -> UIImage
+    /// Captures a composed photo with an explicit content mode and safe-area/overlay insets.
     func capturePhoto(
         layout: DualCameraLayout,
         outputSize: CGSize,
@@ -47,14 +50,17 @@ public protocol DualCameraControlling {
 }
 
 public extension DualCameraControlling {
+    /// Captures the latest front and back camera frames at scale `1`.
     func captureRawPhotos() async throws -> (front: UIImage, back: UIImage) {
         try await captureRawPhotos(displayScale: 1)
     }
 
+    /// Captures a composed photo for `layout` and `outputSize` at scale `1`.
     func capturePhoto(layout: DualCameraLayout, outputSize: CGSize) async throws -> UIImage {
         try await capturePhoto(layout: layout, outputSize: outputSize, displayScale: 1)
     }
 
+    /// Captures a composed photo for `layout`, `outputSize`, and `overlayInsets` using `.aspectFill` at scale `1`.
     func capturePhoto(
         layout: DualCameraLayout,
         outputSize: CGSize,
@@ -69,6 +75,7 @@ public extension DualCameraControlling {
         )
     }
 
+    /// Captures a composed photo for `layout`, `outputSize`, and `contentMode` at scale `1`.
     func capturePhoto(
         layout: DualCameraLayout,
         outputSize: CGSize,
@@ -83,6 +90,7 @@ public extension DualCameraControlling {
         )
     }
 
+    /// Captures a composed photo for `layout`, `outputSize`, `contentMode`, and `overlayInsets` at scale `1`.
     func capturePhoto(
         layout: DualCameraLayout,
         outputSize: CGSize,
@@ -98,6 +106,7 @@ public extension DualCameraControlling {
         )
     }
 
+    /// Captures a composed photo for `layout`, `outputSize`, and `displayScale` using `.aspectFill`.
     func capturePhoto(layout: DualCameraLayout, outputSize: CGSize, displayScale: CGFloat) async throws -> UIImage {
         try await capturePhoto(
             layout: layout,
@@ -108,6 +117,7 @@ public extension DualCameraControlling {
         )
     }
 
+    /// Captures a composed photo for `layout`, `outputSize`, `displayScale`, and `contentMode` with zero insets.
     func capturePhoto(
         layout: DualCameraLayout,
         outputSize: CGSize,
@@ -142,6 +152,7 @@ public final class DualCameraController: DualCameraControlling {
     private var diagnosticEventTask: Task<Void, Never>?
     private var sessionUseCount = 0
     private var isSessionStarted = false
+    private var stopGeneration: UInt64 = 0
     private var startSessionTask: Task<Void, Error>?
     private var scheduledStopTask: Task<Void, Never>?
 
@@ -185,14 +196,18 @@ public final class DualCameraController: DualCameraControlling {
         startDiagnosticEventForwardingIfNeeded()
     }
 
+    /// Starts the dual-camera session or retains an active session across overlapping consumers.
     public func startSession() async throws {
         cancelScheduledStop()
         sessionUseCount += 1
+        let stopGenerationAtStart = stopGeneration
 
         do {
-            try await ensureSessionStarted()
+            try await ensureSessionStarted(expectedStopGeneration: stopGenerationAtStart)
         } catch {
-            sessionUseCount = max(0, sessionUseCount - 1)
+            if stopGeneration == stopGenerationAtStart {
+                sessionUseCount = max(0, sessionUseCount - 1)
+            }
             throw error
         }
 
@@ -200,6 +215,7 @@ public final class DualCameraController: DualCameraControlling {
         _ = getRenderer(for: .back)
     }
 
+    /// Releases one active consumer and schedules session teardown once no consumers remain.
     public func stopSession() {
         guard sessionUseCount > 0 else {
             stopSessionIfUnused()
@@ -233,6 +249,7 @@ public final class DualCameraController: DualCameraControlling {
         scheduledStopTask = nil
         guard sessionUseCount == 0 else { return }
 
+        stopGeneration &+= 1
         streamSource.stopSession()
         isSessionStarted = false
         // If the only user disappears before the initial start finishes,
@@ -299,6 +316,7 @@ public final class DualCameraController: DualCameraControlling {
         )
     }
 
+    /// Captures and composites the latest front and back camera frames using `layout` and `overlayInsets`.
     public func capturePhoto(
         layout: DualCameraLayout,
         outputSize: CGSize,
@@ -361,13 +379,16 @@ public final class DualCameraController: DualCameraControlling {
         }
     }
 
-    private func ensureSessionStarted() async throws {
+    private func ensureSessionStarted(expectedStopGeneration: UInt64) async throws {
         if isSessionStarted {
             return
         }
 
         if let startSessionTask {
             try await startSessionTask.value
+            guard stopGeneration == expectedStopGeneration, isSessionStarted else {
+                throw CancellationError()
+            }
             return
         }
 
@@ -378,10 +399,15 @@ public final class DualCameraController: DualCameraControlling {
 
         do {
             try await task.value
+            guard stopGeneration == expectedStopGeneration else {
+                throw CancellationError()
+            }
             isSessionStarted = true
             startSessionTask = nil
         } catch {
-            startSessionTask = nil
+            if stopGeneration == expectedStopGeneration {
+                startSessionTask = nil
+            }
             throw error
         }
     }

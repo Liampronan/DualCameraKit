@@ -34,6 +34,13 @@ struct Uniforms {
     let scale: SIMD2<Float>
 }
 
+/// Retains a Core Video Metal texture wrapper alongside its `MTLTexture` across caching and GPU execution.
+private struct CachedMetalTexture: @unchecked Sendable {
+    let bufferID: ObjectIdentifier
+    let cvTexture: CVMetalTexture
+    let metalTexture: MTLTexture
+}
+
 /// Metal-accelerated camera renderer.
 public final class MetalCameraRenderer: MTKView, CameraRenderer, MTKViewDelegate {
 
@@ -41,8 +48,9 @@ public final class MetalCameraRenderer: MTKView, CameraRenderer, MTKViewDelegate
     private var commandQueue: MTLCommandQueue?
     private var textureCache: CVMetalTextureCache?
     private var renderPipelineState: MTLRenderPipelineState?
-    private var cachedTexture: (bufferID: ObjectIdentifier, texture: MTLTexture)?
+    private var cachedTexture: CachedMetalTexture?
     private let latestFrameStore = LatestPixelBufferStore()
+    /// Controls how camera frames are scaled within the renderer view bounds.
     public var cameraContentMode: DualCameraContentMode = .aspectFill {
         didSet {
             guard cameraContentMode != oldValue else { return }
@@ -167,8 +175,10 @@ public final class MetalCameraRenderer: MTKView, CameraRenderer, MTKViewDelegate
 
 // MARK: - CameraRenderer Protocol Methods
 extension MetalCameraRenderer {
+    /// Backing UIKit view for this renderer.
     public var view: UIView { self }
 
+    /// Stores the newest camera frame and schedules an on-demand redraw on the main actor.
     public nonisolated func update(with frame: PixelBufferWrapper) {
         let shouldScheduleRedraw = latestFrameStore.store(frame)
         guard shouldScheduleRedraw else { return }
@@ -178,6 +188,7 @@ extension MetalCameraRenderer {
         }
     }
 
+    /// Marks the pending redraw request as consumed and marks the view dirty.
     private func consumePendingRedraw() {
         latestFrameStore.markRedrawConsumed()
         setNeedsDisplay()
@@ -188,10 +199,12 @@ extension MetalCameraRenderer {
 
 extension MetalCameraRenderer {
 
+    /// Requests a redraw when the drawable size changes.
     public func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {
         setNeedsDisplay()
     }
 
+    /// Encodes and commits a Metal render pass for the latest camera frame.
     public func draw(in view: MTKView) {
         guard let drawable = currentDrawable,
               let commandBuffer = commandQueue?.makeCommandBuffer(),
@@ -203,7 +216,8 @@ extension MetalCameraRenderer {
 
         commandEncoder.setRenderPipelineState(pipelineState)
 
-        if let texture = makeTexture(fromLatestFrame: latestFrameStore.latestValue) {
+        if let frameTexture = makeTexture(fromLatestFrame: latestFrameStore.latestValue) {
+            let texture = frameTexture.metalTexture
             let scale = calculateScale(for: texture, in: view.drawableSize, contentMode: cameraContentMode)
             var uniforms = Uniforms(scale: scale)
             commandEncoder.setVertexBytes(&uniforms,
@@ -213,6 +227,9 @@ extension MetalCameraRenderer {
             commandEncoder.drawPrimitives(type: .triangleStrip,
                                           vertexStart: 0,
                                           vertexCount: 4)
+            commandBuffer.addCompletedHandler { _ in
+                withExtendedLifetime(frameTexture.cvTexture) {}
+            }
         }
 
         commandEncoder.endEncoding()
@@ -220,7 +237,8 @@ extension MetalCameraRenderer {
         commandBuffer.commit()
     }
 
-    private func makeTexture(fromLatestFrame frame: PixelBufferWrapper?) -> MTLTexture? {
+    /// Creates or returns a cached Metal texture and its backing `CVMetalTexture` wrapper for the given frame.
+    private func makeTexture(fromLatestFrame frame: PixelBufferWrapper?) -> CachedMetalTexture? {
         guard let textureCache = self.textureCache else {
             DualCameraLogger.errors.error("No texture cache available")
             return nil
@@ -231,7 +249,7 @@ extension MetalCameraRenderer {
         let buffer = frame.buffer
         let bufferID = ObjectIdentifier(buffer)
         if let cachedTexture, cachedTexture.bufferID == bufferID {
-            return cachedTexture.texture
+            return cachedTexture
         }
 
         let width = CVPixelBufferGetWidth(buffer)
@@ -257,10 +275,16 @@ extension MetalCameraRenderer {
             return nil
         }
 
-        cachedTexture = (bufferID: bufferID, texture: metalTexture)
-        return metalTexture
+        let cachedTexture = CachedMetalTexture(
+            bufferID: bufferID,
+            cvTexture: textureRef,
+            metalTexture: metalTexture
+        )
+        self.cachedTexture = cachedTexture
+        return cachedTexture
     }
 
+    /// Computes the vertex scale factors for rendering `texture` in `drawableSize`.
     private func calculateScale(
         for texture: MTLTexture,
         in drawableSize: CGSize,
@@ -289,12 +313,14 @@ private final class LatestPixelBufferStore: @unchecked Sendable {
         return shouldSchedule
     }
 
+    /// Clears the pending redraw flag before a scheduled draw occurs.
     func markRedrawConsumed() {
         lock.lock()
         hasPendingRedraw = false
         lock.unlock()
     }
 
+    /// Returns the most recently stored pixel buffer wrapper.
     var latestValue: PixelBufferWrapper? {
         lock.lock()
         defer { lock.unlock() }

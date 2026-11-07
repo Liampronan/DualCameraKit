@@ -152,6 +152,8 @@ public final class DualCameraViewModel {
                 viewState = .loading
                 try await controller.startSession()
                 viewState = .ready
+            } catch is CancellationError {
+                return
             } catch let error as DualCameraError {
                 viewState = .error(error)
                 showError(error, message: "Failed to start camera")
