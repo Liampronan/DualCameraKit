@@ -43,6 +43,7 @@ final class DualCameraPhotoCapturerTests: XCTestCase {
             outputSize: CGSize(width: 20, height: 10)
         )
 
+        XCTAssertTrue(try image.isPixelNear(pixelX: 8, pixelY: 5, to: .blue))
         XCTAssertTrue(try image.isPixelNear(pixelX: 15, pixelY: 1, to: .red))
         XCTAssertTrue(try image.isPixelNear(pixelX: 15, pixelY: 8, to: .red))
     }

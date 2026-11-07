@@ -139,6 +139,8 @@ public class DualCameraPhotoCapturer: DualCameraPhotoCapturing {
         if cornerRadius > 0 {
             let clipPath = UIBezierPath(roundedRect: targetRect, cornerRadius: cornerRadius)
             clipPath.addClip()
+        } else {
+            context?.clip(to: targetRect)
         }
 
         image.draw(in: contentRect(for: image.size, in: targetRect, contentMode: contentMode))
