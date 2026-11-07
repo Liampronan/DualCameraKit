@@ -998,12 +998,21 @@ extension DualCameraMockCameraStreamSource {
     /// - Parameters:
     ///   - frontFrameSize: Pixel size of front camera frames. Defaults to portrait 3:4.
     ///   - backFrameSize: Pixel size of back camera frames. Defaults to portrait 3:4.
+    ///   - mirrorsFrontCamera: Whether to horizontally mirror the front camera test pattern. Defaults to `false`.
     public static func testPattern(
         frontFrameSize: CGSize = DualCameraTestPattern.defaultFrameSize,
-        backFrameSize: CGSize = DualCameraTestPattern.defaultFrameSize
+        backFrameSize: CGSize = DualCameraTestPattern.defaultFrameSize,
+        mirrorsFrontCamera: Bool = false
     ) -> DualCameraMockCameraStreamSource {
-        DualCameraMockCameraStreamSource(
-            front: DualCameraTestPattern.image(for: .front, size: frontFrameSize),
+        let baseFront = DualCameraTestPattern.image(for: .front, size: frontFrameSize)
+        let frontImage: UIImage
+        if mirrorsFrontCamera, let cgImage = baseFront.cgImage {
+            frontImage = UIImage(cgImage: cgImage, scale: baseFront.scale, orientation: .upMirrored)
+        } else {
+            frontImage = baseFront
+        }
+        return DualCameraMockCameraStreamSource(
+            front: frontImage,
             back: DualCameraTestPattern.image(for: .back, size: backFrameSize)
         )
     }

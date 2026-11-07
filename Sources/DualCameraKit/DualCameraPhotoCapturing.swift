@@ -178,6 +178,9 @@ public class DualCameraPhotoCapturer: DualCameraPhotoCapturing {
             context?.clip(to: targetRect)
         }
 
+        UIColor.black.setFill()
+        context?.fill(targetRect)
+
         image.draw(in: contentRect(for: image.size, in: targetRect, contentMode: contentMode))
     }
 

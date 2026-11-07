@@ -2,3 +2,8 @@ excluded:
   - .build
   - DerivedData
   - .swiftpm
+
+opt_in_rules:
+  - force_unwrapping
+  - weak_delegate
+  - overridden_super_call

@@ -69,16 +69,4 @@ final class CameraRendererFallbackView: UIView {
             iconView.widthAnchor.constraint(equalToConstant: ViewMetrics.iconSize)
         ])
     }
-
-    // MARK: - Configuration
-
-    /// Updates the message displayed in the fallback view
-    func updateMessage(_ message: String) {
-        messageLabel.text = message
-    }
-
-    /// Updates the icon displayed in the fallback view
-    func updateIcon(systemName: String) {
-        iconView.image = UIImage(systemName: systemName)
-    }
 }
