@@ -55,6 +55,8 @@ public final class DualCameraCameraStreamSource: NSObject, DualCameraCameraStrea
     private var backCameraOutput: AVCaptureVideoDataOutput?
     private var outputSynchronizer: AVCaptureDataOutputSynchronizer?
     private var interruptionObserver: NSObjectProtocol?
+    private var systemPressureObservers: [NSKeyValueObservation] = []
+    private var lastReportedSystemPressureLevel: [DualCameraSource: AVCaptureDevice.SystemPressureState.Level] = [:]
     private var isConfigured = false
     private let orientationProvider: DualCameraVideoOrientationProviding
     /// Whether the front camera video connection is horizontally mirrored.
@@ -172,6 +174,9 @@ public final class DualCameraCameraStreamSource: NSObject, DualCameraCameraStrea
             NotificationCenter.default.removeObserver(interruptionObserver)
             self.interruptionObserver = nil
         }
+        systemPressureObservers.forEach { $0.invalidate() }
+        systemPressureObservers.removeAll()
+        lastReportedSystemPressureLevel.removeAll()
     }
 
     /// Creates an explicit subscription to a camera stream.
@@ -210,6 +215,11 @@ public final class DualCameraCameraStreamSource: NSObject, DualCameraCameraStrea
         diagnosticsStore.snapshot
     }
 
+    nonisolated public func recordDiagnosticEvent(_ event: DualCameraDiagnosticEvent) {
+        diagnosticsStore.record(event)
+        diagnosticEventBroadcaster.send(event)
+    }
+
     // MARK: - Private Methods
 
     /// Requests video capture permission if not already determined.
@@ -224,13 +234,18 @@ public final class DualCameraCameraStreamSource: NSObject, DualCameraCameraStrea
         }
         return false
     }
+}
 
+// MARK: - Session Configuration & System Pressure
+extension DualCameraCameraStreamSource {
     private func configureCameras() throws {
         try configureCameraInputs()
         try configureVideoOutputs()
     }
 
     private func configureCameraInputs() throws {
+        session.sessionPreset = .inputPriority
+
         guard let frontCamera = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .front) else {
             throw DualCameraError.cameraUnavailable(position: .front)
         }
@@ -252,13 +267,19 @@ public final class DualCameraCameraStreamSource: NSObject, DualCameraCameraStrea
             backCameraInput = backInput
         }
 
-        // No preset or activeFormat is chosen here, so frame sizes are each device's default format, which
-        // varies by model. Log them so simulator fixtures (DualCameraTestPattern) can be matched to devices.
+        try configureOptimalMultiCamFormat(for: frontCamera, source: .front)
+        try configureOptimalMultiCamFormat(for: backCamera, source: .back)
+
         for (name, device) in [("front", frontCamera), ("back", backCamera)] {
             let dimensions = CMVideoFormatDescriptionGetDimensions(device.activeFormat.formatDescription)
+            let hardwareCost = session.hardwareCost
+            let pressureCost = session.systemPressureCost
             // Dimensions are in sensor (landscape) orientation; delivered frames are rotated to portrait.
             DualCameraLogger.camera.info(
-                "\(name, privacy: .public) camera active format: \(dimensions.width)x\(dimensions.height)"
+                """
+                \(name, privacy: .public) camera active format: \(dimensions.width)x\(dimensions.height) \
+                (hardwareCost: \(hardwareCost), systemPressureCost: \(pressureCost))
+                """
             )
         }
     }
@@ -309,11 +330,6 @@ public final class DualCameraCameraStreamSource: NSObject, DualCameraCameraStrea
         }
     }
 
-    nonisolated public func recordDiagnosticEvent(_ event: DualCameraDiagnosticEvent) {
-        diagnosticsStore.record(event)
-        diagnosticEventBroadcaster.send(event)
-    }
-
     /// Applies the current video rotation angle and front-camera mirroring setting to active connections.
     private func updateVideoRotationAngle(_ angle: CGFloat) {
         for output in [frontCameraOutput, backCameraOutput] {
@@ -332,22 +348,132 @@ public final class DualCameraCameraStreamSource: NSObject, DualCameraCameraStrea
     }
 
     private func observeSessionNotificationsIfNeeded() {
-        guard interruptionObserver == nil else { return }
+        if interruptionObserver == nil {
+            interruptionObserver = NotificationCenter.default.addObserver(
+                forName: AVCaptureSession.wasInterruptedNotification,
+                object: session,
+                queue: .main
+            ) { [weak self] notification in
+                let rawReason = notification.userInfo?[AVCaptureSessionInterruptionReasonKey] as? Int
+                let reason = rawReason.flatMap(AVCaptureSession.InterruptionReason.init(rawValue:))
+                self?.recordDiagnosticEvent(
+                    DualCameraDiagnosticEvent(
+                        kind: .sessionInterrupted,
+                        context: .sessionInterruption(reason: reason)
+                    )
+                )
+            }
+        }
 
-        interruptionObserver = NotificationCenter.default.addObserver(
-            forName: AVCaptureSession.wasInterruptedNotification,
-            object: session,
-            queue: .main
-        ) { [weak self] notification in
-            let rawReason = notification.userInfo?[AVCaptureSessionInterruptionReasonKey] as? Int
-            let reason = rawReason.flatMap(AVCaptureSession.InterruptionReason.init(rawValue:))
-            self?.recordDiagnosticEvent(
+        observeSystemPressureIfNeeded()
+    }
+    func handleSystemPressureChange(
+        level: AVCaptureDevice.SystemPressureState.Level,
+        for source: DualCameraSource
+    ) {
+        switch level {
+        case .serious, .critical, .shutdown:
+            guard lastReportedSystemPressureLevel[source] != level else { return }
+            lastReportedSystemPressureLevel[source] = level
+            recordDiagnosticEvent(
                 DualCameraDiagnosticEvent(
-                    kind: .sessionInterrupted,
-                    context: .sessionInterruption(reason: reason)
+                    kind: .systemPressureElevated,
+                    context: .systemPressure(source: source, levelDescription: level.rawValue)
                 )
             )
+        default:
+            lastReportedSystemPressureLevel.removeValue(forKey: source)
         }
+    }
+
+    private func observeSystemPressureIfNeeded() {
+        guard systemPressureObservers.isEmpty else { return }
+
+        let cameraDevices: [(DualCameraSource, AVCaptureDevice?)] = [
+            (.front, frontCameraInput?.device),
+            (.back, backCameraInput?.device)
+        ]
+
+        for (source, device) in cameraDevices {
+            guard let device else { continue }
+            let observer = device.observe(\.systemPressureState, options: [.initial, .new]) { [weak self] observed, _ in
+                let level = observed.systemPressureState.level
+                Task { @MainActor [weak self] in
+                    self?.handleSystemPressureChange(level: level, for: source)
+                }
+            }
+            systemPressureObservers.append(observer)
+        }
+    }
+
+    private func configureOptimalMultiCamFormat(
+        for device: AVCaptureDevice,
+        source: DualCameraSource
+    ) throws {
+        let targetFrameRate = 30.0
+        let targetWidth = 1920
+
+        let candidates = device.formats.filter { format in
+            guard format.isMultiCamSupported,
+                  CMFormatDescriptionGetMediaType(format.formatDescription) == kCMMediaType_Video else {
+                return false
+            }
+            return format.videoSupportedFrameRateRanges.contains { range in
+                range.minFrameRate <= targetFrameRate && targetFrameRate <= range.maxFrameRate
+            }
+        }
+
+        guard let chosenFormat = candidates.min(by: { lhs, rhs in
+            isPreferredMultiCamFormat(lhs, over: rhs, targetWidth: targetWidth)
+        }) else {
+            return
+        }
+
+        let frameDuration = CMTime(value: 1, timescale: 30)
+        do {
+            try configureDevice(device) {
+                device.activeFormat = chosenFormat
+                device.activeVideoMinFrameDuration = frameDuration
+                device.activeVideoMaxFrameDuration = frameDuration
+            }
+        } catch {
+            recordDiagnosticEvent(
+                DualCameraDiagnosticEvent(
+                    kind: .configurationFailed,
+                    context: .configurationFailure(source: source, errorDescription: error.localizedDescription)
+                )
+            )
+            throw error
+        }
+    }
+
+    private func isPreferredMultiCamFormat(
+        _ lhs: AVCaptureDevice.Format,
+        over rhs: AVCaptureDevice.Format,
+        targetWidth: Int
+    ) -> Bool {
+        let lhsDims = CMVideoFormatDescriptionGetDimensions(lhs.formatDescription)
+        let rhsDims = CMVideoFormatDescriptionGetDimensions(rhs.formatDescription)
+        let lhsStandard = isStandardAspectRatio(lhsDims)
+        let rhsStandard = isStandardAspectRatio(rhsDims)
+
+        if lhsStandard != rhsStandard {
+            return lhsStandard
+        }
+
+        let lhsDistance = abs(Int(lhsDims.width) - targetWidth)
+        let rhsDistance = abs(Int(rhsDims.width) - targetWidth)
+        if lhsDistance != rhsDistance {
+            return lhsDistance < rhsDistance
+        }
+
+        return lhsDims.height > rhsDims.height
+    }
+
+    private func isStandardAspectRatio(_ dimensions: CMVideoDimensions) -> Bool {
+        guard dimensions.width > 0, dimensions.height > 0 else { return false }
+        let ratio = Double(dimensions.width) / Double(dimensions.height)
+        return abs(ratio - (4.0 / 3.0)) < 0.02 || abs(ratio - (16.0 / 9.0)) < 0.02
     }
 }
 
@@ -1045,6 +1171,7 @@ private final class DiagnosticsStore: @unchecked Sendable {
     private var controlUnsupportedCount = 0
     private var controlAdjustmentCount = 0
     private var controlFailureCount = 0
+    private var systemPressureWarningCount = 0
     private var latestEvent: DualCameraDiagnosticEvent?
 
     var snapshot: DualCameraDiagnostics {
@@ -1059,6 +1186,7 @@ private final class DiagnosticsStore: @unchecked Sendable {
             controlUnsupportedCount: controlUnsupportedCount,
             controlAdjustmentCount: controlAdjustmentCount,
             controlFailureCount: controlFailureCount,
+            systemPressureWarningCount: systemPressureWarningCount,
             latestEvent: latestEvent
         )
     }
@@ -1084,6 +1212,8 @@ private final class DiagnosticsStore: @unchecked Sendable {
             controlAdjustmentCount += 1
         case .controlFailed:
             controlFailureCount += 1
+        case .systemPressureElevated:
+            systemPressureWarningCount += 1
         }
         lock.unlock()
     }

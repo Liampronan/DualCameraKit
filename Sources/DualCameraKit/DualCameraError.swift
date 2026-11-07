@@ -6,18 +6,22 @@ public enum DualCameraError: LocalizedError, Equatable {
     case configurationFailed
     case multiCamNotSupported
     case multipleInstancesNotSupported
+    @available(*, deprecated, message: "Unused in DualCameraKit v0.5+")
     case notImplemented
     case permissionDenied
     case sessionInterrupted(reason: AVCaptureSession.InterruptionReason)
     case unknownError
 
-    public enum CaptureFailureReason: Sendable {
+    public enum CaptureFailureReason: Sendable, Equatable {
+        @available(*, deprecated, message: "Unused in DualCameraKit v0.5+")
         case commandBufferCreationFailed
         case contextCreationFailed
         case imageCreationFailed
         case memoryAllocationFailed
         case noFrameAvailable
+        @available(*, deprecated, message: "Unused in DualCameraKit v0.5+")
         case noPrimaryRenderer
+        @available(*, deprecated, message: "Unused in DualCameraKit v0.5+")
         case screenCaptureUnavailable
         case textureCreationFailed
         case unknownDimensions
