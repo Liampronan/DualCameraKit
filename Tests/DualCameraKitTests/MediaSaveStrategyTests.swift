@@ -34,4 +34,22 @@ final class MediaSaveStrategyTests: XCTestCase {
         await XCTAssertThrowsError(ofType: MediaLibraryError.self, try await strategy.save(UIImage()))
     }
 
+    func test_photoSetSaveStrategy_photoLibraryUsesServiceSavePhotoSet() async throws {
+        let photoSetBox = TestBox<DualCameraCapturedPhotoSet>()
+        let expectedSet = DualCameraCapturedPhotoSet(
+            composed: UIImage(),
+            frontRaw: UIImage(),
+            backRaw: UIImage()
+        )
+        let service = MediaLibraryService.test(savePhotoSet: { photoSet in
+            await photoSetBox.set(photoSet)
+        })
+
+        let strategy = DualCameraPhotoSetSaveStrategy.photoLibrary(service: service)
+        try await strategy.save(expectedSet)
+
+        let savedSet = await photoSetBox.get()
+        XCTAssertEqual(savedSet, expectedSet)
+    }
+
 }

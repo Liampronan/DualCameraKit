@@ -30,6 +30,15 @@ public protocol DualCameraControlling {
         overlayInsets: EdgeInsets
     ) async throws -> UIImage
 
+    /// Captures raw front/back images and a composed photo from a single synchronized frame pair.
+    func capturePhotoSet(
+        layout: DualCameraLayout,
+        outputSize: CGSize,
+        displayScale: CGFloat,
+        contentMode: DualCameraContentMode,
+        overlayInsets: EdgeInsets
+    ) async throws -> DualCameraCapturedPhotoSet
+
     func cameraCapabilities(for source: DualCameraSource) throws -> DualCameraCameraCapabilities
     @discardableResult
     func applyTorchMode(_ mode: AVCaptureDevice.TorchMode, for source: DualCameraSource) throws
@@ -130,6 +139,129 @@ public extension DualCameraControlling {
             displayScale: displayScale,
             contentMode: contentMode,
             overlayInsets: EdgeInsets()
+        )
+    }
+
+    /// Captures a composed photo for `layout`, `outputSize`, `displayScale`, and `overlayInsets` using `.aspectFill`.
+    func capturePhoto(
+        layout: DualCameraLayout,
+        outputSize: CGSize,
+        displayScale: CGFloat,
+        overlayInsets: EdgeInsets
+    ) async throws -> UIImage {
+        try await capturePhoto(
+            layout: layout,
+            outputSize: outputSize,
+            displayScale: displayScale,
+            contentMode: .aspectFill,
+            overlayInsets: overlayInsets
+        )
+    }
+
+    /// Captures a photo set for `layout` and `outputSize` at scale `1` using `.aspectFill`.
+    func capturePhotoSet(
+        layout: DualCameraLayout,
+        outputSize: CGSize
+    ) async throws -> DualCameraCapturedPhotoSet {
+        try await capturePhotoSet(
+            layout: layout,
+            outputSize: outputSize,
+            displayScale: 1,
+            contentMode: .aspectFill,
+            overlayInsets: EdgeInsets()
+        )
+    }
+
+    /// Captures a photo set for `layout`, `outputSize`, and `overlayInsets` using `.aspectFill` at scale `1`.
+    func capturePhotoSet(
+        layout: DualCameraLayout,
+        outputSize: CGSize,
+        overlayInsets: EdgeInsets
+    ) async throws -> DualCameraCapturedPhotoSet {
+        try await capturePhotoSet(
+            layout: layout,
+            outputSize: outputSize,
+            displayScale: 1,
+            contentMode: .aspectFill,
+            overlayInsets: overlayInsets
+        )
+    }
+
+    /// Captures a photo set for `layout`, `outputSize`, and `contentMode` at scale `1`.
+    func capturePhotoSet(
+        layout: DualCameraLayout,
+        outputSize: CGSize,
+        contentMode: DualCameraContentMode
+    ) async throws -> DualCameraCapturedPhotoSet {
+        try await capturePhotoSet(
+            layout: layout,
+            outputSize: outputSize,
+            displayScale: 1,
+            contentMode: contentMode,
+            overlayInsets: EdgeInsets()
+        )
+    }
+
+    /// Captures a photo set for `layout`, `outputSize`, `contentMode`, and `overlayInsets` at scale `1`.
+    func capturePhotoSet(
+        layout: DualCameraLayout,
+        outputSize: CGSize,
+        contentMode: DualCameraContentMode,
+        overlayInsets: EdgeInsets
+    ) async throws -> DualCameraCapturedPhotoSet {
+        try await capturePhotoSet(
+            layout: layout,
+            outputSize: outputSize,
+            displayScale: 1,
+            contentMode: contentMode,
+            overlayInsets: overlayInsets
+        )
+    }
+
+    /// Captures a photo set for `layout`, `outputSize`, and `displayScale` using `.aspectFill`.
+    func capturePhotoSet(
+        layout: DualCameraLayout,
+        outputSize: CGSize,
+        displayScale: CGFloat
+    ) async throws -> DualCameraCapturedPhotoSet {
+        try await capturePhotoSet(
+            layout: layout,
+            outputSize: outputSize,
+            displayScale: displayScale,
+            contentMode: .aspectFill,
+            overlayInsets: EdgeInsets()
+        )
+    }
+
+    /// Captures a photo set for `layout`, `outputSize`, `displayScale`, and `contentMode` with zero insets.
+    func capturePhotoSet(
+        layout: DualCameraLayout,
+        outputSize: CGSize,
+        displayScale: CGFloat,
+        contentMode: DualCameraContentMode
+    ) async throws -> DualCameraCapturedPhotoSet {
+        try await capturePhotoSet(
+            layout: layout,
+            outputSize: outputSize,
+            displayScale: displayScale,
+            contentMode: contentMode,
+            overlayInsets: EdgeInsets()
+        )
+    }
+
+    /// Captures a photo set for `layout`, `outputSize`, `displayScale`, and `overlayInsets` using `.aspectFill`.
+    func capturePhotoSet(
+        layout: DualCameraLayout,
+        outputSize: CGSize,
+        displayScale: CGFloat,
+        overlayInsets: EdgeInsets
+    ) async throws -> DualCameraCapturedPhotoSet {
+        try await capturePhotoSet(
+            layout: layout,
+            outputSize: outputSize,
+            displayScale: displayScale,
+            contentMode: .aspectFill,
+            overlayInsets: overlayInsets
         )
     }
 }
@@ -324,8 +456,25 @@ public final class DualCameraController: DualCameraControlling {
         contentMode: DualCameraContentMode,
         overlayInsets: EdgeInsets = EdgeInsets()
     ) async throws -> UIImage {
+        try await capturePhotoSet(
+            layout: layout,
+            outputSize: outputSize,
+            displayScale: displayScale,
+            contentMode: contentMode,
+            overlayInsets: overlayInsets
+        ).composed
+    }
+
+    /// Captures raw front/back images and composites the latest front and back camera frames from a single frame pair.
+    public func capturePhotoSet(
+        layout: DualCameraLayout,
+        outputSize: CGSize,
+        displayScale: CGFloat,
+        contentMode: DualCameraContentMode,
+        overlayInsets: EdgeInsets = EdgeInsets()
+    ) async throws -> DualCameraCapturedPhotoSet {
         let buffers = try latestFramePair()
-        return try await photoCapturer.captureComposedPhoto(
+        return try await photoCapturer.capturePhotoSet(
             frontBuffer: buffers.front.buffer,
             backBuffer: buffers.back.buffer,
             layout: layout,

@@ -1,18 +1,38 @@
 import DualCameraKit
 import SwiftUI
 
+/// Configuration sheet for selecting the dual-camera layout and photo output mode.
 struct DualCameraConfigView: View {
     @Bindable private var viewModel: DualCameraViewModel
 
+    /// Creates a configuration sheet bound to the given view model.
     init(viewModel: DualCameraViewModel) {
         self.viewModel = viewModel
     }
 
     var body: some View {
-        VStack {
+        VStack(spacing: 16) {
             layoutTypePicker
+            photoOutputPicker
         }
         .sheetStyle(title: "Config")
+    }
+
+    /// Picker allowing the user to select whether only the composed photo or both composed and raw photos are saved.
+    private var photoOutputPicker: some View {
+        Picker(
+            "Photo Output",
+            selection: Binding(
+                get: { viewModel.photoOutputMode },
+                set: { viewModel.updatePhotoOutputMode($0) }
+            )
+        ) {
+            ForEach(DualCameraPhotoOutputMode.allCases) { mode in
+                Text(mode.title).tag(mode)
+            }
+        }
+        .pickerStyle(.segmented)
+        .padding(.horizontal)
     }
 
     @ViewBuilder

@@ -28,6 +28,7 @@ public struct DualCameraScreen: View {
                 controller: viewModel.controller,
                 layout: viewModel.cameraLayout,
                 contentMode: viewModel.contentMode,
+                overlayInsets: viewModel.overlayInsets,
                 onDisplaySizeChange: { newSize in
                     cameraDisplaySize = newSize
                     viewModel.containerSizeChanged(newSize)
