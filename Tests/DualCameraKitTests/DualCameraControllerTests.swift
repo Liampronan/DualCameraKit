@@ -1,3 +1,4 @@
+// swiftlint:disable file_length
 import AVFoundation
 @testable import DualCameraKit
 import XCTest

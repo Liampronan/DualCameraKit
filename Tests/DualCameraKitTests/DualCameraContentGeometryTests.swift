@@ -48,6 +48,30 @@ final class DualCameraContentGeometryTests: XCTestCase {
     }
 
     func test_previewAndComposedCaptureGeometrySnapshot() {
+        let actual = buildGeometrySnapshotLines().joined(separator: "\n")
+        let expected = [
+            "sideBySide aspectFill back frame=(0.000,0.000,160.000,240.000) " +
+                "capture=(0.000,-22.222,160.000,284.444) previewScale=(1.000,1.185)",
+            "sideBySide aspectFill front frame=(160.000,0.000,160.000,240.000) " +
+                "capture=(26.667,0.000,426.667,240.000) previewScale=(2.667,1.000)",
+            "sideBySide aspectFit back frame=(0.000,0.000,160.000,240.000) " +
+                "capture=(12.500,0.000,135.000,240.000) previewScale=(0.844,1.000)",
+            "sideBySide aspectFit front frame=(160.000,0.000,160.000,240.000) " +
+                "capture=(160.000,75.000,160.000,90.000) previewScale=(1.000,0.375)",
+            "stackedVertical aspectFill back frame=(0.000,0.000,320.000,120.000) " +
+                "capture=(0.000,-224.444,320.000,568.889) previewScale=(1.000,4.741)",
+            "stackedVertical aspectFill front frame=(0.000,120.000,320.000,120.000) " +
+                "capture=(0.000,90.000,320.000,180.000) previewScale=(1.000,1.500)",
+            "stackedVertical aspectFit back frame=(0.000,0.000,320.000,120.000) " +
+                "capture=(126.250,0.000,67.500,120.000) previewScale=(0.211,1.000)",
+            "stackedVertical aspectFit front frame=(0.000,120.000,320.000,120.000) " +
+                "capture=(53.333,120.000,213.333,120.000) previewScale=(0.667,1.000)"
+        ].joined(separator: "\n")
+
+        XCTAssertEqual(actual, expected)
+    }
+
+    private func buildGeometrySnapshotLines() -> [String] {
         let resolver = DualCameraLayoutResolver()
         let sourceSizes: [DualCameraSource: CGSize] = [
             .front: CGSize(width: 160, height: 90),
@@ -62,7 +86,7 @@ final class DualCameraContentGeometryTests: XCTestCase {
             ("aspectFit", .aspectFit)
         ]
 
-        let actual = layouts.flatMap { layoutCase in
+        return layouts.flatMap { layoutCase in
             let resolvedLayout = resolver.resolve(layout: layoutCase.layout, in: CGSize(width: 320, height: 240))
 
             return contentModes.flatMap { contentMode in
@@ -90,21 +114,6 @@ final class DualCameraContentGeometryTests: XCTestCase {
                 }
             }
         }
-        .joined(separator: "\n")
-
-        XCTAssertEqual(
-            actual,
-            """
-            sideBySide aspectFill back frame=(0.000,0.000,160.000,240.000) capture=(0.000,-22.222,160.000,284.444) previewScale=(1.000,1.185)
-            sideBySide aspectFill front frame=(160.000,0.000,160.000,240.000) capture=(26.667,0.000,426.667,240.000) previewScale=(2.667,1.000)
-            sideBySide aspectFit back frame=(0.000,0.000,160.000,240.000) capture=(12.500,0.000,135.000,240.000) previewScale=(0.844,1.000)
-            sideBySide aspectFit front frame=(160.000,0.000,160.000,240.000) capture=(160.000,75.000,160.000,90.000) previewScale=(1.000,0.375)
-            stackedVertical aspectFill back frame=(0.000,0.000,320.000,120.000) capture=(0.000,-224.444,320.000,568.889) previewScale=(1.000,4.741)
-            stackedVertical aspectFill front frame=(0.000,120.000,320.000,120.000) capture=(0.000,90.000,320.000,180.000) previewScale=(1.000,1.500)
-            stackedVertical aspectFit back frame=(0.000,0.000,320.000,120.000) capture=(126.250,0.000,67.500,120.000) previewScale=(0.211,1.000)
-            stackedVertical aspectFit front frame=(0.000,120.000,320.000,120.000) capture=(53.333,120.000,213.333,120.000) previewScale=(0.667,1.000)
-            """
-        )
     }
 
     private func format(_ rect: CGRect) -> String {
