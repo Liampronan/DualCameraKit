@@ -1,0 +1,66 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+language: "en-US"
+early_access: false
+
+reviews:
+  profile: "chill"
+  request_changes_workflow: false
+  high_level_summary: true
+  poem: false
+  review_status: true
+  collapse_walkthrough: false
+
+  auto_review:
+    enabled: true
+    auto_incremental_review: true
+    drafts: false
+    base_branches:
+      - "main"
+
+  path_filters:
+    - "!.build/**"
+    - "!DerivedData/**"
+    - "!.swiftpm/**"
+    - "!**/*.xcresult/**"
+    - "!DocumentationAssets/**"
+
+  path_instructions:
+    - path: "Sources/DualCameraKit/**/*.swift"
+      instructions: |
+        Review with a focus on:
+        1. Swift 6 strict concurrency compliance (`Sendable` conformances, `@MainActor` boundaries, actor isolation, and avoiding data races across capture/render queues).
+        2. `AVCaptureMultiCamSession` lifecycle and dispatch queue safety (session configuration inside `beginConfiguration()`/`commitConfiguration()`, non-blocking main thread, and proper teardown).
+        3. `CVPixelBuffer`, `CVMetalTextureCache`, Metal (`MTLTexture`, `MTLCommandBuffer`), and CoreImage (`CIContext`) memory management and buffer pool reuse without retaining pixel buffers across frame drops.
+        4. Layout and geometry parity: ensure any changes to frame composition, aspect ratios, insets, or mirroring maintain strict parity between live preview (`DualCameraDisplayView` / `CameraRenderer`) and captured still photos (`DualCameraPhotoCapturing`) via `DualCameraLayoutResolver` and `DualCameraContentGeometry`.
+    - path: "Sources/DualCameraKit/**/*.metal"
+      instructions: |
+        Review Metal shaders for:
+        1. Coordinate space and normalized UV correctness (especially vertical flip and front-camera horizontal mirroring).
+        2. Aspect-ratio math and bounds checking to prevent out-of-bounds texture sampling or distortion.
+        3. Threadgroup sizing and half/float precision efficiency on Apple GPUs.
+    - path: "Sources/DualCameraKitUI/**/*.swift"
+      instructions: |
+        Review SwiftUI components and view models for:
+        1. `@Observable` and `@MainActor` state management correctness (`DualCameraViewModel`, `CameraViewState`, `AlertState`).
+        2. Avoiding unnecessary view body recomputations during high-frequency camera events.
+        3. Accessibility labels, dynamic type / layout resilience, and clean separation between UI state and `DualCameraKit` core APIs.
+    - path: "Tests/**/*.swift"
+      instructions: |
+        Review unit and integration tests for:
+        1. Deterministic testing using `DualCameraTestPattern` and `DualCameraMockCameraStreamSource` without hardware camera dependencies.
+        2. Async/concurrency test safety (proper fulfillment of expectations, `TestBox` thread safety, and no flaky `Task.sleep` timing assumptions).
+        3. Accurate pixel-sampling assertions (`PixelSampling`) when verifying layout composition, mirroring, or color quadratures.
+
+  tools:
+    swiftlint:
+      enabled: true
+      config_file: ".swiftlint.yml"
+    actionlint:
+      enabled: true
+    yamllint:
+      enabled: true
+    markdownlint:
+      enabled: true
+
+chat:
+  auto_reply: true
