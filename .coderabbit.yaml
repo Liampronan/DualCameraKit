@@ -23,9 +23,8 @@ reviews:
     - "!.swiftpm/**"
     - "!**/*.xcresult/**"
     - "!DocumentationAssets/**"
-    - "!**/*.xcodeproj/**"
-    - "!**/*.xcworkspace/**"
-    - "!**/*.xcassets/**"
+    - "!**/*.xcuserdatad/**"
+    - "!**/*.xcworkspace/xcuserdata/**"
 
   path_instructions:
     - path: "Sources/DualCameraKit/**/*.swift"
@@ -80,7 +79,7 @@ knowledge_base:
     scope: "auto"
   code_guidelines:
     enabled: true
-    file_patterns:
+    filePatterns:
       - "README.md"
       - "Package.swift"
 
