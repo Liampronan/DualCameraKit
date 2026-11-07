@@ -1,8 +1,8 @@
 # DualCameraKit
 
 [![iOS CI](https://github.com/Liampronan/DualCameraKit/actions/workflows/swift.yml/badge.svg)](https://github.com/Liampronan/DualCameraKit/actions/workflows/swift.yml)
-[![Swift 6.0](https://img.shields.io/badge/Swift-6.0-F05138?logo=swift&logoColor=white)](https://swiftpackageindex.com/Liampronan/DualCameraKit)
-[![Platforms iOS 17+](https://img.shields.io/badge/Platforms-iOS_17%2B-blue?logo=apple&logoColor=white)](https://swiftpackageindex.com/Liampronan/DualCameraKit)
+[![Swift 6.0](https://img.shields.io/badge/Swift-6.0-F05138?logo=swift&logoColor=white)](https://github.com/Liampronan/DualCameraKit/blob/main/Package.swift)
+[![Platforms iOS 17+](https://img.shields.io/badge/Platforms-iOS_17%2B-blue?logo=apple&logoColor=white)](https://github.com/Liampronan/DualCameraKit/blob/main/Package.swift)
 ![SPM Compatible](https://img.shields.io/badge/SPM-Compatible-brightgreen)
 ![Status](https://img.shields.io/badge/status-v0.5_photo_first-yellow)
 ![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)

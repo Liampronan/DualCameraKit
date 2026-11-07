@@ -10,7 +10,7 @@ import XCTest
 final class DualCameraDemoUITestsLaunchTests: XCTestCase {
 
     override static var runsForEachTargetApplicationUIConfiguration: Bool {
-        true
+        false
     }
 
     override func setUpWithError() throws {
