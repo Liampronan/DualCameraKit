@@ -91,6 +91,47 @@ final class DualCameraPhotoCapturerTests: XCTestCase {
         XCTAssertTrue(try image.isPixelNear(pixelX: 50, pixelY: 150, to: .red))
     }
 
+    func test_capturePhotoSetReturnsComposedAndBothRawImages() async throws {
+        let capturer = DualCameraPhotoCapturer()
+        let front = try makePixelBuffer(color: .red, size: CGSize(width: 20, height: 10))
+        let back = try makePixelBuffer(color: .blue, size: CGSize(width: 20, height: 10))
+
+        let photoSet = try await capturer.capturePhotoSet(
+            frontBuffer: front,
+            backBuffer: back,
+            layout: .sideBySide,
+            outputSize: CGSize(width: 20, height: 10),
+            displayScale: 2,
+            contentMode: .aspectFill
+        )
+
+        XCTAssertEqual(photoSet.composed.scale, 2)
+        XCTAssertEqual(photoSet.frontRaw.scale, 2)
+        XCTAssertEqual(photoSet.backRaw.scale, 2)
+        XCTAssertTrue(try photoSet.frontRaw.isPixelNear(pixelX: 5, pixelY: 5, to: .red))
+        XCTAssertTrue(try photoSet.backRaw.isPixelNear(pixelX: 5, pixelY: 5, to: .blue))
+        XCTAssertTrue(try photoSet.composed.isPixelNear(pixelX: 5, pixelY: 5, to: .blue))
+        XCTAssertTrue(try photoSet.composed.isPixelNear(pixelX: 15, pixelY: 5, to: .red))
+    }
+
+    func test_capturePhotoSetThrowsUnknownDimensionsForZeroSize() async throws {
+        let capturer = DualCameraPhotoCapturer()
+        let front = try makePixelBuffer(color: .red)
+        let back = try makePixelBuffer(color: .blue)
+
+        do {
+            _ = try await capturer.capturePhotoSet(
+                frontBuffer: front,
+                backBuffer: back,
+                layout: .sideBySide,
+                outputSize: .zero
+            )
+            XCTFail("Expected capturePhotoSet to throw")
+        } catch {
+            XCTAssertEqual(error as? DualCameraError, .captureFailure(.unknownDimensions))
+        }
+    }
+
     private func makePixelBuffer(color: UIColor) throws -> CVPixelBuffer {
         try makePixelBuffer(color: color, size: CGSize(width: 10, height: 10))
     }

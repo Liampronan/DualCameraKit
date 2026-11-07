@@ -33,7 +33,10 @@ struct CompositionalExample: View {
                 VStack(spacing: 0) {
                     compositionControls
                     Spacer()
-                    captureButton(outputSize: cameraDisplaySize)
+                    captureButton(
+                        outputSize: cameraDisplaySize,
+                        overlayInsets: cameraOverlayInsets(for: proxy)
+                    )
                 }
                 .padding(.horizontal, 16)
                 .padding(.top, controlsTopPadding(for: proxy))
@@ -123,14 +126,15 @@ struct CompositionalExample: View {
         .pickerStyle(.segmented)
     }
 
-    private func captureButton(outputSize: CGSize) -> some View {
+    private func captureButton(outputSize: CGSize, overlayInsets: EdgeInsets) -> some View {
         Button {
             Task {
                 do {
                     capturedImage = try await controller.capturePhoto(
                         layout: layout,
                         outputSize: outputSize,
-                        displayScale: displayScale
+                        displayScale: displayScale,
+                        overlayInsets: overlayInsets
                     )
                 } catch {
                     alertMessage = error.localizedDescription

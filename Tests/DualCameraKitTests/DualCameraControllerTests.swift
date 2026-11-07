@@ -191,6 +191,46 @@ final class DualCameraControllerTests: XCTestCase {
         XCTAssertEqual(photoCapturer.composedOverlayInsets, insets)
     }
 
+    func test_capturePhotoSetUsesSingleFramePairAndForwardsParameters() async throws {
+        let streamSource = SpyCameraStreamSource()
+        let expectedFront = try makePixelBuffer(color: .red)
+        let expectedBack = try makePixelBuffer(color: .blue)
+        streamSource.frames = [
+            .front: PixelBufferWrapper(
+                buffer: expectedFront,
+                presentationTimestamp: CMTime(seconds: 5, preferredTimescale: 600)
+            ),
+            .back: PixelBufferWrapper(
+                buffer: expectedBack,
+                presentationTimestamp: CMTime(seconds: 5.02, preferredTimescale: 600)
+            )
+        ]
+        let photoCapturer = RecordingPhotoCapturer()
+        let controller = DualCameraController(
+            photoCapturer: photoCapturer,
+            streamSource: streamSource
+        )
+        let insets = EdgeInsets(top: 50, leading: 10, bottom: 30, trailing: 10)
+
+        let photoSet = try await controller.capturePhotoSet(
+            layout: .piP(miniCamera: .front, miniCameraPosition: .bottomLeading),
+            outputSize: CGSize(width: 320, height: 640),
+            displayScale: 3,
+            contentMode: .aspectFit,
+            overlayInsets: insets
+        )
+
+        XCTAssertTrue(photoCapturer.photoSetFrontBuffer === expectedFront)
+        XCTAssertTrue(photoCapturer.photoSetBackBuffer === expectedBack)
+        XCTAssertEqual(photoCapturer.photoSetDisplayScale, 3)
+        XCTAssertEqual(photoCapturer.photoSetContentMode, .aspectFit)
+        XCTAssertEqual(photoCapturer.photoSetOverlayInsets, insets)
+        XCTAssertEqual(streamSource.recordedEvents.count, 1)
+        XCTAssertTrue(photoSet.composed === photoCapturer.mockPhotoSet.composed)
+        XCTAssertTrue(photoSet.frontRaw === photoCapturer.mockPhotoSet.frontRaw)
+        XCTAssertTrue(photoSet.backRaw === photoCapturer.mockPhotoSet.backRaw)
+    }
+
     func test_streamSourceDefaultsToMirroringFrontCamera() {
         let defaultSource = DualCameraCameraStreamSource()
         XCTAssertTrue(defaultSource.mirrorsFrontCamera)
@@ -418,6 +458,16 @@ private final class RecordingPhotoCapturer: DualCameraPhotoCapturing {
     var rawBackBuffer: CVPixelBuffer?
     var composedContentMode: DualCameraContentMode?
     var composedOverlayInsets: EdgeInsets?
+    var photoSetFrontBuffer: CVPixelBuffer?
+    var photoSetBackBuffer: CVPixelBuffer?
+    var photoSetDisplayScale: CGFloat?
+    var photoSetContentMode: DualCameraContentMode?
+    var photoSetOverlayInsets: EdgeInsets?
+    let mockPhotoSet = DualCameraCapturedPhotoSet(
+        composed: UIImage(),
+        frontRaw: UIImage(),
+        backRaw: UIImage()
+    )
 
     func captureRawPhotos(
         frontBuffer: CVPixelBuffer,
@@ -442,6 +492,24 @@ private final class RecordingPhotoCapturer: DualCameraPhotoCapturing {
         composedContentMode = contentMode
         composedOverlayInsets = overlayInsets
         return UIImage()
+    }
+
+    // swiftlint:disable:next function_parameter_count
+    func capturePhotoSet(
+        frontBuffer: CVPixelBuffer,
+        backBuffer: CVPixelBuffer,
+        layout: DualCameraLayout,
+        outputSize: CGSize,
+        displayScale: CGFloat,
+        contentMode: DualCameraContentMode,
+        overlayInsets: EdgeInsets
+    ) async throws -> DualCameraCapturedPhotoSet {
+        photoSetFrontBuffer = frontBuffer
+        photoSetBackBuffer = backBuffer
+        photoSetDisplayScale = displayScale
+        photoSetContentMode = contentMode
+        photoSetOverlayInsets = overlayInsets
+        return mockPhotoSet
     }
 }
 

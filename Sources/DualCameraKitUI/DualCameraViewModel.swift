@@ -32,10 +32,12 @@ public final class DualCameraViewModel {
     public var isCameraViewStateCapturing: Bool { viewState.captureInProgress }
     var cameraLayout: DualCameraLayout
     var contentMode: DualCameraContentMode
+    public private(set) var overlayInsets: EdgeInsets
     var containerSize: CGSize = .zero
     var displayScale: CGFloat = 1
 
     public private(set) var capturedPhoto: UIImage?
+    public private(set) var capturedPhotoSet: DualCameraCapturedPhotoSet?
     var alert: AlertState?
 
     enum SheetType: String, Identifiable {
@@ -48,6 +50,8 @@ public final class DualCameraViewModel {
     var isSettingsButtonVisible: Bool
 
     private let photoSaveStrategy: DualCameraPhotoSaveStrategy
+    private let photoSetSaveStrategy: DualCameraPhotoSetSaveStrategy?
+    private let openSettings: @MainActor () -> Void
 
     private(set) var flashMode: CameraFlashMode = .off
     var showCameraFlashButton: Bool
@@ -56,17 +60,27 @@ public final class DualCameraViewModel {
         dualCameraController: DualCameraControlling? = nil,
         layout: DualCameraLayout = .piP(miniCamera: .front, miniCameraPosition: .bottomTrailing),
         contentMode: DualCameraContentMode = .aspectFill,
+        overlayInsets: EdgeInsets = EdgeInsets(),
         photoSaveStrategy: DualCameraPhotoSaveStrategy = .custom { _ in },
+        photoSetSaveStrategy: DualCameraPhotoSetSaveStrategy? = nil,
         showSettingsButton: Bool = false,
         showCameraFlashButton: Bool = true,
-        dependencies: DualCameraDependencies = .live()
+        dependencies: DualCameraDependencies = .live(),
+        openSettings: @escaping @MainActor () -> Void = {
+            if let url = URL(string: UIApplication.openSettingsURLString) {
+                UIApplication.shared.open(url)
+            }
+        }
     ) {
         self.controller = dualCameraController ?? dependencies.dualCameraController
         self.cameraLayout = layout
         self.contentMode = contentMode
+        self.overlayInsets = overlayInsets
         self.photoSaveStrategy = photoSaveStrategy
+        self.photoSetSaveStrategy = photoSetSaveStrategy
         self.isSettingsButtonVisible = showSettingsButton
         self.showCameraFlashButton = showCameraFlashButton
+        self.openSettings = openSettings
     }
 
     public func onAppear(containerSize: CGSize, displayScale: CGFloat = 1) {
@@ -101,6 +115,10 @@ public final class DualCameraViewModel {
         containerSize = newSize
     }
 
+    public func updateOverlayInsets(_ newInsets: EdgeInsets) {
+        overlayInsets = newInsets
+    }
+
     func updateLayout(_ newLayout: DualCameraLayout) {
         cameraLayout = newLayout
     }
@@ -123,24 +141,26 @@ public final class DualCameraViewModel {
         viewState = .capturing
 
         do {
-            let image = try await controller.capturePhoto(
+            let photoSet = try await controller.capturePhotoSet(
                 layout: cameraLayout,
                 outputSize: containerSize,
                 displayScale: displayScale,
-                contentMode: contentMode
+                contentMode: contentMode,
+                overlayInsets: overlayInsets
             )
 
-            capturedPhoto = image
-            try await photoSaveStrategy.save(image)
+            capturedPhoto = photoSet.composed
+            capturedPhotoSet = photoSet
+            try await photoSaveStrategy.save(photoSet.composed)
+            if let photoSetSaveStrategy {
+                try await photoSetSaveStrategy.save(photoSet)
+            }
             viewState = .ready
             provideSaveSuccessHapticFeedback()
-        } catch let error as DualCameraError {
-            viewState = .error(error)
-            showError(error, message: "Error capturing photo")
+        } catch MediaLibraryError.permissionDenied {
+            showPhotoLibraryPermissionDeniedAlert()
             viewState = .ready
         } catch {
-            let dualCameraError = DualCameraError.unknownError
-            viewState = .error(dualCameraError)
             showError(error, message: "Error capturing photo")
             viewState = .ready
         }
@@ -167,6 +187,27 @@ public final class DualCameraViewModel {
 
     private func showError(_ error: Error, message: String) {
         alert = .info(title: "Error", message: "\(message): \(error.localizedDescription)")
+    }
+
+    private func showPhotoLibraryPermissionDeniedAlert() {
+        let message = [
+            MediaLibraryError.permissionDenied.errorDescription,
+            MediaLibraryError.permissionDenied.recoverySuggestion
+        ]
+        .compactMap { $0 }
+        .joined(separator: " ")
+
+        alert = AlertState(
+            title: "Photo Library Access Required",
+            message: message,
+            primaryButton: AlertState.AlertButton(
+                text: "Open Settings",
+                action: { [openSettings] in
+                    openSettings()
+                }
+            ),
+            secondaryButton: AlertState.AlertButton(text: "Cancel", action: {})
+        )
     }
 
     private func provideSaveSuccessHapticFeedback() {

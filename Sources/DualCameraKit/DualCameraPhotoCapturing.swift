@@ -1,6 +1,19 @@
 import SwiftUI
 import UIKit
 
+/// A synchronized capture result containing the composed image alongside both raw camera images.
+public struct DualCameraCapturedPhotoSet: Sendable, Equatable {
+    public let composed: UIImage
+    public let frontRaw: UIImage
+    public let backRaw: UIImage
+
+    public init(composed: UIImage, frontRaw: UIImage, backRaw: UIImage) {
+        self.composed = composed
+        self.frontRaw = frontRaw
+        self.backRaw = backRaw
+    }
+}
+
 @MainActor
 public protocol DualCameraPhotoCapturing: AnyObject, Sendable {
     /// Converts raw front and back pixel buffers into `UIImage` instances.
@@ -20,6 +33,17 @@ public protocol DualCameraPhotoCapturing: AnyObject, Sendable {
         contentMode: DualCameraContentMode,
         overlayInsets: EdgeInsets
     ) async throws -> UIImage
+
+    /// Captures raw front/back images and composites them into a single photo set from the same frame pair.
+    func capturePhotoSet( // swiftlint:disable:this function_parameter_count
+        frontBuffer: CVPixelBuffer,
+        backBuffer: CVPixelBuffer,
+        layout: DualCameraLayout,
+        outputSize: CGSize,
+        displayScale: CGFloat,
+        contentMode: DualCameraContentMode,
+        overlayInsets: EdgeInsets
+    ) async throws -> DualCameraCapturedPhotoSet
 }
 
 public extension DualCameraPhotoCapturing {
@@ -87,27 +111,118 @@ public extension DualCameraPhotoCapturing {
             overlayInsets: EdgeInsets()
         )
     }
+
+    /// Captures raw front/back images and composites them into a photo set from the same frame pair.
+    func capturePhotoSet( // swiftlint:disable:this function_parameter_count
+        frontBuffer: CVPixelBuffer,
+        backBuffer: CVPixelBuffer,
+        layout: DualCameraLayout,
+        outputSize: CGSize,
+        displayScale: CGFloat,
+        contentMode: DualCameraContentMode,
+        overlayInsets: EdgeInsets
+    ) async throws -> DualCameraCapturedPhotoSet {
+        let rawPhotos = try await captureRawPhotos(
+            frontBuffer: frontBuffer,
+            backBuffer: backBuffer,
+            displayScale: displayScale
+        )
+        let composed = try await captureComposedPhoto(
+            frontBuffer: frontBuffer,
+            backBuffer: backBuffer,
+            layout: layout,
+            outputSize: outputSize,
+            displayScale: displayScale,
+            contentMode: contentMode,
+            overlayInsets: overlayInsets
+        )
+        return DualCameraCapturedPhotoSet(
+            composed: composed,
+            frontRaw: rawPhotos.front,
+            backRaw: rawPhotos.back
+        )
+    }
+
+    /// Captures a photo set for `layout` and `outputSize` using `.aspectFill` at scale `1`.
+    func capturePhotoSet(
+        frontBuffer: CVPixelBuffer,
+        backBuffer: CVPixelBuffer,
+        layout: DualCameraLayout,
+        outputSize: CGSize
+    ) async throws -> DualCameraCapturedPhotoSet {
+        try await capturePhotoSet(
+            frontBuffer: frontBuffer,
+            backBuffer: backBuffer,
+            layout: layout,
+            outputSize: outputSize,
+            displayScale: 1,
+            contentMode: .aspectFill,
+            overlayInsets: EdgeInsets()
+        )
+    }
+
+    /// Captures a photo set for `layout`, `outputSize`, and `displayScale` using `.aspectFill`.
+    func capturePhotoSet(
+        frontBuffer: CVPixelBuffer,
+        backBuffer: CVPixelBuffer,
+        layout: DualCameraLayout,
+        outputSize: CGSize,
+        displayScale: CGFloat
+    ) async throws -> DualCameraCapturedPhotoSet {
+        try await capturePhotoSet(
+            frontBuffer: frontBuffer,
+            backBuffer: backBuffer,
+            layout: layout,
+            outputSize: outputSize,
+            displayScale: displayScale,
+            contentMode: .aspectFill,
+            overlayInsets: EdgeInsets()
+        )
+    }
+
+    /// Captures a photo set for `layout`, `outputSize`, `displayScale`, and `contentMode`.
+    func capturePhotoSet( // swiftlint:disable:this function_parameter_count
+        frontBuffer: CVPixelBuffer,
+        backBuffer: CVPixelBuffer,
+        layout: DualCameraLayout,
+        outputSize: CGSize,
+        displayScale: CGFloat,
+        contentMode: DualCameraContentMode
+    ) async throws -> DualCameraCapturedPhotoSet {
+        try await capturePhotoSet(
+            frontBuffer: frontBuffer,
+            backBuffer: backBuffer,
+            layout: layout,
+            outputSize: outputSize,
+            displayScale: displayScale,
+            contentMode: contentMode,
+            overlayInsets: EdgeInsets()
+        )
+    }
 }
 
 public class DualCameraPhotoCapturer: DualCameraPhotoCapturing {
-    private let layoutResolver: DualCameraLayoutResolver
-    /// Creating a `CIContext` is expensive, so one context is shared by every capture.
-    private let ciContext = CIContext()
+    private nonisolated let layoutResolver: DualCameraLayoutResolver
+    /// Creating a `CIContext` is expensive, so one thread-safe context is shared by every capture.
+    private nonisolated let ciContext = CIContext()
 
     /// Creates a photo capturer using the given layout resolver.
     public init(layoutResolver: DualCameraLayoutResolver = DualCameraLayoutResolver()) {
         self.layoutResolver = layoutResolver
     }
 
-    /// Converts raw front and back pixel buffers into `UIImage` instances.
+    /// Converts raw front and back pixel buffers into `UIImage` instances off the main actor.
     public func captureRawPhotos(
         frontBuffer: CVPixelBuffer,
         backBuffer: CVPixelBuffer,
         displayScale: CGFloat
     ) async throws -> (front: UIImage, back: UIImage) {
-        return (
-            front: try image(from: frontBuffer, displayScale: displayScale),
-            back: try image(from: backBuffer, displayScale: displayScale)
+        let frontWrapper = PixelBufferWrapper(buffer: frontBuffer)
+        let backWrapper = PixelBufferWrapper(buffer: backBuffer)
+        return try await decodeRawPhotosOffMainActor(
+            frontWrapper: frontWrapper,
+            backWrapper: backWrapper,
+            displayScale: displayScale
         )
     }
 
@@ -121,39 +236,104 @@ public class DualCameraPhotoCapturer: DualCameraPhotoCapturing {
         contentMode: DualCameraContentMode,
         overlayInsets: EdgeInsets
     ) async throws -> UIImage {
+        try await capturePhotoSet(
+            frontBuffer: frontBuffer,
+            backBuffer: backBuffer,
+            layout: layout,
+            outputSize: outputSize,
+            displayScale: displayScale,
+            contentMode: contentMode,
+            overlayInsets: overlayInsets
+        ).composed
+    }
+
+    /// Decodes raw front/back images once and composites them into a photo set off the main actor.
+    public func capturePhotoSet( // swiftlint:disable:this function_parameter_count
+        frontBuffer: CVPixelBuffer,
+        backBuffer: CVPixelBuffer,
+        layout: DualCameraLayout,
+        outputSize: CGSize,
+        displayScale: CGFloat,
+        contentMode: DualCameraContentMode,
+        overlayInsets: EdgeInsets
+    ) async throws -> DualCameraCapturedPhotoSet {
         guard outputSize.width > 0, outputSize.height > 0 else {
             throw DualCameraError.captureFailure(.unknownDimensions)
         }
 
-        let resolvedLayout = layoutResolver.resolve(
+        let frontWrapper = PixelBufferWrapper(buffer: frontBuffer)
+        let backWrapper = PixelBufferWrapper(buffer: backBuffer)
+        return try await renderPhotoSetOffMainActor(
+            frontWrapper: frontWrapper,
+            backWrapper: backWrapper,
             layout: layout,
-            in: outputSize,
+            outputSize: outputSize,
+            displayScale: displayScale,
+            contentMode: contentMode,
             overlayInsets: overlayInsets
         )
-        let frontImage = try image(from: frontBuffer, displayScale: displayScale)
-        let backImage = try image(from: backBuffer, displayScale: displayScale)
-        let format = UIGraphicsImageRendererFormat()
-        format.scale = displayScale
-        format.opaque = true
-
-        let renderer = UIGraphicsImageRenderer(size: outputSize, format: format)
-        return renderer.image { context in
-            UIColor.black.setFill()
-            context.fill(CGRect(origin: .zero, size: outputSize))
-
-            for region in resolvedLayout.regionsInDrawingOrder {
-                let image = region.source == .front ? frontImage : backImage
-                draw(
-                    image,
-                    in: region.frame,
-                    cornerRadius: cornerRadius(for: region, layout: layout),
-                    contentMode: contentMode
-                )
-            }
-        }
     }
 
-    private func image(from buffer: CVPixelBuffer, displayScale: CGFloat) throws -> UIImage {
+    private nonisolated func decodeRawPhotosOffMainActor(
+        frontWrapper: PixelBufferWrapper,
+        backWrapper: PixelBufferWrapper,
+        displayScale: CGFloat
+    ) async throws -> (front: UIImage, back: UIImage) {
+        try await Task.detached(priority: .userInitiated) {
+            (
+                front: try self.image(from: frontWrapper.buffer, displayScale: displayScale),
+                back: try self.image(from: backWrapper.buffer, displayScale: displayScale)
+            )
+        }.value
+    }
+
+    // swiftlint:disable:next function_parameter_count
+    private nonisolated func renderPhotoSetOffMainActor(
+        frontWrapper: PixelBufferWrapper,
+        backWrapper: PixelBufferWrapper,
+        layout: DualCameraLayout,
+        outputSize: CGSize,
+        displayScale: CGFloat,
+        contentMode: DualCameraContentMode,
+        overlayInsets: EdgeInsets
+    ) async throws -> DualCameraCapturedPhotoSet {
+        try await Task.detached(priority: .userInitiated) {
+            let resolvedLayout = self.layoutResolver.resolve(
+                layout: layout,
+                in: outputSize,
+                overlayInsets: overlayInsets
+            )
+            let frontImage = try self.image(from: frontWrapper.buffer, displayScale: displayScale)
+            let backImage = try self.image(from: backWrapper.buffer, displayScale: displayScale)
+            let format = UIGraphicsImageRendererFormat()
+            format.scale = displayScale
+            format.opaque = true
+
+            let renderer = UIGraphicsImageRenderer(size: outputSize, format: format)
+            let composedImage = renderer.image { context in
+                UIColor.black.setFill()
+                context.fill(CGRect(origin: .zero, size: outputSize))
+
+                for region in resolvedLayout.regionsInDrawingOrder {
+                    let image = region.source == .front ? frontImage : backImage
+                    self.draw(
+                        image,
+                        in: region.frame,
+                        cornerRadius: self.cornerRadius(for: region, layout: layout),
+                        contentMode: contentMode
+                    )
+                }
+            }
+
+            return DualCameraCapturedPhotoSet(
+                composed: composedImage,
+                frontRaw: frontImage,
+                backRaw: backImage
+            )
+        }.value
+    }
+
+    private nonisolated func image(from buffer: CVPixelBuffer, displayScale: CGFloat) throws -> UIImage {
         let ciImage = CIImage(cvPixelBuffer: buffer)
         guard let cgImage = ciContext.createCGImage(ciImage, from: ciImage.extent) else {
             throw DualCameraError.captureFailure(.imageCreationFailed)
@@ -161,7 +341,7 @@ public class DualCameraPhotoCapturer: DualCameraPhotoCapturing {
         return UIImage(cgImage: cgImage, scale: displayScale, orientation: .up)
     }
 
-    private func draw(
+    private nonisolated func draw(
         _ image: UIImage,
         in targetRect: CGRect,
         cornerRadius: CGFloat,
@@ -184,14 +364,17 @@ public class DualCameraPhotoCapturer: DualCameraPhotoCapturing {
         image.draw(in: contentRect(for: image.size, in: targetRect, contentMode: contentMode))
     }
 
-    private func cornerRadius(for region: DualCameraResolvedLayout.CameraRegion, layout: DualCameraLayout) -> CGFloat {
+    private nonisolated func cornerRadius(
+        for region: DualCameraResolvedLayout.CameraRegion,
+        layout: DualCameraLayout
+    ) -> CGFloat {
         guard case .piP(let miniCamera, _) = layout, region.source == miniCamera else {
             return 0
         }
         return 10
     }
 
-    private func contentRect(
+    private nonisolated func contentRect(
         for sourceSize: CGSize,
         in targetRect: CGRect,
         contentMode: DualCameraContentMode

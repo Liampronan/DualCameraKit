@@ -23,6 +23,7 @@ public enum DualCameraMediaSaveStrategy<Media: Sendable>: Sendable {
 
 // MARK: - Type Aliases
 public typealias DualCameraPhotoSaveStrategy = DualCameraMediaSaveStrategy<UIImage>
+public typealias DualCameraPhotoSetSaveStrategy = DualCameraMediaSaveStrategy<DualCameraCapturedPhotoSet>
 
 public extension DualCameraPhotoSaveStrategy {
     /// Creates a strategy that saves photos to the user's media library using the provided service.
@@ -31,6 +32,17 @@ public extension DualCameraPhotoSaveStrategy {
     static func photoLibrary(service: MediaLibraryService) -> DualCameraPhotoSaveStrategy {
         .saveToMediaLibrary { [service] image in
             try await service.saveImage(image)
+        }
+    }
+}
+
+public extension DualCameraPhotoSetSaveStrategy {
+    /// Creates a strategy that saves captured photo sets to the user's media library using the provided service.
+    /// - Parameter service: The service responsible for handling photo library operations.
+    /// - Returns: A configured save strategy for photo sets.
+    static func photoLibrary(service: MediaLibraryService) -> DualCameraPhotoSetSaveStrategy {
+        .saveToMediaLibrary { [service] photoSet in
+            try await service.savePhotoSet(photoSet)
         }
     }
 }

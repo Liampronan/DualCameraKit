@@ -5,11 +5,25 @@ import UIKit
 
 public struct MediaLibraryService: Sendable {
     public var saveImage: @Sendable (UIImage) async throws -> Void
+    public var savePhotoSet: @Sendable (DualCameraCapturedPhotoSet) async throws -> Void
 
     public init(
         saveImage: @escaping @Sendable (UIImage) async throws -> Void
     ) {
         self.saveImage = saveImage
+        self.savePhotoSet = { photoSet in
+            try await saveImage(photoSet.composed)
+            try await saveImage(photoSet.frontRaw)
+            try await saveImage(photoSet.backRaw)
+        }
+    }
+
+    public init(
+        saveImage: @escaping @Sendable (UIImage) async throws -> Void,
+        savePhotoSet: @escaping @Sendable (DualCameraCapturedPhotoSet) async throws -> Void
+    ) {
+        self.saveImage = saveImage
+        self.savePhotoSet = savePhotoSet
     }
 }
 
@@ -20,25 +34,41 @@ public extension MediaLibraryService {
             try await PHPhotoLibrary.shared().performChanges {
                 PHAssetChangeRequest.creationRequestForAsset(from: image)
             }
+        },
+        savePhotoSetHandler: @escaping @Sendable (DualCameraCapturedPhotoSet) async throws -> Void = { photoSet in
+            try await PHPhotoLibrary.shared().performChanges {
+                PHAssetChangeRequest.creationRequestForAsset(from: photoSet.composed)
+                PHAssetChangeRequest.creationRequestForAsset(from: photoSet.frontRaw)
+                PHAssetChangeRequest.creationRequestForAsset(from: photoSet.backRaw)
+            }
         }
     ) -> Self {
         Self(
             saveImage: { image in
                 try await permissionChecker()
                 try await saveImageHandler(image)
+            },
+            savePhotoSet: { photoSet in
+                try await permissionChecker()
+                try await savePhotoSetHandler(photoSet)
             }
         )
     }
 
     static func test(
-        saveImage: @escaping @Sendable (UIImage) async throws -> Void = { _ in }
+        saveImage: @escaping @Sendable (UIImage) async throws -> Void = { _ in },
+        savePhotoSet: (@Sendable (DualCameraCapturedPhotoSet) async throws -> Void)? = nil
     ) -> Self {
-        Self(saveImage: saveImage)
+        if let savePhotoSet {
+            return Self(saveImage: saveImage, savePhotoSet: savePhotoSet)
+        }
+        return Self(saveImage: saveImage)
     }
 
     static var noop: Self {
         Self(
-            saveImage: { _ in }
+            saveImage: { _ in },
+            savePhotoSet: { _ in }
         )
     }
 

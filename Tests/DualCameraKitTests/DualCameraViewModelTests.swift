@@ -116,10 +116,16 @@ final class DualCameraViewModelTests: XCTestCase {
     func test_capturePhoto_savesImageAndPublishesCapture() async throws {
         let controller = MockDualCameraController()
         let savedImage = TestBox<UIImage>()
+        let savedPhotoSet = TestBox<DualCameraCapturedPhotoSet>()
+        let customInsets = EdgeInsets(top: 48, leading: 16, bottom: 34, trailing: 16)
         let viewModel = DualCameraViewModel(
             dualCameraController: controller,
+            overlayInsets: customInsets,
             photoSaveStrategy: .custom { image in
                 await savedImage.set(image)
+            },
+            photoSetSaveStrategy: .custom { photoSet in
+                await savedPhotoSet.set(photoSet)
             }
         )
         viewModel.onAppear(containerSize: CGSize(width: 320, height: 480), displayScale: 3)
@@ -131,10 +137,64 @@ final class DualCameraViewModelTests: XCTestCase {
         XCTAssertEqual(controller.captureOutputSize, CGSize(width: 320, height: 480))
         XCTAssertEqual(controller.captureDisplayScale, 3)
         XCTAssertEqual(controller.captureContentMode, .aspectFill)
+        XCTAssertEqual(controller.captureOverlayInsets, customInsets)
         XCTAssertNotNil(viewModel.capturedPhoto)
+        XCTAssertEqual(viewModel.capturedPhotoSet, controller.mockCapturedPhotoSet)
         let savedCapturedImage = await savedImage.get()
         XCTAssertTrue(savedCapturedImage === controller.mockCapturedImage)
+        let savedSet = await savedPhotoSet.get()
+        XCTAssertEqual(savedSet, controller.mockCapturedPhotoSet)
         XCTAssertEqual(viewModel.viewState, .ready)
+    }
+
+    func test_updateOverlayInsets_updatesPublishedOverlayInsetsAndForwardsToCapture() async throws {
+        let controller = MockDualCameraController()
+        let viewModel = DualCameraViewModel(dualCameraController: controller)
+        viewModel.onAppear(containerSize: CGSize(width: 320, height: 480))
+        await Task.yield()
+
+        let newInsets = EdgeInsets(top: 100, leading: 8, bottom: 80, trailing: 8)
+        viewModel.updateOverlayInsets(newInsets)
+        XCTAssertEqual(viewModel.overlayInsets, newInsets)
+
+        let captureTask = viewModel.capturePhotoButtonTapped()
+        await captureTask.value
+
+        XCTAssertEqual(controller.captureOverlayInsets, newInsets)
+    }
+
+    func test_capturePhoto_permissionDeniedDuringSaveKeepsCapturedPhotoSetAndShowsRecoveryAlert() async throws {
+        let controller = MockDualCameraController()
+        var didOpenSettings = false
+        let viewModel = DualCameraViewModel(
+            dualCameraController: controller,
+            photoSaveStrategy: .custom { _ in
+                throw MediaLibraryError.permissionDenied
+            },
+            openSettings: {
+                didOpenSettings = true
+            }
+        )
+        viewModel.onAppear(containerSize: CGSize(width: 320, height: 480))
+        await Task.yield()
+
+        let captureTask = viewModel.capturePhotoButtonTapped()
+        await captureTask.value
+
+        XCTAssertTrue(viewModel.capturedPhoto === controller.mockCapturedImage)
+        XCTAssertEqual(viewModel.capturedPhotoSet, controller.mockCapturedPhotoSet)
+        XCTAssertEqual(viewModel.viewState, .ready)
+
+        let alert = try XCTUnwrap(viewModel.alert)
+        XCTAssertEqual(alert.title, "Photo Library Access Required")
+        let expectedMessage = "Photo library access is required to save photos. " +
+            "Please grant photo library access in Settings to save photos."
+        XCTAssertEqual(alert.message, expectedMessage)
+        XCTAssertEqual(alert.primaryButton.text, "Open Settings")
+        XCTAssertEqual(alert.secondaryButton?.text, "Cancel")
+
+        alert.primaryButton.action()
+        XCTAssertTrue(didOpenSettings)
     }
 
     func test_capturePhoto_failureShowsAlertAndResetsReady() async throws {
@@ -148,6 +208,7 @@ final class DualCameraViewModelTests: XCTestCase {
         await captureTask.value
 
         XCTAssertNil(viewModel.capturedPhoto)
+        XCTAssertNil(viewModel.capturedPhotoSet)
         XCTAssertNotNil(viewModel.alert)
         XCTAssertEqual(viewModel.viewState, .ready)
     }
@@ -180,7 +241,15 @@ final class MockDualCameraController: DualCameraControlling {
     var captureOutputSize: CGSize?
     var captureDisplayScale: CGFloat?
     var captureContentMode: DualCameraContentMode?
+    var captureOverlayInsets: EdgeInsets?
     let mockCapturedImage = UIImage()
+    let mockFrontRawImage = UIImage()
+    let mockBackRawImage = UIImage()
+    lazy var mockCapturedPhotoSet = DualCameraCapturedPhotoSet(
+        composed: mockCapturedImage,
+        frontRaw: mockFrontRawImage,
+        backRaw: mockBackRawImage
+    )
 
     func subscribe(to source: DualCameraSource) -> AsyncStream<PixelBufferWrapper> {
         AsyncStream { continuation in
@@ -210,7 +279,7 @@ final class MockDualCameraController: DualCameraControlling {
     }
 
     func captureRawPhotos(displayScale: CGFloat) async throws -> (front: UIImage, back: UIImage) {
-        (mockCapturedImage, mockCapturedImage)
+        (mockFrontRawImage, mockBackRawImage)
     }
 
     func capturePhoto(
@@ -226,7 +295,25 @@ final class MockDualCameraController: DualCameraControlling {
         captureOutputSize = outputSize
         captureDisplayScale = displayScale
         captureContentMode = contentMode
+        captureOverlayInsets = overlayInsets
         return mockCapturedImage
+    }
+
+    func capturePhotoSet(
+        layout: DualCameraLayout,
+        outputSize: CGSize,
+        displayScale: CGFloat,
+        contentMode: DualCameraContentMode,
+        overlayInsets: EdgeInsets
+    ) async throws -> DualCameraCapturedPhotoSet {
+        if shouldFailCapturePhoto {
+            throw DualCameraError.captureFailure(.noFrameAvailable)
+        }
+        captureOutputSize = outputSize
+        captureDisplayScale = displayScale
+        captureContentMode = contentMode
+        captureOverlayInsets = overlayInsets
+        return mockCapturedPhotoSet
     }
 
     func cameraCapabilities(for source: DualCameraSource) throws -> DualCameraCameraCapabilities {
