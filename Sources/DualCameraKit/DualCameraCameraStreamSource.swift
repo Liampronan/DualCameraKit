@@ -34,7 +34,11 @@ public protocol DualCameraCameraStreamSourcing {
 @MainActor
 public final class DualCameraCameraStreamSource: NSObject, DualCameraCameraStreamSourcing {
     // Session management
-    private let session = AVCaptureMultiCamSession()
+    private let session: AVCaptureMultiCamSession
+    private let sessionRunner: SessionLifecycleRunner
+    private let isMultiCamSupported: () -> Bool
+    private let permissionRequester: @MainActor () async -> Bool
+    private let cameraConfigurer: (@MainActor () throws -> Void)?
 
     // Stream broadcasters
     private let frontBroadcaster = PixelBufferBroadcaster()
@@ -53,14 +57,45 @@ public final class DualCameraCameraStreamSource: NSObject, DualCameraCameraStrea
     private var interruptionObserver: NSObjectProtocol?
     private var isConfigured = false
     private let orientationProvider: DualCameraVideoOrientationProviding
+    /// Whether the front camera video connection is horizontally mirrored.
+    public let mirrorsFrontCamera: Bool
 
     // Real AVCaptureMultiCamSession ownership is intentionally process-wide for now.
     // Tests that need multiple independent owners should use mock stream sources.
     @MainActor private static var activeInstance: DualCameraCameraStreamSource?
 
-    /// Initialize camera hardware interface
-    public init(orientationProvider: DualCameraVideoOrientationProviding = DeviceVideoOrientationProvider()) {
+    /// Initialize camera hardware interface.
+    public init(
+        orientationProvider: DualCameraVideoOrientationProviding = DeviceVideoOrientationProvider(),
+        mirrorsFrontCamera: Bool = true
+    ) {
+        let session = AVCaptureMultiCamSession()
+        self.session = session
+        self.sessionRunner = SessionLifecycleRunner(session: session)
+        self.isMultiCamSupported = { AVCaptureMultiCamSession.isMultiCamSupported }
+        self.permissionRequester = Self.requestCameraPermission
+        self.cameraConfigurer = nil
         self.orientationProvider = orientationProvider
+        self.mirrorsFrontCamera = mirrorsFrontCamera
+        super.init()
+    }
+
+    /// Internal initializer for injecting session lifecycle and hardware hooks in tests.
+    init(
+        orientationProvider: DualCameraVideoOrientationProviding = DeviceVideoOrientationProvider(),
+        mirrorsFrontCamera: Bool = true,
+        sessionRunner: SessionLifecycleRunner,
+        isMultiCamSupported: @escaping () -> Bool = { true },
+        permissionRequester: @escaping @MainActor () async -> Bool = { true },
+        cameraConfigurer: @escaping @MainActor () throws -> Void = {}
+    ) {
+        self.session = AVCaptureMultiCamSession()
+        self.sessionRunner = sessionRunner
+        self.isMultiCamSupported = isMultiCamSupported
+        self.permissionRequester = permissionRequester
+        self.cameraConfigurer = cameraConfigurer
+        self.orientationProvider = orientationProvider
+        self.mirrorsFrontCamera = mirrorsFrontCamera
         super.init()
     }
 
@@ -73,20 +108,28 @@ public final class DualCameraCameraStreamSource: NSObject, DualCameraCameraStrea
             throw DualCameraError.multipleInstancesNotSupported
         }
 
-        guard AVCaptureMultiCamSession.isMultiCamSupported else {
+        guard isMultiCamSupported() else {
             throw DualCameraError.multiCamNotSupported
         }
 
+        let stopGeneration = sessionRunner.currentStopGeneration()
+
         // Check permissions
-        guard await requestCameraPermission() else {
+        guard await permissionRequester() else {
             throw DualCameraError.permissionDenied
         }
+
+        try sessionRunner.ensureNotStopped(since: stopGeneration)
 
         // Configure once, then start/stop the same capture graph on later appearances.
         if !isConfigured {
             session.beginConfiguration()
             do {
-                try configureCameras()
+                if let cameraConfigurer {
+                    try cameraConfigurer()
+                } else {
+                    try configureCameras()
+                }
                 isConfigured = true
             } catch {
                 recordDiagnosticEvent(
@@ -101,8 +144,11 @@ public final class DualCameraCameraStreamSource: NSObject, DualCameraCameraStrea
             session.commitConfiguration()
         }
 
-        if !session.isRunning {
-            session.startRunning()
+        try await sessionRunner.startRunningIfNeeded(since: stopGeneration)
+
+        if let activeInstance = Self.activeInstance, activeInstance !== self {
+            sessionRunner.stopRunningIfNeeded()
+            throw DualCameraError.multipleInstancesNotSupported
         }
 
         observeSessionNotificationsIfNeeded()
@@ -115,9 +161,7 @@ public final class DualCameraCameraStreamSource: NSObject, DualCameraCameraStrea
     /// Stops the camera capture session
     @MainActor
     public func stopSession() {
-        if session.isRunning {
-            session.stopRunning()
-        }
+        sessionRunner.stopRunningIfNeeded()
 
         if Self.activeInstance === self {
             Self.activeInstance = nil
@@ -168,8 +212,9 @@ public final class DualCameraCameraStreamSource: NSObject, DualCameraCameraStrea
 
     // MARK: - Private Methods
 
+    /// Requests video capture permission if not already determined.
     @MainActor
-    private func requestCameraPermission() async -> Bool {
+    private static func requestCameraPermission() async -> Bool {
         let status = AVCaptureDevice.authorizationStatus(for: .video)
 
         if status == .authorized {
@@ -269,6 +314,7 @@ public final class DualCameraCameraStreamSource: NSObject, DualCameraCameraStrea
         diagnosticEventBroadcaster.send(event)
     }
 
+    /// Applies the current video rotation angle and front-camera mirroring setting to active connections.
     private func updateVideoRotationAngle(_ angle: CGFloat) {
         for output in [frontCameraOutput, backCameraOutput] {
             guard let connection = output?.connection(with: .video),
@@ -276,6 +322,12 @@ public final class DualCameraCameraStreamSource: NSObject, DualCameraCameraStrea
                 continue
             }
             connection.videoRotationAngle = angle
+        }
+
+        if let frontConnection = frontCameraOutput?.connection(with: .video),
+           frontConnection.isVideoMirroringSupported {
+            frontConnection.automaticallyAdjustsVideoMirroring = false
+            frontConnection.isVideoMirrored = mirrorsFrontCamera
         }
     }
 
@@ -1025,5 +1077,115 @@ private final class DiagnosticsStore: @unchecked Sendable {
             controlFailureCount += 1
         }
         lock.unlock()
+    }
+}
+
+/// Runs blocking `AVCaptureMultiCamSession` start/stop transitions on a serial background queue
+/// so hardware startup never blocks `@MainActor`.
+final class SessionLifecycleRunner: @unchecked Sendable {
+    private let lock = NSLock()
+    private var stopGeneration: UInt64 = 0
+    private let isRunning: () -> Bool
+    private let startRunning: () -> Void
+    private let stopRunning: () -> Void
+    private let queue = DispatchQueue(label: "DualCameraSessionQueue", qos: .userInitiated)
+
+    /// Creates a runner backed by a live `AVCaptureMultiCamSession`.
+    convenience init(session: AVCaptureMultiCamSession) {
+        self.init(
+            isRunning: { session.isRunning },
+            startRunning: { session.startRunning() },
+            stopRunning: { session.stopRunning() }
+        )
+    }
+
+    /// Creates a runner with custom start/stop closures for testing or session management.
+    init(
+        isRunning: @escaping () -> Bool,
+        startRunning: @escaping () -> Void,
+        stopRunning: @escaping () -> Void
+    ) {
+        self.isRunning = isRunning
+        self.startRunning = startRunning
+        self.stopRunning = stopRunning
+    }
+
+    /// Returns the current stop generation token used to detect stops across async suspension points.
+    func currentStopGeneration() -> UInt64 {
+        lock.lock()
+        defer { lock.unlock() }
+        return stopGeneration
+    }
+
+    /// Throws `CancellationError` if a stop has occurred since `expectedGeneration` or if the task is cancelled.
+    func ensureNotStopped(since expectedGeneration: UInt64) throws {
+        guard isNotStopped(since: expectedGeneration) else {
+            throw CancellationError()
+        }
+        try Task.checkCancellation()
+    }
+
+    /// Starts the capture session on the serial queue if not running, throwing `CancellationError` if invalidated.
+    func startRunningIfNeeded(since expectedGeneration: UInt64? = nil) async throws {
+        let generation = expectedGeneration ?? currentStopGeneration()
+        try ensureNotStopped(since: generation)
+
+        try await withTaskCancellationHandler {
+            await withCheckedContinuation { continuation in
+                queue.async { [self] in
+                    guard isNotStopped(since: generation) else {
+                        continuation.resume()
+                        return
+                    }
+                    if !isRunning() {
+                        startRunning()
+                    }
+                    if !isNotStopped(since: generation), isRunning() {
+                        stopRunning()
+                    }
+                    continuation.resume()
+                }
+            }
+            try ensureNotStopped(since: generation)
+        } onCancel: {
+            cancelStart(generation: generation)
+        }
+    }
+
+    /// Invalidates any in-flight start and stops the capture session on the serial queue if running.
+    func stopRunningIfNeeded() {
+        lock.lock()
+        stopGeneration &+= 1
+        lock.unlock()
+
+        queue.async { [self] in
+            if isRunning() {
+                stopRunning()
+            }
+        }
+    }
+
+    /// Invalidates an in-flight start for `expectedGeneration` when its task is cancelled.
+    private func cancelStart(generation expectedGeneration: UInt64) {
+        lock.lock()
+        guard stopGeneration == expectedGeneration else {
+            lock.unlock()
+            return
+        }
+        stopGeneration &+= 1
+        lock.unlock()
+
+        queue.async { [self] in
+            if isRunning() {
+                stopRunning()
+            }
+        }
+    }
+
+    /// Returns `true` when no stop has occurred since `expectedGeneration`.
+    private func isNotStopped(since expectedGeneration: UInt64) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return stopGeneration == expectedGeneration
     }
 }
