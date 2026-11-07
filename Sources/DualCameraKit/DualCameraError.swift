@@ -21,14 +21,9 @@ public enum DualCameraError: LocalizedError, Equatable {
         case screenCaptureUnavailable
         case textureCreationFailed
         case unknownDimensions
-    }
 
-    public var localizedDescription: String {
-        switch self {
-        case .cameraUnavailable(let position):
-            return "Camera at position \(position) is unavailable."
-        case .captureFailure(let reason):
-            switch reason {
+        var localizedDescription: String {
+            switch self {
             case .commandBufferCreationFailed:
                 return "Failed to create Metal command buffer."
             case .contextCreationFailed:
@@ -48,6 +43,15 @@ public enum DualCameraError: LocalizedError, Equatable {
             case .unknownDimensions:
                 return "Unknown screen dimensions for capture."
             }
+        }
+    }
+
+    public var localizedDescription: String {
+        switch self {
+        case .cameraUnavailable(let position):
+            return "Camera at position \(position) is unavailable."
+        case .captureFailure(let reason):
+            return reason.localizedDescription
         case .configurationFailed:
             return "Failed to configure the AVCaptureSession."
         case .multiCamNotSupported:
