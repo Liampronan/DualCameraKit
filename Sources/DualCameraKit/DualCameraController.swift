@@ -1,3 +1,4 @@
+// swiftlint:disable file_length
 import AVFoundation
 import SwiftUI
 import UIKit
@@ -17,6 +18,13 @@ public protocol DualCameraControlling {
         outputSize: CGSize,
         displayScale: CGFloat,
         contentMode: DualCameraContentMode
+    ) async throws -> UIImage
+    func capturePhoto(
+        layout: DualCameraLayout,
+        outputSize: CGSize,
+        displayScale: CGFloat,
+        contentMode: DualCameraContentMode,
+        overlayInsets: EdgeInsets
     ) async throws -> UIImage
 
     func cameraCapabilities(for source: DualCameraSource) throws -> DualCameraCameraCapabilities
@@ -50,13 +58,43 @@ public extension DualCameraControlling {
     func capturePhoto(
         layout: DualCameraLayout,
         outputSize: CGSize,
+        overlayInsets: EdgeInsets
+    ) async throws -> UIImage {
+        try await capturePhoto(
+            layout: layout,
+            outputSize: outputSize,
+            displayScale: 1,
+            contentMode: .aspectFill,
+            overlayInsets: overlayInsets
+        )
+    }
+
+    func capturePhoto(
+        layout: DualCameraLayout,
+        outputSize: CGSize,
         contentMode: DualCameraContentMode
     ) async throws -> UIImage {
         try await capturePhoto(
             layout: layout,
             outputSize: outputSize,
             displayScale: 1,
-            contentMode: contentMode
+            contentMode: contentMode,
+            overlayInsets: EdgeInsets()
+        )
+    }
+
+    func capturePhoto(
+        layout: DualCameraLayout,
+        outputSize: CGSize,
+        contentMode: DualCameraContentMode,
+        overlayInsets: EdgeInsets
+    ) async throws -> UIImage {
+        try await capturePhoto(
+            layout: layout,
+            outputSize: outputSize,
+            displayScale: 1,
+            contentMode: contentMode,
+            overlayInsets: overlayInsets
         )
     }
 
@@ -65,7 +103,23 @@ public extension DualCameraControlling {
             layout: layout,
             outputSize: outputSize,
             displayScale: displayScale,
-            contentMode: .aspectFill
+            contentMode: .aspectFill,
+            overlayInsets: EdgeInsets()
+        )
+    }
+
+    func capturePhoto(
+        layout: DualCameraLayout,
+        outputSize: CGSize,
+        displayScale: CGFloat,
+        contentMode: DualCameraContentMode
+    ) async throws -> UIImage {
+        try await capturePhoto(
+            layout: layout,
+            outputSize: outputSize,
+            displayScale: displayScale,
+            contentMode: contentMode,
+            overlayInsets: EdgeInsets()
         )
     }
 }
@@ -249,7 +303,8 @@ public final class DualCameraController: DualCameraControlling {
         layout: DualCameraLayout,
         outputSize: CGSize,
         displayScale: CGFloat,
-        contentMode: DualCameraContentMode
+        contentMode: DualCameraContentMode,
+        overlayInsets: EdgeInsets = EdgeInsets()
     ) async throws -> UIImage {
         let buffers = try latestFramePair()
         return try await photoCapturer.captureComposedPhoto(
@@ -258,7 +313,8 @@ public final class DualCameraController: DualCameraControlling {
             layout: layout,
             outputSize: outputSize,
             displayScale: displayScale,
-            contentMode: contentMode
+            contentMode: contentMode,
+            overlayInsets: overlayInsets
         )
     }
 

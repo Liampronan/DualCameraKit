@@ -35,6 +35,7 @@ public protocol DualCameraCameraStreamSourcing {
 public final class DualCameraCameraStreamSource: NSObject, DualCameraCameraStreamSourcing {
     // Session management
     private let session = AVCaptureMultiCamSession()
+    private lazy var sessionRunner = SessionLifecycleRunner(session: session)
 
     // Stream broadcasters
     private let frontBroadcaster = PixelBufferBroadcaster()
@@ -53,14 +54,19 @@ public final class DualCameraCameraStreamSource: NSObject, DualCameraCameraStrea
     private var interruptionObserver: NSObjectProtocol?
     private var isConfigured = false
     private let orientationProvider: DualCameraVideoOrientationProviding
+    public let mirrorsFrontCamera: Bool
 
     // Real AVCaptureMultiCamSession ownership is intentionally process-wide for now.
     // Tests that need multiple independent owners should use mock stream sources.
     @MainActor private static var activeInstance: DualCameraCameraStreamSource?
 
     /// Initialize camera hardware interface
-    public init(orientationProvider: DualCameraVideoOrientationProviding = DeviceVideoOrientationProvider()) {
+    public init(
+        orientationProvider: DualCameraVideoOrientationProviding = DeviceVideoOrientationProvider(),
+        mirrorsFrontCamera: Bool = true
+    ) {
         self.orientationProvider = orientationProvider
+        self.mirrorsFrontCamera = mirrorsFrontCamera
         super.init()
     }
 
@@ -101,9 +107,7 @@ public final class DualCameraCameraStreamSource: NSObject, DualCameraCameraStrea
             session.commitConfiguration()
         }
 
-        if !session.isRunning {
-            session.startRunning()
-        }
+        await sessionRunner.startRunningIfNeeded()
 
         observeSessionNotificationsIfNeeded()
         orientationProvider.startObserving { [weak self] angle in
@@ -115,9 +119,7 @@ public final class DualCameraCameraStreamSource: NSObject, DualCameraCameraStrea
     /// Stops the camera capture session
     @MainActor
     public func stopSession() {
-        if session.isRunning {
-            session.stopRunning()
-        }
+        sessionRunner.stopRunningIfNeeded()
 
         if Self.activeInstance === self {
             Self.activeInstance = nil
@@ -276,6 +278,12 @@ public final class DualCameraCameraStreamSource: NSObject, DualCameraCameraStrea
                 continue
             }
             connection.videoRotationAngle = angle
+        }
+
+        if let frontConnection = frontCameraOutput?.connection(with: .video),
+           frontConnection.isVideoMirroringSupported {
+            frontConnection.automaticallyAdjustsVideoMirroring = false
+            frontConnection.isVideoMirrored = mirrorsFrontCamera
         }
     }
 
@@ -1025,5 +1033,35 @@ private final class DiagnosticsStore: @unchecked Sendable {
             controlFailureCount += 1
         }
         lock.unlock()
+    }
+}
+
+/// Runs blocking `AVCaptureMultiCamSession` start/stop transitions on a serial background queue
+/// so hardware startup never blocks `@MainActor`.
+private final class SessionLifecycleRunner: @unchecked Sendable {
+    private let session: AVCaptureMultiCamSession
+    private let queue = DispatchQueue(label: "DualCameraSessionQueue", qos: .userInitiated)
+
+    init(session: AVCaptureMultiCamSession) {
+        self.session = session
+    }
+
+    func startRunningIfNeeded() async {
+        await withCheckedContinuation { continuation in
+            queue.async { [session] in
+                if !session.isRunning {
+                    session.startRunning()
+                }
+                continuation.resume()
+            }
+        }
+    }
+
+    func stopRunningIfNeeded() {
+        queue.async { [session] in
+            if session.isRunning {
+                session.stopRunning()
+            }
+        }
     }
 }

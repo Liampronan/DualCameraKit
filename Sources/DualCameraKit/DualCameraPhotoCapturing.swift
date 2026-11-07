@@ -1,3 +1,4 @@
+import SwiftUI
 import UIKit
 
 @MainActor
@@ -15,7 +16,8 @@ public protocol DualCameraPhotoCapturing: AnyObject, Sendable {
         layout: DualCameraLayout,
         outputSize: CGSize,
         displayScale: CGFloat,
-        contentMode: DualCameraContentMode
+        contentMode: DualCameraContentMode,
+        overlayInsets: EdgeInsets
     ) async throws -> UIImage
 }
 
@@ -39,7 +41,8 @@ public extension DualCameraPhotoCapturing {
             layout: layout,
             outputSize: outputSize,
             displayScale: 1,
-            contentMode: .aspectFill
+            contentMode: .aspectFill,
+            overlayInsets: EdgeInsets()
         )
     }
 
@@ -56,7 +59,28 @@ public extension DualCameraPhotoCapturing {
             layout: layout,
             outputSize: outputSize,
             displayScale: displayScale,
-            contentMode: .aspectFill
+            contentMode: .aspectFill,
+            overlayInsets: EdgeInsets()
+        )
+    }
+
+    // swiftlint:disable:next function_parameter_count
+    func captureComposedPhoto(
+        frontBuffer: CVPixelBuffer,
+        backBuffer: CVPixelBuffer,
+        layout: DualCameraLayout,
+        outputSize: CGSize,
+        displayScale: CGFloat,
+        contentMode: DualCameraContentMode
+    ) async throws -> UIImage {
+        try await captureComposedPhoto(
+            frontBuffer: frontBuffer,
+            backBuffer: backBuffer,
+            layout: layout,
+            outputSize: outputSize,
+            displayScale: displayScale,
+            contentMode: contentMode,
+            overlayInsets: EdgeInsets()
         )
     }
 }
@@ -88,13 +112,18 @@ public class DualCameraPhotoCapturer: DualCameraPhotoCapturing {
         layout: DualCameraLayout,
         outputSize: CGSize,
         displayScale: CGFloat,
-        contentMode: DualCameraContentMode
+        contentMode: DualCameraContentMode,
+        overlayInsets: EdgeInsets
     ) async throws -> UIImage {
         guard outputSize.width > 0, outputSize.height > 0 else {
             throw DualCameraError.captureFailure(.unknownDimensions)
         }
 
-        let resolvedLayout = layoutResolver.resolve(layout: layout, in: outputSize)
+        let resolvedLayout = layoutResolver.resolve(
+            layout: layout,
+            in: outputSize,
+            overlayInsets: overlayInsets
+        )
         let frontImage = try image(from: frontBuffer, displayScale: displayScale)
         let backImage = try image(from: backBuffer, displayScale: displayScale)
         let format = UIGraphicsImageRendererFormat()

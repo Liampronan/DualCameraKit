@@ -1,6 +1,7 @@
 import AVFoundation
 import DualCameraKit
 @testable import DualCameraKitUI
+import SwiftUI
 import UIKit
 import XCTest
 
@@ -216,7 +217,8 @@ final class MockDualCameraController: DualCameraControlling {
         layout: DualCameraLayout,
         outputSize: CGSize,
         displayScale: CGFloat,
-        contentMode: DualCameraContentMode
+        contentMode: DualCameraContentMode,
+        overlayInsets: EdgeInsets
     ) async throws -> UIImage {
         if shouldFailCapturePhoto {
             throw DualCameraError.captureFailure(.noFrameAvailable)

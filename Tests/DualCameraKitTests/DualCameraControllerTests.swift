@@ -1,5 +1,7 @@
+// swiftlint:disable file_length type_body_length
 import AVFoundation
 @testable import DualCameraKit
+import SwiftUI
 import XCTest
 
 @MainActor
@@ -165,6 +167,37 @@ final class DualCameraControllerTests: XCTestCase {
         XCTAssertEqual(snapshot.captureFrameGapExceededCount, 1)
     }
 
+    func test_capturePhotoForwardsOverlayInsets() async throws {
+        let streamSource = SpyCameraStreamSource()
+        let buffer = try makePixelBuffer(color: .red)
+        streamSource.framePair = DualCameraFramePair(
+            front: PixelBufferWrapper(buffer: buffer),
+            back: PixelBufferWrapper(buffer: buffer)
+        )
+        let photoCapturer = RecordingPhotoCapturer()
+        let controller = DualCameraController(
+            photoCapturer: photoCapturer,
+            streamSource: streamSource
+        )
+        let insets = EdgeInsets(top: 44, leading: 12, bottom: 34, trailing: 12)
+
+        _ = try await controller.capturePhoto(
+            layout: .piP(miniCamera: .front, miniCameraPosition: .topLeading),
+            outputSize: CGSize(width: 300, height: 600),
+            overlayInsets: insets
+        )
+
+        XCTAssertEqual(photoCapturer.composedOverlayInsets, insets)
+    }
+
+    func test_streamSourceDefaultsToMirroringFrontCamera() {
+        let defaultSource = DualCameraCameraStreamSource()
+        XCTAssertTrue(defaultSource.mirrorsFrontCamera)
+
+        let unmirroredSource = DualCameraCameraStreamSource(mirrorsFrontCamera: false)
+        XCTAssertFalse(unmirroredSource.mirrorsFrontCamera)
+    }
+
     func test_captureThrowsNoFrameAvailableWithoutAnyFrames() async throws {
         let controller = DualCameraController(
             photoCapturer: RecordingPhotoCapturer(),
@@ -305,6 +338,7 @@ private final class RecordingPhotoCapturer: DualCameraPhotoCapturing {
     var rawFrontBuffer: CVPixelBuffer?
     var rawBackBuffer: CVPixelBuffer?
     var composedContentMode: DualCameraContentMode?
+    var composedOverlayInsets: EdgeInsets?
 
     func captureRawPhotos(
         frontBuffer: CVPixelBuffer,
@@ -323,9 +357,11 @@ private final class RecordingPhotoCapturer: DualCameraPhotoCapturing {
         layout: DualCameraLayout,
         outputSize: CGSize,
         displayScale: CGFloat,
-        contentMode: DualCameraContentMode
+        contentMode: DualCameraContentMode,
+        overlayInsets: EdgeInsets
     ) async throws -> UIImage {
         composedContentMode = contentMode
+        composedOverlayInsets = overlayInsets
         return UIImage()
     }
 }

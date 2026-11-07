@@ -1,4 +1,5 @@
 @testable import DualCameraKit
+import SwiftUI
 import UIKit
 import XCTest
 
@@ -64,6 +65,29 @@ final class DualCameraPhotoCapturerTests: XCTestCase {
         XCTAssertTrue(try image.isPixelNear(pixelX: 15, pixelY: 1, to: .black))
         XCTAssertTrue(try image.isPixelNear(pixelX: 15, pixelY: 5, to: .red))
         XCTAssertTrue(try image.isPixelNear(pixelX: 15, pixelY: 8, to: .black))
+    }
+
+    func test_composedPhotoAppliesOverlayInsetsToPiP() async throws {
+        let capturer = DualCameraPhotoCapturer()
+        let front = try makePixelBuffer(color: .red, size: CGSize(width: 20, height: 20))
+        let back = try makePixelBuffer(color: .blue, size: CGSize(width: 20, height: 20))
+        let outputSize = CGSize(width: 400, height: 800)
+        let insets = EdgeInsets(top: 100, leading: 0, bottom: 0, trailing: 0)
+
+        let image = try await capturer.captureComposedPhoto(
+            frontBuffer: front,
+            backBuffer: back,
+            layout: .piP(miniCamera: .front, miniCameraPosition: .topLeading),
+            outputSize: outputSize,
+            displayScale: 1,
+            contentMode: .aspectFill,
+            overlayInsets: insets
+        )
+
+        // Without top inset, the PiP top-leading corner would sit at y = 16 (red).
+        // With top inset = 100, y = 30 is still background (.blue), and y = 150 is inside the PiP (.red).
+        XCTAssertTrue(try image.isPixelNear(pixelX: 50, pixelY: 30, to: .blue))
+        XCTAssertTrue(try image.isPixelNear(pixelX: 50, pixelY: 150, to: .red))
     }
 
     private func makePixelBuffer(color: UIColor) throws -> CVPixelBuffer {

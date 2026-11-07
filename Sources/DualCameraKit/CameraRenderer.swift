@@ -41,8 +41,14 @@ public final class MetalCameraRenderer: MTKView, CameraRenderer, MTKViewDelegate
     private var commandQueue: MTLCommandQueue?
     private var textureCache: CVMetalTextureCache?
     private var renderPipelineState: MTLRenderPipelineState?
+    private var cachedTexture: (bufferID: ObjectIdentifier, texture: MTLTexture)?
     private let latestFrameStore = LatestPixelBufferStore()
-    public var cameraContentMode: DualCameraContentMode = .aspectFill
+    public var cameraContentMode: DualCameraContentMode = .aspectFill {
+        didSet {
+            guard cameraContentMode != oldValue else { return }
+            setNeedsDisplay()
+        }
+    }
 
     // MARK: - Initialization
     public required init(coder: NSCoder) {
@@ -84,10 +90,10 @@ public final class MetalCameraRenderer: MTKView, CameraRenderer, MTKViewDelegate
             throw MetalRendererError.textureCreationFailed
         }
 
-        framebufferOnly = false
+        framebufferOnly = true
         preferredFramesPerSecond = UIScreen.main.maximumFramesPerSecond
-        isPaused = false
-        enableSetNeedsDisplay = false
+        isPaused = true
+        enableSetNeedsDisplay = true
         self.colorPixelFormat = .bgra8Unorm
 
         try setupRenderPipeline()
@@ -164,7 +170,17 @@ extension MetalCameraRenderer {
     public var view: UIView { self }
 
     public nonisolated func update(with frame: PixelBufferWrapper) {
-        latestFrameStore.store(frame)
+        let shouldScheduleRedraw = latestFrameStore.store(frame)
+        guard shouldScheduleRedraw else { return }
+
+        Task { @MainActor [weak self] in
+            self?.consumePendingRedraw()
+        }
+    }
+
+    private func consumePendingRedraw() {
+        latestFrameStore.markRedrawConsumed()
+        setNeedsDisplay()
     }
 }
 
@@ -173,7 +189,7 @@ extension MetalCameraRenderer {
 extension MetalCameraRenderer {
 
     public func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {
-        // Handle view size changes if needed.
+        setNeedsDisplay()
     }
 
     public func draw(in view: MTKView) {
@@ -213,6 +229,11 @@ extension MetalCameraRenderer {
         guard let frame else { return nil }
 
         let buffer = frame.buffer
+        let bufferID = ObjectIdentifier(buffer)
+        if let cachedTexture, cachedTexture.bufferID == bufferID {
+            return cachedTexture.texture
+        }
+
         let width = CVPixelBufferGetWidth(buffer)
         let height = CVPixelBufferGetHeight(buffer)
 
@@ -236,6 +257,7 @@ extension MetalCameraRenderer {
             return nil
         }
 
+        cachedTexture = (bufferID: bufferID, texture: metalTexture)
         return metalTexture
     }
 
@@ -255,10 +277,21 @@ extension MetalCameraRenderer {
 private final class LatestPixelBufferStore: @unchecked Sendable {
     private let lock = NSLock()
     private var value: PixelBufferWrapper?
+    private var hasPendingRedraw = false
 
-    func store(_ newValue: PixelBufferWrapper) {
+    /// Stores the newest frame and returns `true` when the caller should schedule a main-actor redraw.
+    func store(_ newValue: PixelBufferWrapper) -> Bool {
         lock.lock()
         value = newValue
+        let shouldSchedule = !hasPendingRedraw
+        hasPendingRedraw = true
+        lock.unlock()
+        return shouldSchedule
+    }
+
+    func markRedrawConsumed() {
+        lock.lock()
+        hasPendingRedraw = false
         lock.unlock()
     }
 
