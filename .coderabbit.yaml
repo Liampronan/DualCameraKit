@@ -23,10 +23,14 @@ reviews:
     - "!.swiftpm/**"
     - "!**/*.xcresult/**"
     - "!DocumentationAssets/**"
+    - "!**/*.xcodeproj/**"
+    - "!**/*.xcworkspace/**"
+    - "!**/*.xcassets/**"
 
   path_instructions:
     - path: "Sources/DualCameraKit/**/*.swift"
       instructions: |
+        Target platform is iOS 17+ with Swift 6.0 language mode (`Package.swift`). Prefer modern Swift 6 / iOS 17+ APIs and do not suggest backwards-compatibility workarounds for iOS 16 or earlier.
         Review with a focus on:
         1. Swift 6 strict concurrency compliance (`Sendable` conformances, `@MainActor` boundaries, actor isolation, and avoiding data races across capture/render queues).
         2. `AVCaptureMultiCamSession` lifecycle and dispatch queue safety (session configuration inside `beginConfiguration()`/`commitConfiguration()`, non-blocking main thread, and proper teardown).
@@ -40,12 +44,20 @@ reviews:
         3. Threadgroup sizing and half/float precision efficiency on Apple GPUs.
     - path: "Sources/DualCameraKitUI/**/*.swift"
       instructions: |
+        Target platform is iOS 17+ with Swift 6.0 language mode (`Package.swift`). Prefer modern Swift 6 / iOS 17+ SwiftUI APIs (`@Observable`, 2-parameter `.onChange(of:)`) and do not suggest legacy `ObservableObject`/`@Published` or iOS 16 compatibility shims.
         Review SwiftUI components and view models for:
         1. `@Observable` and `@MainActor` state management correctness (`DualCameraViewModel`, `CameraViewState`, `AlertState`).
         2. Avoiding unnecessary view body recomputations during high-frequency camera events.
         3. Accessibility labels, dynamic type / layout resilience, and clean separation between UI state and `DualCameraKit` core APIs.
+    - path: "DualCameraDemo/**/*.swift"
+      instructions: |
+        Review demo app and demo test code for:
+        1. Clean usage of public `DualCameraKit` and `DualCameraKitUI` APIs without reaching into package internals.
+        2. Swift 6 strict concurrency and `@MainActor` safety across demo views and overlays.
+        3. Reliable simulator fallback and deterministic UI/unit test behavior using mock stream sources (`DualCameraMockCameraStreamSource`).
     - path: "Tests/**/*.swift"
       instructions: |
+        Target platform is iOS 17+ with Swift 6.0.
         Review unit and integration tests for:
         1. Deterministic testing using `DualCameraTestPattern` and `DualCameraMockCameraStreamSource` without hardware camera dependencies.
         2. Async/concurrency test safety (proper fulfillment of expectations, `TestBox` thread safety, and no flaky `Task.sleep` timing assumptions).
@@ -61,6 +73,16 @@ reviews:
       enabled: true
     markdownlint:
       enabled: true
+
+knowledge_base:
+  opt_out: false
+  learnings:
+    scope: "auto"
+  code_guidelines:
+    enabled: true
+    file_patterns:
+      - "README.md"
+      - "Package.swift"
 
 chat:
   auto_reply: true
