@@ -3,10 +3,14 @@ import UIKit
 
 /// A synchronized capture result containing the composed image alongside both raw camera images.
 public struct DualCameraCapturedPhotoSet: Sendable, Equatable {
+    /// Composed image combining front and back camera feeds according to the active layout.
     public let composed: UIImage
+    /// Raw decoded image from the front camera.
     public let frontRaw: UIImage
+    /// Raw decoded image from the back camera.
     public let backRaw: UIImage
 
+    /// Creates a captured photo set with the composed image and raw front/back camera images.
     public init(composed: UIImage, frontRaw: UIImage, backRaw: UIImage) {
         self.composed = composed
         self.frontRaw = frontRaw
@@ -274,6 +278,7 @@ public class DualCameraPhotoCapturer: DualCameraPhotoCapturing {
         )
     }
 
+    /// Decodes raw front and back pixel buffers into `UIImage` instances on a background task.
     private nonisolated func decodeRawPhotosOffMainActor(
         frontWrapper: PixelBufferWrapper,
         backWrapper: PixelBufferWrapper,
@@ -287,8 +292,8 @@ public class DualCameraPhotoCapturer: DualCameraPhotoCapturing {
         }.value
     }
 
-    // swiftlint:disable:next function_parameter_count
-    private nonisolated func renderPhotoSetOffMainActor(
+    /// Decodes raw front/back images and renders the composed image on a background task.
+    private nonisolated func renderPhotoSetOffMainActor( // swiftlint:disable:this function_parameter_count
         frontWrapper: PixelBufferWrapper,
         backWrapper: PixelBufferWrapper,
         layout: DualCameraLayout,
@@ -333,6 +338,7 @@ public class DualCameraPhotoCapturer: DualCameraPhotoCapturing {
         }.value
     }
 
+    /// Converts a `CVPixelBuffer` into a `UIImage` using the shared `CIContext`.
     private nonisolated func image(from buffer: CVPixelBuffer, displayScale: CGFloat) throws -> UIImage {
         let ciImage = CIImage(cvPixelBuffer: buffer)
         guard let cgImage = ciContext.createCGImage(ciImage, from: ciImage.extent) else {
@@ -341,6 +347,7 @@ public class DualCameraPhotoCapturer: DualCameraPhotoCapturing {
         return UIImage(cgImage: cgImage, scale: displayScale, orientation: .up)
     }
 
+    /// Draws an image inside `targetRect` with optional rounded clipping and the specified content mode.
     private nonisolated func draw(
         _ image: UIImage,
         in targetRect: CGRect,
@@ -364,6 +371,7 @@ public class DualCameraPhotoCapturer: DualCameraPhotoCapturing {
         image.draw(in: contentRect(for: image.size, in: targetRect, contentMode: contentMode))
     }
 
+    /// Returns the corner radius for a resolved camera region (`10` for the PiP overlay, `0` otherwise).
     private nonisolated func cornerRadius(
         for region: DualCameraResolvedLayout.CameraRegion,
         layout: DualCameraLayout
@@ -374,6 +382,7 @@ public class DualCameraPhotoCapturer: DualCameraPhotoCapturing {
         return 10
     }
 
+    /// Computes the drawing rectangle for `sourceSize` inside `targetRect` according to `contentMode`.
     private nonisolated func contentRect(
         for sourceSize: CGSize,
         in targetRect: CGRect,

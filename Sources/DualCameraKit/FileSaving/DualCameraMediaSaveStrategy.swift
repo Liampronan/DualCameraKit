@@ -22,7 +22,9 @@ public enum DualCameraMediaSaveStrategy<Media: Sendable>: Sendable {
 }
 
 // MARK: - Type Aliases
+/// Save strategy for persisting a single captured `UIImage`.
 public typealias DualCameraPhotoSaveStrategy = DualCameraMediaSaveStrategy<UIImage>
+/// Save strategy for persisting a synchronized `DualCameraCapturedPhotoSet`.
 public typealias DualCameraPhotoSetSaveStrategy = DualCameraMediaSaveStrategy<DualCameraCapturedPhotoSet>
 
 public extension DualCameraPhotoSaveStrategy {

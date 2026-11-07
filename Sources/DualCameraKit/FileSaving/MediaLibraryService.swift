@@ -3,10 +3,14 @@ import UIKit
 
 // MARK: - Media Library Service
 
+/// Service abstraction for saving captured images and photo sets to the user's photo library.
 public struct MediaLibraryService: Sendable {
+    /// Saves a single `UIImage` to the photo library.
     public var saveImage: @Sendable (UIImage) async throws -> Void
+    /// Saves a synchronized `DualCameraCapturedPhotoSet` (composed + front/back raw images) to the photo library.
     public var savePhotoSet: @Sendable (DualCameraCapturedPhotoSet) async throws -> Void
 
+    /// Creates a service with a single-image save handler, defaulting `savePhotoSet` to three `saveImage` calls.
     public init(
         saveImage: @escaping @Sendable (UIImage) async throws -> Void
     ) {
@@ -18,6 +22,7 @@ public struct MediaLibraryService: Sendable {
         }
     }
 
+    /// Creates a service with explicit handlers for saving single images and synchronized photo sets.
     public init(
         saveImage: @escaping @Sendable (UIImage) async throws -> Void,
         savePhotoSet: @escaping @Sendable (DualCameraCapturedPhotoSet) async throws -> Void
@@ -28,6 +33,7 @@ public struct MediaLibraryService: Sendable {
 }
 
 public extension MediaLibraryService {
+    /// Creates a live photo library service that checks permission before persisting assets via PhotoKit.
     static func live(
         permissionChecker: @escaping @Sendable () async throws -> Void = Self.defaultPermissionChecker,
         saveImageHandler: @escaping @Sendable (UIImage) async throws -> Void = { image in
@@ -55,6 +61,7 @@ public extension MediaLibraryService {
         )
     }
 
+    /// Creates a test double service with customizable `saveImage` and optional `savePhotoSet` closures.
     static func test(
         saveImage: @escaping @Sendable (UIImage) async throws -> Void = { _ in },
         savePhotoSet: (@Sendable (DualCameraCapturedPhotoSet) async throws -> Void)? = nil
@@ -65,6 +72,7 @@ public extension MediaLibraryService {
         return Self(saveImage: saveImage)
     }
 
+    /// A no-op media library service that discards saved images without performing I/O.
     static var noop: Self {
         Self(
             saveImage: { _ in },

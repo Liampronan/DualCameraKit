@@ -126,6 +126,7 @@ struct CompositionalExample: View {
         .pickerStyle(.segmented)
     }
 
+    /// Shutter button that captures a composed photo matching the current layout, output size, and overlay insets.
     private func captureButton(outputSize: CGSize, overlayInsets: EdgeInsets) -> some View {
         Button {
             Task {

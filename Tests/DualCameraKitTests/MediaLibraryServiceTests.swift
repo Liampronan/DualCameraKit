@@ -50,6 +50,24 @@ final class MediaLibraryServiceTests: XCTestCase {
         await XCTAssertThrowsError(ofType: TestError.self, try await service.saveImage(UIImage()))
     }
 
+    func test_savePhotoSet_failsIfPermissionDeniedWithoutInvokingHandler() async {
+        let denied: @Sendable () async throws -> Void = {
+            throw MediaLibraryError.permissionDenied
+        }
+        let photoSet = DualCameraCapturedPhotoSet(
+            composed: UIImage(),
+            frontRaw: UIImage(),
+            backRaw: UIImage()
+        )
+
+        let service = MediaLibraryService.live(
+            permissionChecker: denied,
+            savePhotoSetHandler: { _ in XCTFail("Should not attempt savePhotoSet") }
+        )
+
+        await XCTAssertThrowsError(ofType: MediaLibraryError.self, try await service.savePhotoSet(photoSet))
+    }
+
     func test_savePhotoSet_checksPermissionOnceAndInvokesPhotoSetHandler() async throws {
         let permissionCount = TestBox<Int>()
         await permissionCount.set(0)

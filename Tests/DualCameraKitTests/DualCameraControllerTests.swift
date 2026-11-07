@@ -222,6 +222,11 @@ final class DualCameraControllerTests: XCTestCase {
 
         XCTAssertTrue(photoCapturer.photoSetFrontBuffer === expectedFront)
         XCTAssertTrue(photoCapturer.photoSetBackBuffer === expectedBack)
+        XCTAssertEqual(
+            photoCapturer.capturedPhotoSetLayout,
+            .piP(miniCamera: .front, miniCameraPosition: .bottomLeading)
+        )
+        XCTAssertEqual(photoCapturer.capturedPhotoSetOutputSize, CGSize(width: 320, height: 640))
         XCTAssertEqual(photoCapturer.photoSetDisplayScale, 3)
         XCTAssertEqual(photoCapturer.photoSetContentMode, .aspectFit)
         XCTAssertEqual(photoCapturer.photoSetOverlayInsets, insets)
@@ -460,6 +465,8 @@ private final class RecordingPhotoCapturer: DualCameraPhotoCapturing {
     var composedOverlayInsets: EdgeInsets?
     var photoSetFrontBuffer: CVPixelBuffer?
     var photoSetBackBuffer: CVPixelBuffer?
+    var capturedPhotoSetLayout: DualCameraLayout?
+    var capturedPhotoSetOutputSize: CGSize?
     var photoSetDisplayScale: CGFloat?
     var photoSetContentMode: DualCameraContentMode?
     var photoSetOverlayInsets: EdgeInsets?
@@ -506,9 +513,13 @@ private final class RecordingPhotoCapturer: DualCameraPhotoCapturing {
     ) async throws -> DualCameraCapturedPhotoSet {
         photoSetFrontBuffer = frontBuffer
         photoSetBackBuffer = backBuffer
+        capturedPhotoSetLayout = layout
+        capturedPhotoSetOutputSize = outputSize
         photoSetDisplayScale = displayScale
         photoSetContentMode = contentMode
         photoSetOverlayInsets = overlayInsets
+        composedContentMode = contentMode
+        composedOverlayInsets = overlayInsets
         return mockPhotoSet
     }
 }

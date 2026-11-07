@@ -158,29 +158,6 @@ public extension DualCameraControlling {
         )
     }
 
-    /// Captures raw front/back images and a composed photo for the given layout, size, scale, mode, and insets.
-    func capturePhotoSet(
-        layout: DualCameraLayout,
-        outputSize: CGSize,
-        displayScale: CGFloat,
-        contentMode: DualCameraContentMode,
-        overlayInsets: EdgeInsets
-    ) async throws -> DualCameraCapturedPhotoSet {
-        let rawPhotos = try await captureRawPhotos(displayScale: displayScale)
-        let composed = try await capturePhoto(
-            layout: layout,
-            outputSize: outputSize,
-            displayScale: displayScale,
-            contentMode: contentMode,
-            overlayInsets: overlayInsets
-        )
-        return DualCameraCapturedPhotoSet(
-            composed: composed,
-            frontRaw: rawPhotos.front,
-            backRaw: rawPhotos.back
-        )
-    }
-
     /// Captures a photo set for `layout` and `outputSize` at scale `1` using `.aspectFill`.
     func capturePhotoSet(
         layout: DualCameraLayout,
@@ -479,16 +456,13 @@ public final class DualCameraController: DualCameraControlling {
         contentMode: DualCameraContentMode,
         overlayInsets: EdgeInsets = EdgeInsets()
     ) async throws -> UIImage {
-        let buffers = try latestFramePair()
-        return try await photoCapturer.captureComposedPhoto(
-            frontBuffer: buffers.front.buffer,
-            backBuffer: buffers.back.buffer,
+        try await capturePhotoSet(
             layout: layout,
             outputSize: outputSize,
             displayScale: displayScale,
             contentMode: contentMode,
             overlayInsets: overlayInsets
-        )
+        ).composed
     }
 
     /// Captures raw front/back images and composites the latest front and back camera frames from a single frame pair.
