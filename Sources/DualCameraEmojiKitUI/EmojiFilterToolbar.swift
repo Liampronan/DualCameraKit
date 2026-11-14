@@ -29,11 +29,11 @@ public struct EmojiFilterToolbar: View {
                     .frame(height: 22)
                     .overlay(Color.white.opacity(0.25))
 
-                HStack(spacing: 6) {
-                    ForEach(emojis.prefix(6), id: \.self) { emoji in
-                        emojiButton(for: emoji)
+                ViewThatFits(in: .horizontal) {
+                    enabledControlsRow
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        enabledControlsRow
                     }
-                    paletteModeButton
                 }
             }
         }
@@ -46,6 +46,15 @@ public struct EmojiFilterToolbar: View {
                 .strokeBorder(Color.white.opacity(0.18), lineWidth: 1)
         )
         .accessibilityElement(children: .contain)
+    }
+
+    private var enabledControlsRow: some View {
+        HStack(spacing: 6) {
+            ForEach(emojis.prefix(6), id: \.self) { emoji in
+                emojiButton(for: emoji)
+            }
+            paletteModeButton
+        }
     }
 
     private var toggleButton: some View {

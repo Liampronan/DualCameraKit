@@ -49,7 +49,10 @@ actor FaceTrackerActor {
         timestamp: TimeInterval,
         configuration: EmojiFaceFilterConfiguration
     ) -> [TrackedFaceOverlay] {
-        var existingTracks = tracksBySource[source] ?? []
+        let existingTracks = (tracksBySource[source] ?? []).filter { track in
+            let age = timestamp - track.lastSeenTimestamp
+            return age >= 0 && age <= configuration.trackGracePeriod
+        }
         var matchedTrackIndices = Set<Int>()
         var updatedTracks: [ActiveTrack] = []
 
@@ -127,11 +130,12 @@ actor FaceTrackerActor {
     }
 
     /// Increments the palette offset of the tracked face containing `normalizedTopLeftPoint` (in `[0, 1]` UI space),
-    /// returning `true` when a face track was matched.
+    /// optionally rebasing the track's offset so its rendered palette index is `0` before advancing.
     func cycleEmoji(
         for source: DualCameraSource,
         atNormalizedTopLeftPoint point: CGPoint,
-        scaleMultiplier: CGFloat
+        scaleMultiplier: CGFloat,
+        rebaseToPaletteCount paletteCount: Int? = nil
     ) -> Bool {
         guard var tracks = tracksBySource[source], !tracks.isEmpty else {
             return false
@@ -144,6 +148,11 @@ actor FaceTrackerActor {
             let expanded = Self.expandedRect(track.boundingBox, scaleMultiplier: scaleMultiplier)
             return expanded.contains(visionPoint)
         }) {
+            if let paletteCount, paletteCount > 0 {
+                let trackID = tracks[hitIndex].trackID
+                let baseMod = ((trackID % paletteCount) + paletteCount) % paletteCount
+                tracks[hitIndex].paletteOffset = (paletteCount - baseMod) % paletteCount
+            }
             tracks[hitIndex].paletteOffset &+= 1
             tracksBySource[source] = tracks
             return true

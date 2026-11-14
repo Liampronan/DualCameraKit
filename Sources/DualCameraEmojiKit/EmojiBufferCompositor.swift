@@ -16,8 +16,14 @@ final class EmojiBufferCompositor: Sendable {
         var pool: CVPixelBufferPool?
     }
 
+    private struct CachedSticker: Sendable {
+        let cgImageID: ObjectIdentifier
+        let image: CIImage
+    }
+
     private let ciContext: CIContext
     private let emojiCache = OSAllocatedUnfairLock(initialState: [String: CIImage]())
+    private let stickerCache = OSAllocatedUnfairLock(initialState: [String: CachedSticker]())
     private let poolState = OSAllocatedUnfairLock(initialState: PoolState())
 
     init() {
@@ -60,7 +66,7 @@ final class EmojiBufferCompositor: Sendable {
                     for: overlay,
                     assignment: configuration.assignment
                 ) else {
-                    continue
+                    return nil
                 }
 
                 let transformedSticker = Self.transformedSticker(
@@ -102,12 +108,15 @@ final class EmojiBufferCompositor: Sendable {
             let emoji = palette[rawIndex % palette.count]
             return cachedEmojiCIImage(for: emoji)
         case .sticker(let sticker):
-            let cacheKey = "sticker:\(sticker.id)"
-            if let cached = emojiCache.withLock({ $0[cacheKey] }) {
-                return cached
+            let cgImageID = ObjectIdentifier(sticker.cgImage)
+            if let cached = stickerCache.withLock({ $0[sticker.id] }),
+               cached.cgImageID == cgImageID {
+                return cached.image
             }
             let image = CIImage(cgImage: sticker.cgImage)
-            emojiCache.withLock { $0[cacheKey] = image }
+            stickerCache.withLock {
+                $0[sticker.id] = CachedSticker(cgImageID: cgImageID, image: image)
+            }
             return image
         }
     }

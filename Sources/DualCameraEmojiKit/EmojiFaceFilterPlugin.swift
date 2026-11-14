@@ -1,5 +1,6 @@
 import CoreGraphics
 import CoreMedia
+import CoreVideo
 import DualCameraKit
 import Foundation
 import Observation
@@ -8,6 +9,40 @@ import QuartzCore
 
 /// Thread-safe frame processor that detects faces and composites emoji or sticker overlays onto camera frames.
 public final class EmojiFaceFilterProcessor: DualCameraFrameProcessing, Sendable {
+    private static let redactedFallbackFrame: PixelBufferWrapper = {
+        var pixelBuffer: CVPixelBuffer?
+        let attributes: [String: Any] = [
+            kCVPixelBufferCGImageCompatibilityKey as String: true,
+            kCVPixelBufferCGBitmapContextCompatibilityKey as String: true,
+            kCVPixelBufferIOSurfacePropertiesKey as String: [:]
+        ]
+        CVPixelBufferCreate(
+            kCFAllocatorDefault,
+            4,
+            4,
+            kCVPixelFormatType_32BGRA,
+            attributes as CFDictionary,
+            &pixelBuffer
+        )
+        guard let buffer = pixelBuffer else {
+            preconditionFailure("Unable to allocate static 4x4 fallback CVPixelBuffer")
+        }
+        CVPixelBufferLockBaseAddress(buffer, [])
+        if let baseAddress = CVPixelBufferGetBaseAddress(buffer) {
+            let bytesPerRow = CVPixelBufferGetBytesPerRow(buffer)
+            let height = CVPixelBufferGetHeight(buffer)
+            memset(baseAddress, 0, bytesPerRow * height)
+            let ptr = baseAddress.assumingMemoryBound(to: UInt8.self)
+            for row in 0..<height {
+                for col in 0..<4 {
+                    ptr[row * bytesPerRow + col * 4 + 3] = 255
+                }
+            }
+        }
+        CVPixelBufferUnlockBaseAddress(buffer, [])
+        return PixelBufferWrapper(buffer: buffer)
+    }()
+
     private struct State {
         var configuration: EmojiFaceFilterConfiguration
         var revision: UInt64 = 0
@@ -16,7 +51,7 @@ public final class EmojiFaceFilterProcessor: DualCameraFrameProcessing, Sendable
     }
 
     private struct CachedProcessedFrame {
-        let inputBufferID: ObjectIdentifier
+        let inputFrame: PixelBufferWrapper
         let revision: UInt64
         let outputFrame: PixelBufferWrapper
         let faceCount: Int
@@ -69,13 +104,15 @@ public final class EmojiFaceFilterProcessor: DualCameraFrameProcessing, Sendable
     @discardableResult
     public func cycleEmoji(
         for source: DualCameraSource,
-        atNormalizedTopLeftPoint point: CGPoint
+        atNormalizedTopLeftPoint point: CGPoint,
+        rebaseToPaletteCount paletteCount: Int? = nil
     ) async -> Bool {
         let scaleMultiplier = stateLock.withLock { $0.configuration.scaleMultiplier }
         let didCycle = await tracker.cycleEmoji(
             for: source,
             atNormalizedTopLeftPoint: point,
-            scaleMultiplier: scaleMultiplier
+            scaleMultiplier: scaleMultiplier,
+            rebaseToPaletteCount: paletteCount
         )
         if didCycle {
             stateLock.withLock { state in
@@ -118,8 +155,7 @@ public final class EmojiFaceFilterProcessor: DualCameraFrameProcessing, Sendable
             return frame
         }
 
-        let inputBufferID = ObjectIdentifier(frame.buffer)
-        if let cached, cached.inputBufferID == inputBufferID, cached.revision == revision {
+        if let cached, cached.inputFrame.buffer === frame.buffer, cached.revision == revision {
             return cached.outputFrame
         }
 
@@ -134,12 +170,28 @@ public final class EmojiFaceFilterProcessor: DualCameraFrameProcessing, Sendable
 
         onFaceCountChange?(context.source, overlays.count)
 
+        if overlays.isEmpty, case .passThrough = config.noFaceFallback {
+            stateLock.withLock { state in
+                guard state.revision == revision else { return }
+                state.cachedFrames[context.source] = CachedProcessedFrame(
+                    inputFrame: frame,
+                    revision: revision,
+                    outputFrame: frame,
+                    faceCount: 0
+                )
+            }
+            return frame
+        }
+
         guard let outputBuffer = compositor.composite(
             overlays: overlays,
             onto: frame.buffer,
             configuration: config
         ) else {
-            return frame
+            return PixelBufferWrapper(
+                buffer: Self.redactedFallbackFrame.buffer,
+                presentationTimestamp: frame.presentationTimestamp
+            )
         }
 
         let outputFrame: PixelBufferWrapper
@@ -155,7 +207,7 @@ public final class EmojiFaceFilterProcessor: DualCameraFrameProcessing, Sendable
         stateLock.withLock { state in
             guard state.revision == revision else { return }
             state.cachedFrames[context.source] = CachedProcessedFrame(
-                inputBufferID: inputBufferID,
+                inputFrame: frame,
                 revision: revision,
                 outputFrame: outputFrame,
                 faceCount: overlays.count
@@ -256,11 +308,18 @@ public final class EmojiFaceFilterPlugin {
         atNormalizedTopLeftPoint point: CGPoint,
         palette: [String] = EmojiAssignmentStrategy.defaultPalette
     ) async -> Bool {
+        var rebasePaletteCount: Int?
         if case .single(let currentEmoji) = configuration.assignment {
-            var orderedPalette = palette.filter { $0 != currentEmoji }
+            let basePalette = palette.isEmpty ? EmojiAssignmentStrategy.defaultPalette : palette
+            var orderedPalette = basePalette.filter { $0 != currentEmoji }
             orderedPalette.insert(currentEmoji, at: 0)
             configuration.assignment = .palette(orderedPalette)
+            rebasePaletteCount = orderedPalette.count
         }
-        return await processor.cycleEmoji(for: source, atNormalizedTopLeftPoint: point)
+        return await processor.cycleEmoji(
+            for: source,
+            atNormalizedTopLeftPoint: point,
+            rebaseToPaletteCount: rebasePaletteCount
+        )
     }
 }

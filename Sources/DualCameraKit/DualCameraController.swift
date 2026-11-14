@@ -284,6 +284,7 @@ public final class DualCameraController: DualCameraControlling {
     private let sleepBeforeSessionStop: @MainActor @Sendable (Duration) async -> Void
     private var diagnosticEventHandler: DualCameraDiagnosticEventHandler?
     private var frameProcessor: (any DualCameraFrameProcessing)?
+    private var frameProcessorGeneration: UInt64 = 0
 
     private var renderers: [DualCameraSource: CameraRenderer] = [:]
     private var streamTasks: [DualCameraSource: Task<Void, Never>] = [:]
@@ -338,6 +339,7 @@ public final class DualCameraController: DualCameraControlling {
 
     public func setFrameProcessor(_ processor: (any DualCameraFrameProcessing)?) {
         frameProcessor = processor
+        frameProcessorGeneration &+= 1
         refreshActiveRenderers()
     }
 
@@ -548,12 +550,14 @@ public final class DualCameraController: DualCameraControlling {
             for await buffer in stream {
                 if Task.isCancelled { break }
                 guard let self else { break }
+                let generation = self.frameProcessorGeneration
                 let processed = await self.processFrameIfNeeded(
                     buffer,
                     for: source,
                     purpose: .livePreview
                 )
                 guard !Task.isCancelled else { break }
+                guard generation == self.frameProcessorGeneration else { continue }
                 renderer.update(with: processed)
             }
         }
@@ -561,6 +565,7 @@ public final class DualCameraController: DualCameraControlling {
     }
 
     private func refreshActiveRenderers() {
+        let generation = frameProcessorGeneration
         for (source, renderer) in renderers {
             guard let latestFrame = streamSource.latestFrame(for: source) else { continue }
             Task { @MainActor [weak self] in
@@ -570,6 +575,7 @@ public final class DualCameraController: DualCameraControlling {
                     for: source,
                     purpose: .livePreview
                 )
+                guard generation == self.frameProcessorGeneration else { return }
                 renderer.update(with: processed)
             }
         }

@@ -240,6 +240,46 @@ final class EmojiFaceFilterPluginTests: XCTestCase {
         XCTAssertFalse(didMiss)
     }
 
+    func test_stickerReplacementWithSameIDInvalidatesCachedBitmap() async throws {
+        let baseBuffer = try makeSolidPixelBuffer(color: .blue, size: CGSize(width: 100, height: 100))
+        let redSticker = try XCTUnwrap(
+            EmojiOverlaySticker(id: "avatar", image: Self.solidImage(.red, size: CGSize(width: 64, height: 64)))
+        )
+        let greenSticker = try XCTUnwrap(
+            EmojiOverlaySticker(id: "avatar", image: Self.solidImage(.green, size: CGSize(width: 64, height: 64)))
+        )
+        let detector = StubFaceDetector(faces: [
+            DetectedFace(boundingBox: CGRect(x: 0.30, y: 0.30, width: 0.40, height: 0.40))
+        ])
+
+        let processor = EmojiFaceFilterProcessor(
+            configuration: EmojiFaceFilterConfiguration(
+                assignment: .sticker(redSticker),
+                scaleMultiplier: 1.0
+            ),
+            faceDetector: detector
+        )
+
+        let firstOutput = await processor.process(
+            frame: PixelBufferWrapper(buffer: baseBuffer),
+            context: DualCameraFrameContext(source: .front, isMirrored: true, purpose: .livePreview)
+        )
+        XCTAssertTrue(try firstOutput.buffer.rgbPixel(pixelX: 50, pixelY: 50).isNear(.red, tolerance: 20))
+
+        processor.updateConfiguration(
+            EmojiFaceFilterConfiguration(
+                assignment: .sticker(greenSticker),
+                scaleMultiplier: 1.0
+            )
+        )
+
+        let secondOutput = await processor.process(
+            frame: PixelBufferWrapper(buffer: baseBuffer),
+            context: DualCameraFrameContext(source: .front, isMirrored: true, purpose: .livePreview)
+        )
+        XCTAssertTrue(try secondOutput.buffer.rgbPixel(pixelX: 50, pixelY: 50).isNear(.green, tolerance: 20))
+    }
+
     private func makeSolidPixelBuffer(color: UIColor, size: CGSize) throws -> CVPixelBuffer {
         guard let buffer = Self.solidImage(color, size: size).pixelBuffer() else {
             throw DualCameraError.captureFailure(.imageCreationFailed)
