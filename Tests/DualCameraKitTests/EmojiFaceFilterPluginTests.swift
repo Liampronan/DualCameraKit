@@ -280,6 +280,64 @@ final class EmojiFaceFilterPluginTests: XCTestCase {
         XCTAssertTrue(try secondOutput.buffer.rgbPixel(pixelX: 50, pixelY: 50).isNear(.green, tolerance: 20))
     }
 
+    func test_trackerPreservesTrackIdentityAndPaletteOffsetWhenOlderFrameProcessedAfterNewerFrame() async {
+        let tracker = FaceTrackerActor()
+        let config = EmojiFaceFilterConfiguration(
+            scaleMultiplier: 1.0,
+            trackGracePeriod: 0.15
+        )
+        let detection = DetectedFace(
+            boundingBox: CGRect(x: 0.30, y: 0.30, width: 0.40, height: 0.40)
+        )
+
+        // 1. Process frame A at t = 1.0s and advance its palette offset.
+        let overlaysA1 = await tracker.updateTracks(
+            for: .front,
+            detections: [detection],
+            timestamp: 1.00,
+            configuration: config
+        )
+        XCTAssertEqual(overlaysA1.count, 1)
+        let initialTrackID = overlaysA1[0].trackID
+
+        let didCycle = await tracker.cycleEmoji(
+            for: .front,
+            atNormalizedTopLeftPoint: CGPoint(x: 0.5, y: 0.5),
+            scaleMultiplier: 1.0
+        )
+        XCTAssertTrue(didCycle)
+
+        // 2. Process newer frame B at t = 1.05s.
+        let overlaysB = await tracker.updateTracks(
+            for: .front,
+            detections: [detection],
+            timestamp: 1.05,
+            configuration: config
+        )
+        XCTAssertEqual(overlaysB.first?.trackID, initialTrackID)
+        XCTAssertEqual(overlaysB.first?.paletteOffset, 1)
+
+        // 3. Re-process older frame A at t = 1.0s; track identity and palette offset must stay continuous.
+        let overlaysA2 = await tracker.updateTracks(
+            for: .front,
+            detections: [detection],
+            timestamp: 1.00,
+            configuration: config
+        )
+        XCTAssertEqual(overlaysA2.first?.trackID, initialTrackID)
+        XCTAssertEqual(overlaysA2.first?.paletteOffset, 1)
+
+        // 4. Subsequent frame C at t = 1.15s (within 0.15s of B at 1.05s) still matches the newer track.
+        let overlaysC = await tracker.updateTracks(
+            for: .front,
+            detections: [detection],
+            timestamp: 1.15,
+            configuration: config
+        )
+        XCTAssertEqual(overlaysC.first?.trackID, initialTrackID)
+        XCTAssertEqual(overlaysC.first?.paletteOffset, 1)
+    }
+
     private func makeSolidPixelBuffer(color: UIColor, size: CGSize) throws -> CVPixelBuffer {
         guard let buffer = Self.solidImage(color, size: size).pixelBuffer() else {
             throw DualCameraError.captureFailure(.imageCreationFailed)

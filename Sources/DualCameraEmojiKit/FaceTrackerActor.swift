@@ -49,8 +49,11 @@ actor FaceTrackerActor {
         timestamp: TimeInterval,
         configuration: EmojiFaceFilterConfiguration
     ) -> [TrackedFaceOverlay] {
-        let existingTracks = (tracksBySource[source] ?? []).filter { track in
-            let age = timestamp - track.lastSeenTimestamp
+        let currentTracks = tracksBySource[source] ?? []
+        let latestSeenTimestamp = currentTracks.map(\.lastSeenTimestamp).max() ?? timestamp
+        let referenceTimestamp = max(timestamp, latestSeenTimestamp)
+        let existingTracks = currentTracks.filter { track in
+            let age = referenceTimestamp - track.lastSeenTimestamp
             return age >= 0 && age <= configuration.trackGracePeriod
         }
         var matchedTrackIndices = Set<Int>()
@@ -107,7 +110,7 @@ actor FaceTrackerActor {
 
         // Retain unmatched tracks that are still within the dropout grace window.
         for (index, track) in existingTracks.enumerated() where !matchedTrackIndices.contains(index) {
-            let age = timestamp - track.lastSeenTimestamp
+            let age = referenceTimestamp - track.lastSeenTimestamp
             if age >= 0 && age <= configuration.trackGracePeriod {
                 updatedTracks.append(track)
             }
@@ -117,7 +120,11 @@ actor FaceTrackerActor {
             updatedTracks = Array(updatedTracks.prefix(maxFaces))
         }
 
-        tracksBySource[source] = updatedTracks
+        if timestamp >= latestSeenTimestamp {
+            tracksBySource[source] = updatedTracks
+        } else {
+            tracksBySource[source] = existingTracks
+        }
 
         return updatedTracks.map { track in
             TrackedFaceOverlay(
