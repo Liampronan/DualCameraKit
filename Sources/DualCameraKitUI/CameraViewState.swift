@@ -11,4 +11,10 @@ enum CameraViewState: Equatable {
     var captureInProgress: Bool {
         self == .capturing
     }
+
+    /// Indicates whether the shutter button should be enabled for the current view state.
+    var isPhotoButtonEnabled: Bool {
+        if case .ready = self { return true }
+        return false
+    }
 }
