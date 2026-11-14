@@ -327,15 +327,63 @@ final class EmojiFaceFilterPluginTests: XCTestCase {
         XCTAssertEqual(overlaysA2.first?.trackID, initialTrackID)
         XCTAssertEqual(overlaysA2.first?.paletteOffset, 1)
 
-        // 4. Subsequent frame C at t = 1.15s (within 0.15s of B at 1.05s) still matches the newer track.
+        // 4. Subsequent frame C at t = 1.18s (within 0.15s of B at 1.05s, past 1.00s) still matches B's track.
         let overlaysC = await tracker.updateTracks(
             for: .front,
             detections: [detection],
-            timestamp: 1.15,
+            timestamp: 1.18,
             configuration: config
         )
         XCTAssertEqual(overlaysC.first?.trackID, initialTrackID)
         XCTAssertEqual(overlaysC.first?.paletteOffset, 1)
+    }
+
+    func test_trackerDoesNotReturnFutureTrackAsDropoutOverlayForOlderEmptyFrame() async {
+        let tracker = FaceTrackerActor()
+        let config = EmojiFaceFilterConfiguration(
+            scaleMultiplier: 1.0,
+            trackGracePeriod: 0.15
+        )
+        let detection = DetectedFace(
+            boundingBox: CGRect(x: 0.30, y: 0.30, width: 0.40, height: 0.40)
+        )
+
+        // 1. Frame A at t = 1.00s has no detections.
+        let overlaysA1 = await tracker.updateTracks(
+            for: .front,
+            detections: [],
+            timestamp: 1.00,
+            configuration: config
+        )
+        XCTAssertTrue(overlaysA1.isEmpty)
+
+        // 2. Newer frame B at t = 1.30s detects a face.
+        let overlaysB = await tracker.updateTracks(
+            for: .front,
+            detections: [detection],
+            timestamp: 1.30,
+            configuration: config
+        )
+        XCTAssertEqual(overlaysB.count, 1)
+        let trackIDFromB = overlaysB[0].trackID
+
+        // 3. Replaying frame A at t = 1.00s with no detections must not leak B's future track as an overlay.
+        let overlaysA2 = await tracker.updateTracks(
+            for: .front,
+            detections: [],
+            timestamp: 1.00,
+            configuration: config
+        )
+        XCTAssertTrue(overlaysA2.isEmpty)
+
+        // 4. B's track remains preserved in stored live state for subsequent frame C at t = 1.40s.
+        let overlaysC = await tracker.updateTracks(
+            for: .front,
+            detections: [],
+            timestamp: 1.40,
+            configuration: config
+        )
+        XCTAssertEqual(overlaysC.first?.trackID, trackIDFromB)
     }
 
     private func makeSolidPixelBuffer(color: UIColor, size: CGSize) throws -> CVPixelBuffer {

@@ -110,7 +110,7 @@ actor FaceTrackerActor {
 
         // Retain unmatched tracks that are still within the dropout grace window.
         for (index, track) in existingTracks.enumerated() where !matchedTrackIndices.contains(index) {
-            let age = referenceTimestamp - track.lastSeenTimestamp
+            let age = timestamp - track.lastSeenTimestamp
             if age >= 0 && age <= configuration.trackGracePeriod {
                 updatedTracks.append(track)
             }
