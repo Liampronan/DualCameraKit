@@ -63,9 +63,27 @@ public final class DualCameraViewModel {
         }
     }
 
+    /// Default shutter height in points before the first layout measurement pass completes.
+    nonisolated public static let defaultShutterHeight: CGFloat = 70
+
     private(set) var viewState: CameraViewState = .loading
     /// Indicates whether a photo capture and save operation is currently in progress.
     public var isCameraViewStateCapturing: Bool { viewState.captureInProgress }
+    /// Controls whether `DualCameraScreen` renders its built-in bottom shutter area.
+    public var showsShutterButton: Bool {
+        didSet {
+            if !showsShutterButton {
+                shutterFrame = .zero
+                shutterHeight = 0
+            } else if shutterFrame == .zero {
+                shutterHeight = Self.defaultShutterHeight
+            }
+        }
+    }
+    /// Measured height in points of the built-in shutter area (`0` when `showsShutterButton` is `false`).
+    public internal(set) var shutterHeight: CGFloat
+    /// Measured frame of the built-in shutter area in `DualCameraScreen`'s safe-area coordinate space.
+    public internal(set) var shutterFrame: CGRect = .zero
     var cameraLayout: DualCameraLayout
     var contentMode: DualCameraContentMode
     /// Safe-area/overlay insets applied to the preview and composed photo capture.
@@ -114,6 +132,7 @@ public final class DualCameraViewModel {
         photoSetSaveStrategy: DualCameraPhotoSetSaveStrategy? = nil,
         showSettingsButton: Bool = false,
         showCameraFlashButton: Bool = true,
+        showsShutterButton: Bool = true,
         dependencies: DualCameraDependencies = .live(),
         openSettings: @escaping @MainActor () -> Void = {
             if let url = URL(string: UIApplication.openSettingsURLString) {
@@ -130,6 +149,8 @@ public final class DualCameraViewModel {
         self.photoSetSaveStrategy = photoSetSaveStrategy
         self.isSettingsButtonVisible = showSettingsButton
         self.showCameraFlashButton = showCameraFlashButton
+        self.showsShutterButton = showsShutterButton
+        self.shutterHeight = showsShutterButton ? Self.defaultShutterHeight : 0
         self.openSettings = openSettings
     }
 
@@ -198,7 +219,7 @@ public final class DualCameraViewModel {
 
     /// Triggers photo capture (or retries a pending photo save) when the shutter button is tapped.
     @discardableResult
-    func capturePhotoButtonTapped() -> Task<Void, Never> {
+    public func capturePhotoButtonTapped() -> Task<Void, Never> {
         Task { await capturePhoto() }
     }
 
@@ -370,24 +391,5 @@ private extension DualCameraViewModel {
     func provideSaveSuccessHapticFeedback() {
         let generator = UINotificationFeedbackGenerator()
         generator.notificationOccurred(.success)
-    }
-}
-
-public extension DualCameraViewModel {
-    /// Creates a default view model using the given dependencies.
-    static func `default`(
-        dependencies: DualCameraDependencies = .live()
-    ) -> DualCameraViewModel {
-        DualCameraViewModel(
-            dependencies: dependencies
-        )
-    }
-}
-
-extension CameraViewState {
-    /// Indicates whether the shutter button should be enabled for the current view state.
-    var isPhotoButtonEnabled: Bool {
-        if case .ready = self { return true }
-        return false
     }
 }

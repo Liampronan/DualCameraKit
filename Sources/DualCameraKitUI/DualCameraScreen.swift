@@ -3,9 +3,12 @@ import SwiftUI
 import UIKit
 
 public struct DualCameraScreen: View {
+    private static let screenCoordinateSpaceName = "DualCameraScreenCoordinateSpace"
+
     @Environment(\.displayScale) private var displayScale
     @State private var viewModel: DualCameraViewModel
     @State private var cameraDisplaySize: CGSize = .zero
+    private let shutter: (ShutterContext) -> AnyView
     private let customOverlay: ((DualCameraViewModel) -> AnyView)
 
     @MainActor
@@ -15,6 +18,19 @@ public struct DualCameraScreen: View {
     ) {
         let resolvedViewModel = viewModel ?? .default()
         _viewModel = State(initialValue: resolvedViewModel)
+        self.shutter = { AnyView(DualCameraDefaultShutterButton(context: $0)) }
+        self.customOverlay = { AnyView(customOverlay($0)) }
+    }
+
+    @MainActor
+    public init(
+        viewModel: DualCameraViewModel? = nil,
+        @ViewBuilder shutter: @escaping (ShutterContext) -> some View,
+        @ViewBuilder customOverlay: @escaping (DualCameraViewModel) -> some View = { _ in EmptyView() }
+    ) {
+        let resolvedViewModel = viewModel ?? .default()
+        _viewModel = State(initialValue: resolvedViewModel)
+        self.shutter = { AnyView(shutter($0)) }
         self.customOverlay = { AnyView(customOverlay($0)) }
     }
 
@@ -43,11 +59,17 @@ public struct DualCameraScreen: View {
                 errorOverlay(error)
             }
         }
+        .coordinateSpace(name: Self.screenCoordinateSpaceName)
         .onAppear {
             viewModel.onAppear(containerSize: cameraDisplaySize, displayScale: displayScale)
         }
         .onChange(of: displayScale, initial: true) { _, newScale in
             viewModel.displayScaleChanged(newScale)
+        }
+        .onChange(of: viewModel.showsShutterButton, initial: true) { _, showsShutter in
+            if !showsShutter {
+                viewModel.shutterFrameChanged(.zero)
+            }
         }
         .onDisappear {
             viewModel.onDisappear()
@@ -66,6 +88,8 @@ public struct DualCameraScreen: View {
         }
         .overlay(alignment: .top) {
             customOverlay(viewModel)
+                .environment(\.dualCameraShutterHeight, viewModel.shutterHeight)
+                .environment(\.dualCameraShutterFrame, viewModel.shutterFrame)
         }
     }
 
@@ -89,21 +113,34 @@ public struct DualCameraScreen: View {
 
     @ViewBuilder
     private var controlButtons: some View {
-        VStack(spacing: 16) {
-            HStack(spacing: 32) {
-                Button {
-                    viewModel.capturePhotoButtonTapped()
-                } label: {
-                    Image(systemName: "camera.fill")
-                        .font(.largeTitle)
-                        .foregroundColor(.white)
-                        .padding()
-                        .background(Circle().fill(Color.black.opacity(0.5)))
+        if viewModel.showsShutterButton {
+            VStack(spacing: 16) {
+                HStack(spacing: 32) {
+                    shutter(viewModel.shutterContext)
+                        .accessibilityAddTraits(.isButton)
+                        .disabled(!viewModel.isPhotoButtonEnabled)
                 }
-                .disabled(!viewModel.viewState.isPhotoButtonEnabled)
             }
+            .background {
+                GeometryReader { proxy in
+                    Color.clear
+                        .onChange(
+                            of: proxy.frame(in: .named(Self.screenCoordinateSpaceName)),
+                            initial: true
+                        ) { _, newFrame in
+                            viewModel.shutterFrameChanged(newFrame)
+                        }
+                }
+                ShutterAccessibilityMetadataView(
+                    isEnabled: viewModel.isPhotoButtonEnabled,
+                    isCapturing: viewModel.isCapturing,
+                    label: "Take Photo",
+                    onActivate: { viewModel.capturePhotoButtonTapped() }
+                )
+            }
+            .opacity(viewModel.isCapturing ? 0 : 1)
+            .accessibilityHidden(viewModel.isCapturing)
         }
-        .opacity(viewModel.viewState.captureInProgress ? 0 : 1)
     }
 
     @ViewBuilder

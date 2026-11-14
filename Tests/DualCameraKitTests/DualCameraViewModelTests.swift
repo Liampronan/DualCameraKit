@@ -350,6 +350,13 @@ final class MockDualCameraController: DualCameraControlling {
     var shouldFailStartSession = false
     var shouldFailCapturePhoto = false
     var shouldFailSetTorchMode = false
+    var pauseCapture = false
+    private var captureContinuation: CheckedContinuation<Void, Never>?
+
+    func resumeCapture() {
+        captureContinuation?.resume()
+        captureContinuation = nil
+    }
     var torchModeResult: DualCameraCameraControlResult = .applied
     var torchModes: [AVCaptureDevice.TorchMode] = []
     var captureOutputSize: CGSize?
@@ -421,6 +428,11 @@ final class MockDualCameraController: DualCameraControlling {
         contentMode: DualCameraContentMode,
         overlayInsets: EdgeInsets
     ) async throws -> DualCameraCapturedPhotoSet {
+        if pauseCapture {
+            await withCheckedContinuation { continuation in
+                captureContinuation = continuation
+            }
+        }
         if shouldFailCapturePhoto {
             throw DualCameraError.captureFailure(.noFrameAvailable)
         }
