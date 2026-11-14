@@ -134,7 +134,8 @@ public struct DualCameraScreen: View {
                 ShutterAccessibilityMetadataView(
                     isEnabled: viewModel.isPhotoButtonEnabled,
                     isCapturing: viewModel.isCapturing,
-                    label: nil
+                    label: "Take Photo",
+                    onActivate: { viewModel.capturePhotoButtonTapped() }
                 )
             }
             .opacity(viewModel.isCapturing ? 0 : 1)

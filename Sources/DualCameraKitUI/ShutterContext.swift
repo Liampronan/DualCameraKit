@@ -57,7 +57,8 @@ public struct DualCameraDefaultShutterButton: View {
             ShutterAccessibilityMetadataView(
                 isEnabled: context.isEnabled,
                 isCapturing: context.isCapturing,
-                label: "Take Photo"
+                label: "Take Photo",
+                onActivate: { context.capture() }
             )
         }
     }
@@ -67,22 +68,39 @@ struct ShutterAccessibilityMetadataView: UIViewRepresentable {
     let isEnabled: Bool
     let isCapturing: Bool
     let label: String?
+    let onActivate: @MainActor () -> Void
 
-    func makeUIView(context: Context) -> UIView {
-        let view = UIView(frame: .zero)
+    func makeUIView(context: Context) -> ShutterAccessibilityUIView {
+        let view = ShutterAccessibilityUIView(frame: .zero)
         view.isUserInteractionEnabled = false
-        view.isAccessibilityElement = false
+        view.accessibilityIdentifier = "dualCamera.shutterButton"
         return view
     }
 
-    func updateUIView(_ uiView: UIView, context: Context) {
+    func updateUIView(_ uiView: ShutterAccessibilityUIView, context: Context) {
         var traits: UIAccessibilityTraits = [.button]
         if !isEnabled {
             traits.insert(.notEnabled)
         }
+        uiView.isEnabled = isEnabled
+        uiView.isCapturing = isCapturing
+        uiView.onActivate = onActivate
+        uiView.isAccessibilityElement = !isCapturing
         uiView.accessibilityTraits = traits
-        uiView.accessibilityLabel = label
+        uiView.accessibilityLabel = label ?? "Take Photo"
         uiView.accessibilityElementsHidden = isCapturing
+    }
+}
+
+final class ShutterAccessibilityUIView: UIView {
+    var isEnabled = false
+    var isCapturing = false
+    var onActivate: (@MainActor () -> Void)?
+
+    override func accessibilityActivate() -> Bool {
+        guard isEnabled, !isCapturing else { return false }
+        onActivate?()
+        return true
     }
 }
 

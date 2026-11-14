@@ -44,7 +44,7 @@ final class DualCameraShutterTests: XCTestCase {
         controller.pauseCapture = true
         let viewModel = DualCameraViewModel(dualCameraController: controller)
         viewModel.onAppear(containerSize: screenSize)
-        await Task.yield()
+        try await waitUntil { viewModel.viewState == .ready }
 
         XCTAssertEqual(viewModel.viewState, .ready)
         XCTAssertTrue(viewModel.isPhotoButtonEnabled)
@@ -70,7 +70,7 @@ final class DualCameraShutterTests: XCTestCase {
         failingController.shouldFailStartSession = true
         let errorViewModel = DualCameraViewModel(dualCameraController: failingController)
         errorViewModel.onAppear(containerSize: screenSize)
-        await Task.yield()
+        try await waitUntil { errorViewModel.viewState == .error(.unknownError) }
 
         XCTAssertFalse(errorViewModel.isPhotoButtonEnabled)
         XCTAssertFalse(errorViewModel.isCaptureEnabled)
@@ -121,15 +121,24 @@ final class DualCameraShutterTests: XCTestCase {
 
     func test_shutterAccessibility_exposesButtonTraitOnDefaultAndCustomShutter() async throws {
         let controller = MockDualCameraController()
-        let viewModel = DualCameraViewModel(dualCameraController: controller)
+        let viewModel = DualCameraViewModel(
+            dualCameraController: controller,
+            showCameraFlashButton: false
+        )
         let defaultHost = UIHostingController(rootView: DualCameraScreen(viewModel: viewModel))
         let window = show(defaultHost)
         defer { window.isHidden = true }
 
         try await waitUntil { viewModel.viewState == .ready }
         defaultHost.view.layoutIfNeeded()
-        let defaultTraits = collectAccessibilityTraits(in: defaultHost.view)
-        XCTAssertTrue(defaultTraits.contains(.button))
+        let defaultShutter = try XCTUnwrap(
+            findAccessibleElement(withIdentifier: "dualCamera.shutterButton", in: defaultHost.view)
+        )
+        XCTAssertTrue(defaultShutter.isAccessibilityElement)
+        XCTAssertTrue(defaultShutter.accessibilityTraits.contains(.button))
+        XCTAssertFalse(defaultShutter.accessibilityTraits.contains(.notEnabled))
+        XCTAssertTrue(defaultShutter.accessibilityActivate())
+        try await waitUntil { controller.captureCount == 1 }
 
         let customScreen = DualCameraScreen(
             viewModel: viewModel,
@@ -145,8 +154,13 @@ final class DualCameraShutterTests: XCTestCase {
         defer { customWindow.isHidden = true }
 
         customHost.view.layoutIfNeeded()
-        let customTraits = collectAccessibilityTraits(in: customHost.view)
-        XCTAssertTrue(customTraits.contains(.button))
+        let customShutter = try XCTUnwrap(
+            findAccessibleElement(withIdentifier: "dualCamera.shutterButton", in: customHost.view)
+        )
+        XCTAssertTrue(customShutter.isAccessibilityElement)
+        XCTAssertTrue(customShutter.accessibilityTraits.contains(.button))
+        XCTAssertTrue(customShutter.accessibilityActivate())
+        try await waitUntil { controller.captureCount == 2 }
     }
 
     func test_shutterLayoutMetrics_reportsMeasuredFrameAndHeightAndEnvironmentValues() async throws {
@@ -157,8 +171,8 @@ final class DualCameraShutterTests: XCTestCase {
         XCTAssertEqual(viewModel.shutterHeight, DualCameraViewModel.defaultShutterHeight)
         XCTAssertEqual(viewModel.shutterFrame, .zero)
 
-        let screen = DualCameraScreen(viewModel: viewModel) { activeViewModel in
-            OverlayProbeView(viewModel: activeViewModel, recorder: overlayRecorder)
+        let screen = DualCameraScreen(viewModel: viewModel) { _ in
+            OverlayProbeView(recorder: overlayRecorder)
         }
         let host = UIHostingController(rootView: screen)
         let window = show(host)
@@ -248,19 +262,22 @@ final class DualCameraShutterTests: XCTestCase {
         return window
     }
 
-    private func collectAccessibilityTraits(in view: UIView) -> UIAccessibilityTraits {
-        var combined = view.accessibilityTraits
-        if let elements = view.accessibilityElements {
-            for element in elements {
-                if let accessibilityObject = element as? NSObject {
-                    combined.insert(accessibilityObject.accessibilityTraits)
-                }
-            }
+    private func findAccessibleElement(
+        withIdentifier identifier: String,
+        in view: UIView
+    ) -> UIView? {
+        guard !view.isHidden, !view.accessibilityElementsHidden, view.alpha > 0.01 else {
+            return nil
+        }
+        if view.isAccessibilityElement, view.accessibilityIdentifier == identifier {
+            return view
         }
         for subview in view.subviews {
-            combined.insert(collectAccessibilityTraits(in: subview))
+            if let match = findAccessibleElement(withIdentifier: identifier, in: subview) {
+                return match
+            }
         }
-        return combined
+        return nil
     }
 
     private func waitUntil(
@@ -333,7 +350,6 @@ private final class OverlayMetricsRecorder {
 private struct OverlayProbeView: View {
     @Environment(\.dualCameraShutterHeight) private var envHeight
     @Environment(\.dualCameraShutterFrame) private var envFrame
-    let viewModel: DualCameraViewModel
     let recorder: OverlayMetricsRecorder
 
     var body: some View {
@@ -344,10 +360,6 @@ private struct OverlayProbeView: View {
             }
             .onChange(of: envFrame, initial: true) { _, newValue in
                 recorder.envFrame = newValue
-            }
-            .onChange(of: viewModel.shutterFrame, initial: true) { _, newValue in
-                recorder.envFrame = newValue
-                recorder.envHeight = viewModel.shutterHeight
             }
     }
 }
