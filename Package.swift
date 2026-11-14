@@ -14,6 +14,14 @@ let package = Package(
         .library(
             name: "DualCameraKitUI",
             targets: ["DualCameraKitUI"]
+        ),
+        .library(
+            name: "DualCameraEmojiKit",
+            targets: ["DualCameraEmojiKit"]
+        ),
+        .library(
+            name: "DualCameraEmojiKitUI",
+            targets: ["DualCameraEmojiKitUI"]
         )
     ],
     targets: [
@@ -33,9 +41,28 @@ let package = Package(
                 .swiftLanguageMode(.v6)
             ]
         ),
+        .target(
+            name: "DualCameraEmojiKit",
+            dependencies: ["DualCameraKit"],
+            swiftSettings: [
+                .swiftLanguageMode(.v6)
+            ]
+        ),
+        .target(
+            name: "DualCameraEmojiKitUI",
+            dependencies: ["DualCameraKit", "DualCameraKitUI", "DualCameraEmojiKit"],
+            swiftSettings: [
+                .swiftLanguageMode(.v6)
+            ]
+        ),
         .testTarget(
             name: "DualCameraKitTests",
-            dependencies: ["DualCameraKit", "DualCameraKitUI"],
+            dependencies: [
+                "DualCameraKit",
+                "DualCameraKitUI",
+                "DualCameraEmojiKit",
+                "DualCameraEmojiKitUI"
+            ],
             path: "Tests"
         )
     ]

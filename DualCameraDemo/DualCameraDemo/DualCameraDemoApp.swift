@@ -9,6 +9,7 @@ struct DualCameraDemoApp: App {
         case dropIn = "Drop-in"
         case container = "Container"
         case compositional = "Compositional"
+        case emoji = "Emoji"
 
         var id: String { rawValue }
     }
@@ -41,6 +42,8 @@ struct DualCameraDemoApp: App {
             ContainerExample()
         case .compositional:
             CompositionalExample()
+        case .emoji:
+            EmojiFilterExample()
         }
     }
 

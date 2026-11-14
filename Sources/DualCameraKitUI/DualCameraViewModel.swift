@@ -89,7 +89,8 @@ public final class DualCameraViewModel {
     }
 
     var presentedSheet: SheetType?
-    let controller: DualCameraControlling
+    /// Underlying dual-camera controller driving live streams and photo capture.
+    public let controller: DualCameraControlling
     var isSettingsButtonVisible: Bool
 
     private let photoSaveStrategy: DualCameraPhotoSaveStrategy

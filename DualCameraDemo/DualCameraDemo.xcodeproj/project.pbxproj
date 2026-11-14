@@ -9,8 +9,12 @@
 /* Begin PBXBuildFile section */
 		4F7E4C7F2D6D2B0A006F5609 /* DualCameraKit in Frameworks */ = {isa = PBXBuildFile; productRef = 4F7E4C7E2D6D2B0A006F5609 /* DualCameraKit */; };
 		4F7E4C812D6D6E81006F5609 /* DualCameraKitUI in Frameworks */ = {isa = PBXBuildFile; productRef = 4F7E4C802D6D6E81006F5609 /* DualCameraKitUI */; };
+		4FC000112E00000000000011 /* DualCameraEmojiKit in Frameworks */ = {isa = PBXBuildFile; productRef = 4FC0000D2E0000000000000D /* DualCameraEmojiKit */; };
+		4FC000122E00000000000012 /* DualCameraEmojiKitUI in Frameworks */ = {isa = PBXBuildFile; productRef = 4FC0000F2E0000000000000F /* DualCameraEmojiKitUI */; };
 		4FC0000A2E0000000000000A /* DualCameraKit in Frameworks */ = {isa = PBXBuildFile; productRef = 4F7E4C7E2D6D2B0A006F5609 /* DualCameraKit */; };
 		4FC0000B2E0000000000000B /* DualCameraKitUI in Frameworks */ = {isa = PBXBuildFile; productRef = 4F7E4C802D6D6E81006F5609 /* DualCameraKitUI */; };
+		4FC0000E2E0000000000000E /* DualCameraEmojiKit in Frameworks */ = {isa = PBXBuildFile; productRef = 4FC0000D2E0000000000000D /* DualCameraEmojiKit */; };
+		4FC000102E00000000000010 /* DualCameraEmojiKitUI in Frameworks */ = {isa = PBXBuildFile; productRef = 4FC0000F2E0000000000000F /* DualCameraEmojiKitUI */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -85,6 +89,8 @@
 			files = (
 				4F7E4C7F2D6D2B0A006F5609 /* DualCameraKit in Frameworks */,
 				4F7E4C812D6D6E81006F5609 /* DualCameraKitUI in Frameworks */,
+				4FC000112E00000000000011 /* DualCameraEmojiKit in Frameworks */,
+				4FC000122E00000000000012 /* DualCameraEmojiKitUI in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -108,6 +114,8 @@
 			files = (
 				4FC0000A2E0000000000000A /* DualCameraKit in Frameworks */,
 				4FC0000B2E0000000000000B /* DualCameraKitUI in Frameworks */,
+				4FC0000E2E0000000000000E /* DualCameraEmojiKit in Frameworks */,
+				4FC000102E00000000000010 /* DualCameraEmojiKitUI in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -160,6 +168,8 @@
 			packageProductDependencies = (
 				4F7E4C7E2D6D2B0A006F5609 /* DualCameraKit */,
 				4F7E4C802D6D6E81006F5609 /* DualCameraKitUI */,
+				4FC0000D2E0000000000000D /* DualCameraEmojiKit */,
+				4FC0000F2E0000000000000F /* DualCameraEmojiKitUI */,
 			);
 			productName = DualCameraDemo;
 			productReference = 4F4D659B2D66D02C00F40490 /* DualCameraDemo.app */;
@@ -231,6 +241,8 @@
 			packageProductDependencies = (
 				4F7E4C7E2D6D2B0A006F5609 /* DualCameraKit */,
 				4F7E4C802D6D6E81006F5609 /* DualCameraKitUI */,
+				4FC0000D2E0000000000000D /* DualCameraEmojiKit */,
+				4FC0000F2E0000000000000F /* DualCameraEmojiKitUI */,
 			);
 			productName = DualCameraKitTests;
 			productReference = 4FC000012E00000000000001 /* DualCameraKitTests.xctest */;
@@ -734,9 +746,9 @@
 /* End XCConfigurationList section */
 
 /* Begin XCLocalSwiftPackageReference section */
-		4F7E4C7D2D6D2B0A006F5609 /* XCLocalSwiftPackageReference "../../DualCameraKit" */ = {
+		4F7E4C7D2D6D2B0A006F5609 /* XCLocalSwiftPackageReference ".." */ = {
 			isa = XCLocalSwiftPackageReference;
-			relativePath = ../../DualCameraKit;
+			relativePath = ..;
 		};
 /* End XCLocalSwiftPackageReference section */
 
@@ -748,6 +760,14 @@
 		4F7E4C802D6D6E81006F5609 /* DualCameraKitUI */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = DualCameraKitUI;
+		};
+		4FC0000D2E0000000000000D /* DualCameraEmojiKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = DualCameraEmojiKit;
+		};
+		4FC0000F2E0000000000000F /* DualCameraEmojiKitUI */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = DualCameraEmojiKitUI;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
