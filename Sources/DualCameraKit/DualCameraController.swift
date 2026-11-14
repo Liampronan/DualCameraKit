@@ -56,9 +56,14 @@ public protocol DualCameraControlling {
         -> DualCameraCameraControlResult
 
     func diagnosticsSnapshot() -> DualCameraDiagnostics
+    /// Sets or clears the optional frame processor applied to live preview and photo capture frames.
+    func setFrameProcessor(_ processor: (any DualCameraFrameProcessing)?)
 }
 
 public extension DualCameraControlling {
+    /// Default no-op for conformers that do not support pluggable frame processors.
+    func setFrameProcessor(_ processor: (any DualCameraFrameProcessing)?) {}
+
     /// Captures the latest front and back camera frames at scale `1`.
     func captureRawPhotos() async throws -> (front: UIImage, back: UIImage) {
         try await captureRawPhotos(displayScale: 1)
@@ -278,6 +283,7 @@ public final class DualCameraController: DualCameraControlling {
     private let sessionStopDelay: Duration
     private let sleepBeforeSessionStop: @MainActor @Sendable (Duration) async -> Void
     private var diagnosticEventHandler: DualCameraDiagnosticEventHandler?
+    private var frameProcessor: (any DualCameraFrameProcessing)?
 
     private var renderers: [DualCameraSource: CameraRenderer] = [:]
     private var streamTasks: [DualCameraSource: Task<Void, Never>] = [:]
@@ -291,12 +297,14 @@ public final class DualCameraController: DualCameraControlling {
     public init(
         photoCapturer: (any DualCameraPhotoCapturing)? = nil,
         streamSource: DualCameraCameraStreamSourcing? = nil,
+        frameProcessor: (any DualCameraFrameProcessing)? = nil,
         sessionStopDelay: Duration? = nil,
         sessionStopSleeper: (@MainActor @Sendable (Duration) async -> Void)? = nil,
         diagnosticEventHandler: DualCameraDiagnosticEventHandler? = nil
     ) {
         self.photoCapturer = photoCapturer ?? DualCameraPhotoCapturer()
         self.streamSource = streamSource ?? DualCameraCameraStreamSource()
+        self.frameProcessor = frameProcessor
         self.sessionStopDelay = sessionStopDelay ?? Self.navigationHandoffStopDelay
         self.diagnosticEventHandler = diagnosticEventHandler
         self.sleepBeforeSessionStop = sessionStopSleeper ?? { duration in
@@ -326,6 +334,11 @@ public final class DualCameraController: DualCameraControlling {
     public func setDiagnosticEventHandler(_ handler: DualCameraDiagnosticEventHandler?) {
         diagnosticEventHandler = handler
         startDiagnosticEventForwardingIfNeeded()
+    }
+
+    public func setFrameProcessor(_ processor: (any DualCameraFrameProcessing)?) {
+        frameProcessor = processor
+        refreshActiveRenderers()
     }
 
     /// Starts the dual-camera session or retains an active session across overlapping consumers.
@@ -441,9 +454,11 @@ public final class DualCameraController: DualCameraControlling {
 
     public func captureRawPhotos(displayScale: CGFloat) async throws -> (front: UIImage, back: UIImage) {
         let buffers = try latestFramePair()
+        let frontRaw = await processFrameIfNeeded(buffers.front, for: .front, purpose: .photoCaptureRaw)
+        let backRaw = await processFrameIfNeeded(buffers.back, for: .back, purpose: .photoCaptureRaw)
         return try await photoCapturer.captureRawPhotos(
-            frontBuffer: buffers.front.buffer,
-            backBuffer: buffers.back.buffer,
+            frontBuffer: frontRaw.buffer,
+            backBuffer: backRaw.buffer,
             displayScale: displayScale
         )
     }
@@ -474,14 +489,41 @@ public final class DualCameraController: DualCameraControlling {
         overlayInsets: EdgeInsets = EdgeInsets()
     ) async throws -> DualCameraCapturedPhotoSet {
         let buffers = try latestFramePair()
-        return try await photoCapturer.capturePhotoSet(
-            frontBuffer: buffers.front.buffer,
-            backBuffer: buffers.back.buffer,
+        let composedFront = await processFrameIfNeeded(buffers.front, for: .front, purpose: .photoCaptureComposed)
+        let composedBack = await processFrameIfNeeded(buffers.back, for: .back, purpose: .photoCaptureComposed)
+        let rawFront = await processFrameIfNeeded(buffers.front, for: .front, purpose: .photoCaptureRaw)
+        let rawBack = await processFrameIfNeeded(buffers.back, for: .back, purpose: .photoCaptureRaw)
+
+        if composedFront.buffer === rawFront.buffer && composedBack.buffer === rawBack.buffer {
+            return try await photoCapturer.capturePhotoSet(
+                frontBuffer: composedFront.buffer,
+                backBuffer: composedBack.buffer,
+                layout: layout,
+                outputSize: outputSize,
+                displayScale: displayScale,
+                contentMode: contentMode,
+                overlayInsets: overlayInsets
+            )
+        }
+
+        let composed = try await photoCapturer.captureComposedPhoto(
+            frontBuffer: composedFront.buffer,
+            backBuffer: composedBack.buffer,
             layout: layout,
             outputSize: outputSize,
             displayScale: displayScale,
             contentMode: contentMode,
             overlayInsets: overlayInsets
+        )
+        let rawPhotos = try await photoCapturer.captureRawPhotos(
+            frontBuffer: rawFront.buffer,
+            backBuffer: rawBack.buffer,
+            displayScale: displayScale
+        )
+        return DualCameraCapturedPhotoSet(
+            composed: composed,
+            frontRaw: rawPhotos.front,
+            backRaw: rawPhotos.back
         )
     }
 
@@ -502,13 +544,49 @@ public final class DualCameraController: DualCameraControlling {
 
     private func connectStream(for source: DualCameraSource, renderer: CameraRenderer) {
         let stream = subscribe(to: source)
-        let task = Task {
+        let task = Task { [weak self] in
             for await buffer in stream {
                 if Task.isCancelled { break }
-                renderer.update(with: buffer)
+                guard let self else { break }
+                let processed = await self.processFrameIfNeeded(
+                    buffer,
+                    for: source,
+                    purpose: .livePreview
+                )
+                guard !Task.isCancelled else { break }
+                renderer.update(with: processed)
             }
         }
         streamTasks[source] = task
+    }
+
+    private func refreshActiveRenderers() {
+        for (source, renderer) in renderers {
+            guard let latestFrame = streamSource.latestFrame(for: source) else { continue }
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                let processed = await self.processFrameIfNeeded(
+                    latestFrame,
+                    for: source,
+                    purpose: .livePreview
+                )
+                renderer.update(with: processed)
+            }
+        }
+    }
+
+    private func processFrameIfNeeded(
+        _ frame: PixelBufferWrapper,
+        for source: DualCameraSource,
+        purpose: DualCameraFrameContext.Purpose
+    ) async -> PixelBufferWrapper {
+        guard let frameProcessor else { return frame }
+        let context = DualCameraFrameContext(
+            source: source,
+            isMirrored: source == .front && streamSource.mirrorsFrontCamera,
+            purpose: purpose
+        )
+        return await frameProcessor.process(frame: frame, context: context)
     }
 
     private func startDiagnosticEventForwardingIfNeeded() {

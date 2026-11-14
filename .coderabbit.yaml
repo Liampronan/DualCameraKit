@@ -48,10 +48,21 @@ reviews:
         1. `@Observable` and `@MainActor` state management correctness (`DualCameraViewModel`, `CameraViewState`, `AlertState`).
         2. Avoiding unnecessary view body recomputations during high-frequency camera events.
         3. Accessibility labels, dynamic type / layout resilience, and clean separation between UI state and `DualCameraKit` core APIs.
+    - path: "Sources/DualCameraEmojiKit/**/*.swift"
+      instructions: |
+        Target platform is iOS 17+ with Swift 6.0 language mode (`Package.swift`).
+        Review the Emoji Face Filter plugin with a focus on:
+        1. Swift 6 strict concurrency compliance (`Sendable` conformances, `FaceTrackerActor` isolation, `@MainActor` isolation on `EmojiFaceFilterPlugin`, and lock safety with `OSAllocatedUnfairLock`).
+        2. Vision (`VNDetectFaceRectanglesRequest`) coordinate space mapping, EMA temporal smoothing, and dropout grace period handling.
+        3. CoreImage (`CIContext`) and `CVPixelBufferPool` reuse in `EmojiBufferCompositor`, ensuring input pixel buffers are never mutated in-place and raw captures respect `redactRawCaptures`.
+    - path: "Sources/DualCameraEmojiKitUI/**/*.swift"
+      instructions: |
+        Target platform is iOS 17+ with Swift 6.0 language mode (`Package.swift`). Prefer `@Observable` and `@Bindable` over legacy `ObservableObject`.
+        Review SwiftUI emoji filter controls (`EmojiFilterToolbar`) for accessibility traits/labels, clean binding to `EmojiFaceFilterPlugin`, and responsive layout across screen sizes.
     - path: "DualCameraDemo/**/*.swift"
       instructions: |
         Review demo app and demo test code for:
-        1. Clean usage of public `DualCameraKit` and `DualCameraKitUI` APIs without reaching into package internals.
+        1. Clean usage of public `DualCameraKit`, `DualCameraKitUI`, `DualCameraEmojiKit`, and `DualCameraEmojiKitUI` APIs without reaching into package internals.
         2. Swift 6 strict concurrency and `@MainActor` safety across demo views and overlays.
         3. Reliable simulator fallback and deterministic UI/unit test behavior using mock stream sources (`DualCameraMockCameraStreamSource`).
     - path: "Tests/**/*.swift"
@@ -71,6 +82,8 @@ reviews:
     yamllint:
       enabled: true
     markdownlint:
+      enabled: true
+    gitleaks:
       enabled: true
 
 knowledge_base:

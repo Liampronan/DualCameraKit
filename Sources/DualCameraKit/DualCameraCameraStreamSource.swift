@@ -28,6 +28,13 @@ public protocol DualCameraCameraStreamSourcing {
     @discardableResult
     func applyWhiteBalanceMode(_ mode: AVCaptureDevice.WhiteBalanceMode, for source: DualCameraSource) throws
         -> DualCameraCameraControlResult
+    /// Whether the front camera video output is horizontally mirrored.
+    var mirrorsFrontCamera: Bool { get }
+}
+
+public extension DualCameraCameraStreamSourcing {
+    /// Defaults front-camera mirroring to `true`.
+    var mirrorsFrontCamera: Bool { true }
 }
 
 /// Manages low-level camera access and stream production
@@ -839,6 +846,7 @@ public final class DualCameraMockCameraStreamSource: DualCameraCameraStreamSourc
     public private(set) var focusModes: [DualCameraSource: AVCaptureDevice.FocusMode] = [:]
     public private(set) var exposureModes: [DualCameraSource: AVCaptureDevice.ExposureMode] = [:]
     public private(set) var whiteBalanceModes: [DualCameraSource: AVCaptureDevice.WhiteBalanceMode] = [:]
+    public let mirrorsFrontCamera: Bool
 
     private let frontBroadcaster = PixelBufferBroadcaster()
     private let backBroadcaster = PixelBufferBroadcaster()
@@ -855,11 +863,13 @@ public final class DualCameraMockCameraStreamSource: DualCameraCameraStreamSourc
     /// Serves flat colour frames whose hue changes every 250 ms when `animated` is true.
     public init(animated: Bool = false) {
         self.animated = animated
+        self.mirrorsFrontCamera = false
         self.frameProvider = Self.solidColorFrame(for:sequence:)
     }
 
-    private init(animated: Bool, pixelBufferProvider: @escaping FrameProvider) {
+    private init(animated: Bool, mirrorsFrontCamera: Bool = false, pixelBufferProvider: @escaping FrameProvider) {
         self.animated = animated
+        self.mirrorsFrontCamera = mirrorsFrontCamera
         self.frameProvider = pixelBufferProvider
     }
 
@@ -1161,9 +1171,14 @@ extension DualCameraMockCameraStreamSource {
         } else {
             frontImage = baseFront
         }
+        let frontBuffer = frontImage.uprightPixelBuffer()
+        let backBuffer = DualCameraTestPattern.image(for: .back, size: backFrameSize).uprightPixelBuffer()
         return DualCameraMockCameraStreamSource(
-            front: frontImage,
-            back: DualCameraTestPattern.image(for: .back, size: backFrameSize)
+            animated: false,
+            mirrorsFrontCamera: mirrorsFrontCamera,
+            pixelBufferProvider: { source, _ in
+                source == .front ? frontBuffer : backBuffer
+            }
         )
     }
 }
